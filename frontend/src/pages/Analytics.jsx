@@ -1,4 +1,4 @@
-﻿import { useMemo } from 'react'
+import { useMemo } from 'react'
 import { motion } from 'framer-motion'
 import { Loader2, Music2, Mic2, Zap, Heart, Activity, Disc3, BarChart2 } from 'lucide-react'
 import {
@@ -200,7 +200,7 @@ export default function Analytics() {
             <Disc3 className="w-4 h-4 text-pink-400" />
             <p className="text-sm font-semibold text-white">Soul Orb</p>
           </div>
-          <MusicSoulOrb audioFeatures={af} size={160} showLabels />
+          <MusicSoulOrb personality={profile?.personality} size={160} showLabels />
         </motion.div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

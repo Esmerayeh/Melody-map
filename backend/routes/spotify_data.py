@@ -1,6 +1,6 @@
 """
 Proxy endpoints that call Spotify Web API on behalf of the frontend.
-All routes expect:  Authorization: Bearer <spotify_access_token>
+All routes expect:  X-Spotify-Token: <spotify_access_token>
 """
 
 import requests
@@ -12,7 +12,6 @@ SPOTIFY_API = 'https://api.spotify.com/v1'
 
 
 def _spotify_headers():
-    """Extract Spotify token from incoming request and build headers."""
     auth = request.headers.get('X-Spotify-Token') or request.headers.get('Authorization', '')
     token = auth.replace('Bearer ', '').strip()
     if not token:
@@ -21,7 +20,6 @@ def _spotify_headers():
 
 
 def _get(path, params=None):
-    """Make a GET request to Spotify API, return (data, error_response)."""
     headers, err_resp, status = _spotify_headers()
     if err_resp:
         return None, (err_resp, status)
@@ -37,58 +35,51 @@ def _get(path, params=None):
 
 @spotify_data_bp.route('/spotify/me')
 def get_profile():
-    """Get current user's Spotify profile."""
     data, err = _get('/me')
     if err:
         return err
     return jsonify({
-        'id':          data.get('id'),
-        'name':        data.get('display_name'),
-        'email':       data.get('email'),
-        'image':       data['images'][0]['url'] if data.get('images') else None,
-        'country':     data.get('country'),
-        'product':     data.get('product'),
-        'followers':   data.get('followers', {}).get('total', 0),
+        'id':        data.get('id'),
+        'name':      data.get('display_name'),
+        'email':     data.get('email'),
+        'image':     data['images'][0]['url'] if data.get('images') else None,
+        'country':   data.get('country'),
+        'product':   data.get('product'),
+        'followers': data.get('followers', {}).get('total', 0),
     })
 
 
 @spotify_data_bp.route('/spotify/top-tracks')
 def get_top_tracks():
-    """Get user's top tracks (short/medium/long term)."""
     time_range = request.args.get('time_range', 'medium_term')
     limit      = min(int(request.args.get('limit', 20)), 50)
-
-    data, err = _get('/me/top/tracks', {'time_range': time_range, 'limit': limit})
+    data, err  = _get('/me/top/tracks', {'time_range': time_range, 'limit': limit})
     if err:
         return err
-
     tracks = []
     for item in data.get('items', []):
         tracks.append({
-            'id':         item['id'],
-            'title':      item['name'],
-            'artist':     item['artists'][0]['name'],
-            'artists':    [a['name'] for a in item['artists']],
-            'album':      item['album']['name'],
-            'album_art':  item['album']['images'][0]['url'] if item['album']['images'] else None,
-            'preview_url':item.get('preview_url'),
-            'popularity': item.get('popularity', 0),
-            'duration_ms':item.get('duration_ms', 0),
-            'spotify_url':item['external_urls'].get('spotify'),
+            'id':          item['id'],
+            'title':       item['name'],
+            'artist':      item['artists'][0]['name'],
+            'artists':     [a['name'] for a in item['artists']],
+            'album':       item['album']['name'],
+            'album_art':   item['album']['images'][0]['url'] if item['album']['images'] else None,
+            'preview_url': item.get('preview_url'),
+            'popularity':  item.get('popularity', 0),
+            'duration_ms': item.get('duration_ms', 0),
+            'spotify_url': item['external_urls'].get('spotify'),
         })
     return jsonify(tracks)
 
 
 @spotify_data_bp.route('/spotify/top-artists')
 def get_top_artists():
-    """Get user's top artists."""
     time_range = request.args.get('time_range', 'medium_term')
     limit      = min(int(request.args.get('limit', 20)), 50)
-
-    data, err = _get('/me/top/artists', {'time_range': time_range, 'limit': limit})
+    data, err  = _get('/me/top/artists', {'time_range': time_range, 'limit': limit})
     if err:
         return err
-
     artists = []
     for item in data.get('items', []):
         artists.append({
@@ -105,12 +96,10 @@ def get_top_artists():
 
 @spotify_data_bp.route('/spotify/playlists')
 def get_playlists():
-    """Get user's playlists."""
-    limit = min(int(request.args.get('limit', 20)), 50)
+    limit     = min(int(request.args.get('limit', 20)), 50)
     data, err = _get('/me/playlists', {'limit': limit})
     if err:
         return err
-
     playlists = []
     for item in data.get('items', []):
         if not item:
@@ -129,17 +118,13 @@ def get_playlists():
 
 @spotify_data_bp.route('/spotify/audio-features', methods=['POST'])
 def get_audio_features():
-    """Get audio features for a list of track IDs."""
     track_ids = request.json.get('track_ids', [])
     if not track_ids:
         return jsonify([])
-
-    # Spotify allows max 100 IDs per request
-    ids_str = ','.join(track_ids[:100])
+    ids_str   = ','.join(track_ids[:100])
     data, err = _get('/audio-features', {'ids': ids_str})
     if err:
         return err
-
     features = []
     for f in data.get('audio_features', []):
         if not f:
@@ -156,6 +141,107 @@ def get_audio_features():
             'speechiness':      f.get('speechiness', 0),
         })
     return jsonify(features)
+
+
+@spotify_data_bp.route('/spotify/recently-played')
+def get_recently_played():
+    """Get user's recently played tracks (deduped)."""
+    limit     = min(int(request.args.get('limit', 50)), 50)
+    data, err = _get('/me/player/recently-played', {'limit': limit})
+    if err:
+        return err
+    tracks, seen = [], set()
+    for item in data.get('items', []):
+        track = item.get('track')
+        if not track or track['id'] in seen:
+            continue
+        seen.add(track['id'])
+        tracks.append({
+            'id':          track['id'],
+            'title':       track['name'],
+            'artist':      track['artists'][0]['name'],
+            'artists':     [a['name'] for a in track['artists']],
+            'album':       track['album']['name'],
+            'album_art':   track['album']['images'][0]['url'] if track['album']['images'] else None,
+            'preview_url': track.get('preview_url'),
+            'popularity':  track.get('popularity', 0),
+            'duration_ms': track.get('duration_ms', 0),
+            'spotify_url': track['external_urls'].get('spotify'),
+            'played_at':   item.get('played_at'),
+        })
+    return jsonify(tracks)
+
+
+@spotify_data_bp.route('/spotify/saved-tracks')
+def get_saved_tracks():
+    """Get user's saved (liked) tracks."""
+    limit     = min(int(request.args.get('limit', 50)), 50)
+    data, err = _get('/me/tracks', {'limit': limit})
+    if err:
+        return err
+    tracks = []
+    for item in data.get('items', []):
+        track = item.get('track')
+        if not track:
+            continue
+        tracks.append({
+            'id':          track['id'],
+            'title':       track['name'],
+            'artist':      track['artists'][0]['name'],
+            'artists':     [a['name'] for a in track['artists']],
+            'album':       track['album']['name'],
+            'album_art':   track['album']['images'][0]['url'] if track['album']['images'] else None,
+            'preview_url': track.get('preview_url'),
+            'popularity':  track.get('popularity', 0),
+            'duration_ms': track.get('duration_ms', 0),
+            'spotify_url': track['external_urls'].get('spotify'),
+            'added_at':    item.get('added_at'),
+        })
+    return jsonify(tracks)
+
+
+@spotify_data_bp.route('/spotify/recommendations')
+def get_recommendations():
+    """Get Spotify recommendations seeded by top artists/tracks/genres."""
+    seed_artists = request.args.getlist('seed_artists') or []
+    seed_tracks  = request.args.getlist('seed_tracks')  or []
+    seed_genres  = request.args.getlist('seed_genres')  or []
+    limit        = min(int(request.args.get('limit', 25)), 100)
+
+    if not seed_artists and not seed_tracks and not seed_genres:
+        return jsonify({'error': 'At least one seed required'}), 400
+
+    # Spotify requires total seeds <= 5
+    params = {'limit': limit}
+    if seed_artists: params['seed_artists'] = ','.join(seed_artists[:2])
+    if seed_tracks:  params['seed_tracks']  = ','.join(seed_tracks[:2])
+    if seed_genres:  params['seed_genres']  = ','.join(seed_genres[:1])
+
+    for key in ['target_energy', 'target_valence', 'target_danceability',
+                'min_energy', 'max_energy', 'min_valence', 'max_valence']:
+        val = request.args.get(key)
+        if val is not None:
+            params[key] = val
+
+    data, err = _get('/recommendations', params)
+    if err:
+        return err
+
+    tracks = []
+    for item in data.get('tracks', []):
+        tracks.append({
+            'id':          item['id'],
+            'title':       item['name'],
+            'artist':      item['artists'][0]['name'],
+            'artists':     [{'name': a['name'], 'id': a['id']} for a in item['artists']],
+            'album':       item['album']['name'],
+            'album_art':   item['album']['images'][0]['url'] if item['album']['images'] else None,
+            'preview_url': item.get('preview_url'),
+            'popularity':  item.get('popularity', 0),
+            'duration_ms': item.get('duration_ms', 0),
+            'spotify_url': item['external_urls'].get('spotify'),
+        })
+    return jsonify(tracks)
 
 
 @spotify_data_bp.route('/spotify/search')

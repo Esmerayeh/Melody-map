@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Search, Heart, Play, Loader2, RefreshCw, Music2,
@@ -14,12 +14,12 @@ import toast from 'react-hot-toast'
 
 function getTimeContext() {
   const h = new Date().getHours()
-  if (h >= 5  && h < 9)  return { label: 'Early Morning', emoji: '??', hint: 'Soft, slow, and awakening' }
-  if (h >= 9  && h < 12) return { label: 'Morning',       emoji: '??', hint: 'Bright and focused' }
-  if (h >= 12 && h < 17) return { label: 'Afternoon',     emoji: '???', hint: 'Warm and flowing' }
-  if (h >= 17 && h < 20) return { label: 'Evening',       emoji: '??', hint: 'Golden and reflective' }
-  if (h >= 20 && h < 23) return { label: 'Night',         emoji: '??', hint: 'Deep and atmospheric' }
-  return { label: 'Late Night', emoji: '??', hint: 'Liminal and introspective' }
+  if (h >= 5  && h < 9)  return { label: 'Early Morning', hint: 'Soft, slow, and awakening' }
+  if (h >= 9  && h < 12) return { label: 'Morning',       hint: 'Bright and focused' }
+  if (h >= 12 && h < 17) return { label: 'Afternoon',     hint: 'Warm and flowing' }
+  if (h >= 17 && h < 20) return { label: 'Evening',       hint: 'Golden and reflective' }
+  if (h >= 20 && h < 23) return { label: 'Night',         hint: 'Deep and atmospheric' }
+  return { label: 'Late Night', hint: 'Liminal and introspective' }
 }
 
 function applyTimeNudge(energy, valence) {
@@ -39,17 +39,11 @@ function TabBar({ active, onChange }) {
   return (
     <div className="flex gap-1 p-1 bg-white/3 border border-white/8 rounded-xl w-fit mb-8">
       {tabs.map(({ id, label, icon: Icon }) => (
-        <button
-          key={id}
-          onClick={() => onChange(id)}
+        <button key={id} onClick={() => onChange(id)}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-            active === id
-              ? 'bg-brand-purple/20 text-brand-purple border border-brand-purple/30'
-              : 'text-slate-500 hover:text-slate-300'
-          }`}
-        >
-          <Icon className="w-3.5 h-3.5" />
-          {label}
+            active === id ? 'bg-brand-purple/20 text-brand-purple border border-brand-purple/30' : 'text-slate-500 hover:text-slate-300'
+          }`}>
+          <Icon className="w-3.5 h-3.5" />{label}
         </button>
       ))}
     </div>
@@ -58,10 +52,8 @@ function TabBar({ active, onChange }) {
 
 function TagPill({ label, color }) {
   return (
-    <span
-      className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border"
-      style={{ borderColor: `${color}40`, color, background: `${color}12` }}
-    >
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border"
+      style={{ borderColor: `${color}40`, color, background: `${color}12` }}>
       {label}
     </span>
   )
@@ -73,18 +65,13 @@ function SongRow({ song, index, liked, onLike }) {
   const image  = song.album?.images?.[0]?.url || song.album_art
   const url    = song.external_urls?.spotify || song.spotify_url
   return (
-    <motion.div
-      initial={{ opacity: 0, x: -8 }}
-      animate={{ opacity: 1, x: 0 }}
+    <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.03 }}
-      className="flex items-center gap-3 py-2.5 border-b border-white/4 last:border-0 group"
-    >
+      className="flex items-center gap-3 py-2.5 border-b border-white/4 last:border-0 group">
       <span className="text-xs text-gray-600 w-5 text-center shrink-0">{index + 1}</span>
       <div className="w-9 h-9 rounded-lg overflow-hidden shrink-0 bg-white/5">
-        {image
-          ? <img src={image} alt={title} className="w-full h-full object-cover" />
-          : <div className="w-full h-full flex items-center justify-center"><Music2 className="w-4 h-4 text-gray-600" /></div>
-        }
+        {image ? <img src={image} alt={title} className="w-full h-full object-cover" />
+          : <div className="w-full h-full flex items-center justify-center"><Music2 className="w-4 h-4 text-gray-600" /></div>}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-white truncate">{title}</p>
@@ -97,10 +84,8 @@ function SongRow({ song, index, liked, onLike }) {
         </div>
       )}
       <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={() => onLike(song.id || title)}
-          className={`p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-gray-600 hover:text-pink-400'}`}
-        >
+        <button onClick={() => onLike(song.id || title)}
+          className={`p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-gray-600 hover:text-pink-400'}`}>
           <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-brand-pink' : ''}`} />
         </button>
         {url && (
@@ -135,7 +120,7 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
             if (!seen.has(id)) {
               seen.add(id)
               const year = t.album?.release_date ? parseInt(t.album.release_date.slice(0, 4)) : null
-              const era  = year ? (year < 1970 ? '60s' : year < 1980 ? '70s' : year < 1990 ? '80s' : year < 2000 ? '90s' : year < 2010 ? '2000s' : year < 2020 ? '2010s' : '2020s') : '2010s'
+              const era  = year ? (year < 1980 ? '70s' : year < 1990 ? '80s' : year < 2000 ? '90s' : year < 2010 ? '2000s' : year < 2020 ? '2010s' : '2020s') : '2010s'
               results.push({ ...t, _tags: { genre: playlist.seed_genres[0] || '', mood: playlist.mood_tags[0] || '', era } })
             }
             if (results.length >= 12) break
@@ -151,12 +136,11 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
   const handleExpand = () => { setExpanded((v) => !v); if (!expanded) fetchTracks() }
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+    <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2, boxShadow: `0 12px 40px ${playlist.color}20` }}
       transition={{ delay: index * 0.07 }}
       className="rounded-2xl border border-white/8 overflow-hidden"
-      style={{ background: `linear-gradient(135deg, ${playlist.color}10, rgba(255,255,255,0.02))` }}
-    >
+      style={{ background: `linear-gradient(135deg, ${playlist.color}10, rgba(255,255,255,0.02))` }}>
       <div className="p-5">
         <div className="flex flex-wrap gap-1.5 mb-3">
           {playlist.mood_tags.slice(0, 3).map((t) => <TagPill key={t} label={t} color={playlist.color} />)}
@@ -225,6 +209,7 @@ function AlbumCard({ item, index, onLike, liked }) {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
+      whileHover={{ scale: 1.03, boxShadow: '0 8px 32px rgba(124,111,255,0.18)' }}
       className="group relative glass-hover rounded-2xl overflow-hidden cursor-pointer">
       <div className="relative aspect-square overflow-hidden bg-surface-3">
         {item.image
@@ -232,7 +217,7 @@ function AlbumCard({ item, index, onLike, liked }) {
           : <div className="w-full h-full flex items-center justify-center"><Music2 className="w-10 h-10 text-slate-600" /></div>
         }
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200" />
-        <button className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-brand-purple flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200 shadow-glow-sm">
+        <button className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-brand-purple flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200">
           <Play className="w-4 h-4 text-white fill-white ml-0.5" />
         </button>
       </div>
@@ -254,6 +239,7 @@ function ArtistCard({ artist, index }) {
   return (
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: index * 0.05 }}
+      whileHover={{ scale: 1.02, boxShadow: '0 4px 20px rgba(124,111,255,0.15)' }}
       className="group glass-hover rounded-2xl p-4 flex items-center gap-3 cursor-pointer">
       <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-surface-3">
         {artist.image
@@ -268,6 +254,7 @@ function ArtistCard({ artist, index }) {
     </motion.div>
   )
 }
+
 function ForYouTab({ spotifyConnected, lastfmConnected }) {
   const [playlists, setPlaylists]     = useState([])
   const [loading, setLoading]         = useState(false)
@@ -277,8 +264,6 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
   const [serendipity, setSerendipity] = useState(false)
   const timeCtx     = getTimeContext()
   const isConnected = spotifyConnected || lastfmConnected
-
-  // Use central profile - no direct Spotify/LastFM calls
   const { profile } = useMusicProfile({ autoFetch: false })
 
   const generate = useCallback(async (s = 0, sMode = false) => {
@@ -363,7 +348,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           className="mb-5 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
           <Shuffle className="w-3.5 h-3.5 shrink-0" />
-          Serendipity mode - these playlists explore the outer edges of your taste space.
+          Serendipity mode — these playlists explore the outer edges of your taste space.
         </motion.div>
       )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -375,26 +360,59 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
   )
 }
 
-function BrowseTab({ spotifyConnected, lastfmConnected }) {
-  const [query, setQuery]   = useState('')
-  const [liked, setLiked]   = useState(new Set())
-  const debouncedQuery      = useDebounce(query, 400)
-  const isConnected         = spotifyConnected || lastfmConnected
+function BrowseSkeleton() {
+  return (
+    <div>
+      <div className="skeleton h-10 w-full max-w-lg rounded-xl mb-8" />
+      <div className="space-y-10">
+        <section>
+          <div className="skeleton h-3 w-20 rounded mb-4" />
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="rounded-2xl overflow-hidden">
+                <div className="skeleton aspect-square w-full" style={{ borderRadius: '12px 12px 0 0' }} />
+                <div className="p-3 space-y-2 bg-white/2 border border-white/6 border-t-0" style={{ borderRadius: '0 0 12px 12px' }}>
+                  <div className="skeleton h-3.5 rounded" style={{ width: '75%' }} />
+                  <div className="skeleton h-3 rounded" style={{ width: '50%' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+        <section>
+          <div className="skeleton h-3 w-20 rounded mb-4" />
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+            {Array.from({ length: 8 }).map((_, i) => (
+              <div key={i} className="rounded-2xl p-4 flex items-center gap-3 border border-white/6 bg-white/2">
+                <div className="skeleton w-12 h-12 rounded-full shrink-0" />
+                <div className="flex-1 space-y-2">
+                  <div className="skeleton h-3.5 rounded" style={{ width: '70%' }} />
+                  <div className="skeleton h-3 rounded" style={{ width: '45%' }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+    </div>
+  )
+}
 
-  // Use central profile - no direct Spotify/LastFM calls
+function BrowseTab({ spotifyConnected, lastfmConnected }) {
+  const [query, setQuery] = useState('')
+  const [liked, setLiked] = useState(new Set())
+  const debouncedQuery    = useDebounce(query, 400)
+  const isConnected       = spotifyConnected || lastfmConnected
   const { profile, loading } = useMusicProfile({ autoFetch: true })
 
-  const rawTracks  = profile?.topTracks  || []
-  const rawArtists = profile?.topArtists || []
-
-  const tracks = rawTracks.map((t) => ({
+  const tracks = (profile?.topTracks || []).map((t) => ({
     id:     t.id,
     title:  t.name || t.title,
     artist: t.artists?.[0]?.name || t.artist,
     image:  t.album?.images?.[0]?.url || t.album_art,
     url:    t.external_urls?.spotify || t.spotify_url,
   }))
-  const artists = rawArtists.map((a) => ({
+  const artists = (profile?.topArtists || []).map((a) => ({
     id:     a.id,
     name:   a.name,
     image:  a.images?.[0]?.url || a.image,
@@ -420,18 +438,15 @@ function BrowseTab({ spotifyConnected, lastfmConnected }) {
     </div>
   )
 
+  if (loading) return <BrowseSkeleton />
+
   return (
     <div>
       <div className="relative mb-8 max-w-lg">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-        <input
-          type="text"
-          placeholder="Filter tracks and artists..."
-          value={query}
+        <input type="text" placeholder="Filter tracks and artists..." value={query}
           onChange={(e) => setQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm glass border-white/8 text-white placeholder-slate-500 focus:outline-none focus:border-brand-purple/50 transition-all"
-        />
-        {loading && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 animate-spin" />}
+          className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm glass border-white/8 text-white placeholder-slate-500 focus:outline-none focus:border-brand-purple/50 transition-all" />
       </div>
       <div className="space-y-10">
         {filteredTracks.length > 0 && (
