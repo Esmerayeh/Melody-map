@@ -1,7 +1,9 @@
 import axios from 'axios'
 
+const BASE_URL = import.meta.env.VITE_API_URL || ''
+
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: `${BASE_URL}/api`,
   headers: { 'Content-Type': 'application/json' }
 })
 
@@ -47,7 +49,7 @@ export const recommendAPI = {
 }
 
 // Spotify API — passes spotify_token via custom header
-const spotifyApi = axios.create({ baseURL: '/api' })
+const spotifyApi = axios.create({ baseURL: `${BASE_URL}/api` })
 spotifyApi.interceptors.request.use((config) => {
   const token = localStorage.getItem('spotify_token')
   if (token) config.headers['X-Spotify-Token'] = token
@@ -67,7 +69,7 @@ export const spotifyAPI = {
 }
 
 // Last.fm API — passes session key + username via custom headers
-const lastfmApi = axios.create({ baseURL: '/api' })
+const lastfmApi = axios.create({ baseURL: `${BASE_URL}/api` })
 lastfmApi.interceptors.request.use((config) => {
   const session  = localStorage.getItem('lastfm_session')
   const username = localStorage.getItem('lastfm_username')

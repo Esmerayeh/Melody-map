@@ -64,11 +64,11 @@ export default function MusicSourceCard({ compact = false }) {
   const { musicProvider, spotifyConnected, lastfmConnected, disconnectSpotify, disconnectLastfm } = useStore()
 
   const handleSpotify = () => {
-    window.location.href = '/auth/spotify/login'
+    window.location.href = `${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`
   }
 
   const handleLastfm = () => {
-    window.location.href = '/auth/lastfm/login'
+    window.location.href = `${import.meta.env.VITE_API_URL || ''}/auth/lastfm/login`
   }
 
   // Already connected — show status

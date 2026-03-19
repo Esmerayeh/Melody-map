@@ -24,7 +24,7 @@ export default function SpotifyConnect({ variant = 'button' }) {
   }, [spotifyConnected, spotifyProfile, setSpotifyProfile])
 
   const handleConnect = () => {
-    window.location.href = '/auth/spotify/login'
+    window.location.href = `${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`
   }
 
   const handleDisconnect = () => {

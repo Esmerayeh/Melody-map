@@ -107,7 +107,7 @@ export default function Login() {
           <h2 className="text-2xl font-bold text-white mb-1">{isLogin ? "Welcome back" : "Create account"}</h2>
           <p className="text-slate-400 text-sm mb-7">{isLogin ? "Sign in to your music universe" : "Start mapping your music taste"}</p>
 
-          <button onClick={() => { window.location.href = "/auth/spotify/login" }}
+          <button onClick={() => { window.location.href = `${import.meta.env.VITE_API_URL || ''}/auth/spotify/login` }}
             className="w-full flex items-center justify-center gap-3 py-3 rounded-xl font-semibold text-sm text-white mb-5 transition-all hover:opacity-90 active:scale-[0.98]"
             style={{ background: "#1DB954" }}>
             <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
