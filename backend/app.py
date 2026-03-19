@@ -29,7 +29,12 @@ app.config['MONGO_URI'] = Config.MONGODB_URI
 app.config['SECRET_KEY'] = Config.SECRET_KEY
 CORS(app, resources={r"/*": {"origins": [Config.FRONTEND_URL]}})
 
-mongo = PyMongo(app)
+try:
+    mongo = PyMongo(app)
+    logger.info({'event': 'mongo_connected'})
+except Exception as e:
+    logger.error({'event': 'mongo_init_failed', 'err': str(e)})
+    raise  # still crash — but now you get a clear log message
 similarity_engine = MusicSimilarityEngine(n_clusters=10)
 recommendation_engine = RecommendationEngine()
 spotify_service = SpotifyService()
