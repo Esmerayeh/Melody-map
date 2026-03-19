@@ -20,6 +20,8 @@ function normalizeProfile(raw) {
     ...raw,
     topArtists:       raw.topArtists   || raw.artists   || [],
     topTracks:        raw.topTracks    || raw.tracks     || [],
+    savedTracks:      raw.savedTracks  || [],
+    recentlyPlayed:   raw.recentlyPlayed || [],
     genres:           raw.genres       || [],
     audioFeatures:    raw.audioFeatures || {},
     analyticsMetrics: raw.analyticsMetrics || null,

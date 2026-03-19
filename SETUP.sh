@@ -1,75 +1,115 @@
 #!/bin/bash
 
-echo "🎵 Melody Map - Setup Script"
-echo "=============================="
+echo "Melody Map — Setup"
+echo "=================="
 echo ""
 
-# Check if Python is installed
+# ── Prerequisite checks ────────────────────────────────────────────────────────
+
 if ! command -v python3 &> /dev/null; then
-    echo "❌ Python 3 is not installed. Please install Python 3.9 or higher."
+    echo "ERROR: Python 3 not found. Install Python 3.9 or higher."
     exit 1
 fi
 
-# Check if Node.js is installed
 if ! command -v node &> /dev/null; then
-    echo "❌ Node.js is not installed. Please install Node.js 18 or higher."
+    echo "ERROR: Node.js not found. Install Node.js 18 or higher."
     exit 1
 fi
 
-# Check if MongoDB is installed
-if ! command -v mongod &> /dev/null; then
-    echo "⚠️  MongoDB is not installed. Please install MongoDB 6.0 or higher."
-    echo "   Visit: https://www.mongodb.com/docs/manual/installation/"
-fi
-
-echo "✅ Prerequisites check passed"
+PYTHON_VERSION=$(python3 -c 'import sys; print(f"{sys.version_info.major}.{sys.version_info.minor}")')
+NODE_VERSION=$(node -e 'process.stdout.write(process.versions.node)')
+echo "Python $PYTHON_VERSION  |  Node $NODE_VERSION"
 echo ""
 
-# Backend setup
-echo "📦 Setting up backend..."
+# ── Backend ────────────────────────────────────────────────────────────────────
+
+echo "Setting up backend..."
 cd backend
 
-# Create virtual environment
 if [ ! -d "venv" ]; then
     python3 -m venv venv
-    echo "✅ Virtual environment created"
+    echo "  Virtual environment created"
 fi
 
-# Activate virtual environment
 source venv/bin/activate
 
-# Install Python dependencies
-pip install -r requirements.txt
-echo "✅ Backend dependencies installed"
+pip install --quiet --upgrade pip
+pip install --quiet -r requirements.txt
+echo "  Dependencies installed"
 
-# Create .env file if it doesn't exist
 if [ ! -f ".env" ]; then
-    cp .env.example .env
-    echo "✅ .env file created (please configure it)"
+    if [ -f ".env.example" ]; then
+        cp .env.example .env
+        echo "  .env created from .env.example — fill in your API keys before running"
+    else
+        cat > .env << 'EOF'
+MONGODB_URI=mongodb://localhost:27017/melodymap
+SECRET_KEY=change-me-to-a-random-string
+
+SPOTIFY_CLIENT_ID=
+SPOTIFY_CLIENT_SECRET=
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:5000/auth/spotify/callback
+
+LASTFM_API_KEY=
+LASTFM_API_SECRET=
+LASTFM_REDIRECT_URI=http://127.0.0.1:5000/auth/lastfm/callback
+
+UNSPLASH_ACCESS_KEY=
+PINTEREST_ACCESS_TOKEN=
+
+FRONTEND_URL=http://localhost:5173
+FLASK_ENV=development
+PORT=5000
+EOF
+        echo "  .env created — fill in your API keys before running"
+    fi
+else
+    echo "  .env already exists — skipping"
+fi
+
+deactivate
+cd ..
+
+# ── Frontend ───────────────────────────────────────────────────────────────────
+
+echo ""
+echo "Setting up frontend..."
+cd frontend
+
+npm install --silent
+echo "  Dependencies installed"
+
+if [ ! -f ".env" ]; then
+    echo "VITE_API_URL=http://127.0.0.1:5000" > .env
+    echo "  frontend/.env created"
+else
+    echo "  frontend/.env already exists — skipping"
 fi
 
 cd ..
 
-# Frontend setup
-echo ""
-echo "📦 Setting up frontend..."
-cd frontend
-
-# Install Node dependencies
-npm install
-echo "✅ Frontend dependencies installed"
-
-cd ..
+# ── Done ───────────────────────────────────────────────────────────────────────
 
 echo ""
-echo "=============================="
-echo "✅ Setup complete!"
+echo "=================="
+echo "Setup complete."
 echo ""
-echo "Next steps:"
-echo "1. Configure backend/.env with your API keys"
-echo "2. Start MongoDB: mongod --dbpath /path/to/data"
-echo "3. Start backend: cd backend && source venv/bin/activate && python app.py"
-echo "4. Start frontend: cd frontend && npm run dev"
+echo "Before running:"
+echo "  1. Fill in backend/.env with your Spotify, Last.fm, and MongoDB credentials"
+echo "  2. Register http://127.0.0.1:5000/auth/spotify/callback in your Spotify app settings"
 echo ""
-echo "Visit http://localhost:3000 to see the app"
-echo "🎵 Happy coding!"
+echo "To run locally (two terminals):"
+echo ""
+echo "  Terminal 1 — backend:"
+echo "    cd backend"
+echo "    source venv/bin/activate"
+echo "    python app.py"
+echo ""
+echo "  Terminal 2 — frontend:"
+echo "    cd frontend"
+echo "    npm run dev"
+echo ""
+echo "Then open http://localhost:5173"
+echo ""
+echo "See GETTING_STARTED.md for full setup details."
+echo "See DEPLOYMENT.md for Render + Vercel production deployment."

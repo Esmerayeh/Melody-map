@@ -200,7 +200,13 @@ export default function Analytics() {
             <Disc3 className="w-4 h-4 text-pink-400" />
             <p className="text-sm font-semibold text-white">Soul Orb</p>
           </div>
-          <MusicSoulOrb personality={profile?.personality} size={160} showLabels />
+          <MusicSoulOrb
+            personality={profile?.personality}
+            mbti={profile?.mbti}
+            audioFeatures={profile?.audioFeatures}
+            size={160}
+            showLabels
+          />
         </motion.div>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

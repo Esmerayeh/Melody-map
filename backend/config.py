@@ -34,6 +34,7 @@ class Config:
     SPOTIFY_CLIENT_ID      = os.getenv('SPOTIFY_CLIENT_ID')
     SPOTIFY_CLIENT_SECRET  = os.getenv('SPOTIFY_CLIENT_SECRET')
     SPOTIFY_REDIRECT_URI   = os.getenv('SPOTIFY_REDIRECT_URI', 'http://127.0.0.1:5000/auth/spotify/callback')
+    LASTFM_REDIRECT_URI    = os.getenv('LASTFM_REDIRECT_URI',  'http://127.0.0.1:5000/auth/lastfm/callback')
     FRONTEND_URL           = os.getenv('FRONTEND_URL', 'http://127.0.0.1:3000')
     LASTFM_API_KEY         = os.getenv('LASTFM_API_KEY')
     LASTFM_API_SECRET      = os.getenv('LASTFM_API_SECRET')

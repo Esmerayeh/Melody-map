@@ -1,260 +1,185 @@
-# Melody Map - Project Structure
+﻿# Project Structure
 
 ```
 melody-map/
+├── README.md
+├── API_DOCUMENTATION.md
+├── ARCHITECTURE.md
+├── DEPLOYMENT.md
+├── GETTING_STARTED.md
+├── ML_PIPELINE.md
+├── PROJECT_STRUCTURE.md
+├── DATABASE_SCHEMA.md
+├── SETUP.sh
+├── docker-compose.yml
 │
-├── README.md                      # Project overview and quick start
-├── ARCHITECTURE.md                # System architecture documentation
-├── DATABASE_SCHEMA.md             # MongoDB schema and queries
-├── DEPLOYMENT.md                  # Deployment guide
-├── ML_PIPELINE.md                 # ML algorithms documentation
-├── PROJECT_STRUCTURE.md           # This file
+├── backend/
+│   ├── app.py                          # Flask app entry point, blueprint registration, core routes
+│   ├── config.py                       # Environment config, MongoDB URI encoding
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   ├── .env / .env.example
+│   │
+│   ├── routes/
+│   │   ├── spotify_auth.py             # GET /auth/spotify/login, /callback, POST /auth/spotify/refresh
+│   │   ├── spotify_data.py             # GET /api/spotify/me, top-tracks, top-artists, playlists, etc.
+│   │   ├── lastfm_auth.py              # GET /auth/lastfm/login, /callback
+│   │   ├── lastfm_data.py              # GET /api/lastfm/me, top-tracks, top-artists, recent-tracks, etc.
+│   │   ├── music_profile.py            # GET /api/music-profile
+│   │   ├── discover.py                 # POST/GET /api/discover/playlists
+│   │   ├── soulmate.py                 # POST /api/soulmate/profile, GET /matches, /compare/<id>
+│   │   ├── aesthetic.py                # POST /api/aesthetic, /vibe, /identity, /shared, etc.
+│   │   ├── pinterest_aesthetic.py      # POST /api/pinterest-aesthetic
+│   │   ├── public_profile.py           # GET /api/public-profile/<username_or_id>
+│   │   └── auralith.py                 # POST /api/auralith/generate-playlist, analyze-taste, etc.
+│   │
+│   ├── ml/
+│   │   ├── aesthetic_engine.py         # Visual identity (name, palette, vibe, persona, tags)
+│   │   ├── discover_engine.py          # Playlist concepts (10 archetypes, HMV, serendipity)
+│   │   ├── soulmate_engine.py          # Compatibility scoring + constellation graph
+│   │   ├── similarity_engine.py        # K-Means, PCA, KNN similarity search
+│   │   └── recommendation_engine.py    # Content-based + collaborative + hybrid recs
+│   │
+│   ├── services/
+│   │   ├── music_profile_builder.py    # Spotify data aggregation pipeline
+│   │   ├── auralith_engine.py          # AI reasoning engine
+│   │   └── spotify_service.py          # Spotify API helpers
+│   │
+│   ├── middleware/
+│   │   ├── auth.py                     # @require_auth, @optional_auth JWT decorators
+│   │   └── rate_limit.py               # @rate_limit sliding window decorator
+│   │
+│   ├── models/
+│   │   └── schemas.py
+│   │
+│   ├── utils/
+│   │   └── logger.py                   # Structured JSON logger
+│   │
+│   ├── data/
+│   │   ├── auralith_songs.json
+│   │   └── sample_songs.json
+│   │
+│   └── tests/
+│       ├── test_recommendation_engine.py
+│       ├── test_similarity_engine.py
+│       └── test_soulmate_engine.py
 │
-├── backend/                       # Python Flask backend
-│   ├── app.py                     # Main Flask application
-│   ├── config.py                  # Configuration management
-│   ├── requirements.txt           # Python dependencies
-│   ├── .env.example               # Environment variables template
-│   │
-│   ├── models/                    # Data models
-│   │   └── schemas.py             # MongoDB schema definitions
-│   │
-│   ├── ml/                        # Machine learning modules
-│   │   ├── similarity_engine.py   # Similarity & clustering algorithms
-│   │   └── recommendation_engine.py # Recommendation algorithms
-│   │
-│   ├── services/                  # External services
-│   │   └── spotify_service.py     # Spotify API integration
-│   │
-│   └── data/                      # Sample data
-│       └── sample_songs.json      # Example song data
-│
-├── frontend/                      # React frontend
-│   ├── package.json               # Node dependencies
-│   ├── vite.config.js             # Vite configuration
-│   ├── tailwind.config.js         # Tailwind CSS config
-│   ├── postcss.config.js          # PostCSS config
-│   ├── index.html                 # HTML entry point
-│   │
-│   └── src/                       # Source code
-│       ├── main.jsx               # React entry point
-│       ├── App.jsx                # Main app component
-│       ├── index.css              # Global styles
-│       │
-│       ├── components/            # Reusable components
-│       │   └── Navbar.jsx         # Navigation bar
-│       │
-│       ├── pages/                 # Page components
-│       │   ├── Login.jsx          # Authentication page
-│       │   ├── MusicMap.jsx       # Interactive map (D3.js)
-│       │   ├── Discover.jsx       # Search & discovery
-│       │   ├── Playlists.jsx      # Playlist generation
-│       │   └── Analytics.jsx      # User analytics dashboard
-│       │
-│       └── utils/                 # Utility functions
-│           └── api.js             # API client (optional)
-│
-└── docs/                          # Additional documentation
-    ├── API.md                     # API endpoint documentation
-    ├── UI_DESIGN.md               # UI/UX design guidelines
-    └── CONTRIBUTING.md            # Contribution guidelines
+└── frontend/
+    ├── index.html
+    ├── package.json
+    ├── vite.config.js
+    ├── tailwind.config.js
+    ├── vercel.json                     # SPA rewrite rule for React Router
+    ├── .env
+    │
+    └── src/
+        ├── main.jsx
+        ├── App.jsx                     # Router, auth rehydration, vibe theme, AnimatePresence
+        ├── index.css
+        │
+        ├── pages/
+        │   ├── Dashboard.jsx           # / — identity overview, soul orb, top artists/tracks
+        │   ├── MusicMap.jsx            # /galaxy — 3D artist/genre visualization
+        │   ├── Discover.jsx            # /discover — playlist concept generation
+        │   ├── Playlists.jsx           # /playlists — Spotify playlist management
+        │   ├── Analytics.jsx           # /analytics — audio feature charts, metrics
+        │   ├── MusicSoulmate.jsx       # /soulmate — compatibility scoring + constellation
+        │   ├── MusicAesthetic.jsx      # /aesthetic — visual identity + image board
+        │   ├── Auralith.jsx            # /auralith — AI reasoning layer
+        │   ├── Profile.jsx             # /profile — account settings
+        │   ├── Login.jsx               # /login — auth + OAuth connect buttons
+        │   ├── SpotifySuccess.jsx      # /spotify-success — Spotify OAuth callback handler
+        │   └── LastfmSuccess.jsx       # /lastfm-success — Last.fm OAuth callback handler
+        │
+        ├── components/
+        │   ├── MusicSoulOrb.jsx        # Living 3D identity orb (R3F + Bloom)
+        │   ├── IdentityReveal.jsx      # Cinematic personality + MBTI reveal
+        │   ├── SoulmateMap.jsx         # Constellation graph visualization
+        │   ├── MusicIdentityPanel.jsx  # Identity summary panel
+        │   ├── CompatibilityCard.jsx   # Soulmate match card
+        │   ├── MusicSourceCard.jsx     # Spotify/Last.fm connect card
+        │   ├── SpotifyConnect.jsx      # Spotify connection flow
+        │   ├── HeroScene.jsx           # Landing hero visual
+        │   ├── VibeEmitter.jsx         # Ambient vibe particle effect
+        │   ├── Sidebar.jsx             # Desktop navigation sidebar
+        │   ├── TopBar.jsx              # Top navigation bar
+        │   ├── BottomNav.jsx           # Mobile bottom navigation
+        │   └── PageLoader.jsx          # Suspense fallback loader
+        │
+        ├── hooks/
+        │   ├── useMusicProfile.js      # Central data hook — fetch, normalize, cache in Zustand
+        │   ├── useMusicData.js
+        │   └── useDebounce.js
+        │
+        ├── services/
+        │   ├── api.js                  # Axios instances + request interceptors
+        │   ├── musicService.js         # Spotify/Last.fm abstraction layer
+        │   ├── musicAnalyzer.js        # Client-side audio feature utilities
+        │   └── vibeTheme.js            # CSS custom property updates from audio features
+        │
+        ├── store/
+        │   └── useStore.js             # Zustand global store
+        │
+        └── utils/
+            ├── personalityEngine.js    # computePersonality, computeMBTI, computeAdvancedCompatibility
+            └── musicMapper.js          # Data normalization utilities
 ```
 
-## File Descriptions
+---
 
-### Backend Files
+## Key file relationships
 
-**app.py**
-- Main Flask application
-- API route definitions
-- Authentication endpoints
-- Music map generation
-- Recommendation endpoints
+**Data flow from API to UI:**
+```
+useMusicProfile.js
+  -> api.js (injects X-Spotify-Token header automatically)
+  -> GET /api/music-profile
+  -> music_profile_builder.py (Spotify data aggregation)
+  -> normalizeProfile() -> computePersonality() + computeMBTI()
+  -> useStore.js (Zustand)
+  -> Dashboard, Analytics, MusicSoulOrb, etc. (read from store)
+```
 
-**config.py**
-- Environment variable management
-- Configuration class
-- Database connection settings
+**OAuth flow:**
+```
+Login.jsx
+  -> window.location.href = VITE_API_URL + /auth/spotify/login
+  -> spotify_auth.py -> Spotify -> /auth/spotify/callback
+  -> redirect to FRONTEND_URL/spotify-success?token=...
+  -> SpotifySuccess.jsx (stores token, sets Zustand state)
+  -> navigate("/")
+```
 
-**ml/similarity_engine.py**
-- Audio feature extraction
-- Cosine similarity computation
-- K-Means clustering
-- PCA/t-SNE dimensionality reduction
-- Graph network construction
+**Soulmate flow:**
+```
+MusicSoulmate.jsx
+  -> POST /api/soulmate/profile
+  -> GET /api/soulmate/matches
+  -> GET /api/soulmate/compare/<uid>  (score + breakdown + graph)
+  -> SoulmateMap.jsx (renders constellation)
+  -> POST /api/aesthetic/shared (combined aesthetic)
+```
 
-**ml/recommendation_engine.py**
-- User profile building
-- Content-based filtering
-- Collaborative filtering
-- Hybrid recommendations
-- Mood-based playlist generation
+**Discover flow:**
+```
+Discover.jsx
+  -> reads audioFeatures + genres from Zustand
+  -> POST /api/discover/playlists
+  -> discover_engine (scores 10 archetypes, returns seed_artists + seed_queries)
+  -> GET /api/spotify/recommendations?seed_artists=... (real tracks)
+```
 
-**services/spotify_service.py**
-- Spotify API authentication
-- Track feature fetching
-- Artist information retrieval
-- Search functionality
+---
 
-**models/schemas.py**
-- MongoDB collection schemas
-- Data structure definitions
+## Config files
 
-### Frontend Files
-
-**App.jsx**
-- Main application component
-- Router configuration
-- Authentication state management
-
-**pages/MusicMap.jsx**
-- D3.js visualization
-- Interactive music universe map
-- Zoom and pan functionality
-- Song detail display
-
-**pages/Discover.jsx**
-- Search interface
-- Song discovery
-- Recommendation display
-
-**pages/Playlists.jsx**
-- AI playlist generator
-- Mood selection
-- Playlist display
-
-**pages/Analytics.jsx**
-- User statistics
-- Genre distribution charts
-- Cluster visualization
-- Listening patterns
-
-**components/Navbar.jsx**
-- Navigation menu
-- Route links
-- User profile access
-
-## Key Technologies by Layer
-
-### Frontend
-- **React 18**: UI framework
-- **React Router**: Navigation
-- **D3.js**: Data visualization
-- **Tailwind CSS**: Styling
-- **Axios**: HTTP client
-- **Recharts**: Analytics charts
-- **Vite**: Build tool
-
-### Backend
-- **Flask**: Web framework
-- **Flask-CORS**: Cross-origin requests
-- **Flask-PyMongo**: MongoDB integration
-- **Spotipy**: Spotify API client
-- **Bcrypt**: Password hashing
-- **PyJWT**: Token authentication
-
-### Machine Learning
-- **Scikit-learn**: ML algorithms
-- **Pandas**: Data manipulation
-- **NumPy**: Numerical computing
-- **NetworkX**: Graph analysis
-
-### Database
-- **MongoDB**: NoSQL database
-- **PyMongo**: Python driver
-
-## Data Flow
-
-1. **User Authentication**
-   ```
-   Frontend → POST /api/auth/login → Backend → MongoDB → JWT Token → Frontend
-   ```
-
-2. **Music Map Generation**
-   ```
-   Frontend → POST /api/map/generate → Backend → ML Engine → MongoDB → Frontend
-   ```
-
-3. **Song Search**
-   ```
-   Frontend → GET /api/songs/search → Backend → MongoDB → Frontend
-   ```
-
-4. **Playlist Generation**
-   ```
-   Frontend → POST /api/playlists/generate → Backend → ML Engine → MongoDB → Frontend
-   ```
-
-5. **Recommendations**
-   ```
-   Frontend → GET /api/recommendations/:userId → Backend → ML Engine → MongoDB → Frontend
-   ```
-
-## Development Workflow
-
-1. **Setup Environment**
-   - Install dependencies (backend & frontend)
-   - Configure environment variables
-   - Start MongoDB
-
-2. **Backend Development**
-   - Run Flask server: `python app.py`
-   - Test API endpoints with Postman/curl
-   - Monitor logs for errors
-
-3. **Frontend Development**
-   - Run dev server: `npm run dev`
-   - Hot reload for instant feedback
-   - Test UI components
-
-4. **ML Development**
-   - Experiment in Jupyter notebooks
-   - Implement in ml/ modules
-   - Test with sample data
-
-5. **Integration Testing**
-   - Test full stack flow
-   - Verify API responses
-   - Check UI updates
-
-## Deployment Checklist
-
-- [ ] Environment variables configured
-- [ ] Database indexes created
-- [ ] API endpoints tested
-- [ ] Frontend build optimized
-- [ ] CORS configured correctly
-- [ ] Authentication working
-- [ ] ML models trained
-- [ ] Error handling implemented
-- [ ] Logging configured
-- [ ] Monitoring setup
-
-## Extending the Project
-
-### Adding New Features
-
-1. **New ML Algorithm**
-   - Add to `ml/` directory
-   - Import in `app.py`
-   - Create API endpoint
-   - Update frontend
-
-2. **New Page**
-   - Create in `src/pages/`
-   - Add route in `App.jsx`
-   - Add navigation in `Navbar.jsx`
-
-3. **New API Endpoint**
-   - Define route in `app.py`
-   - Implement logic
-   - Update frontend API calls
-
-### Code Organization Best Practices
-
-- Keep components small and focused
-- Separate business logic from UI
-- Use meaningful variable names
-- Comment complex algorithms
-- Write reusable functions
-- Follow consistent naming conventions
+| File | Purpose |
+|------|---------|
+| `backend/config.py` | All env vars, MongoDB URI encoding |
+| `backend/.env` | Local secrets (never committed) |
+| `backend/.env.example` | Template for contributors |
+| `frontend/vite.config.js` | Vite build config |
+| `frontend/tailwind.config.js` | Tailwind theme |
+| `frontend/vercel.json` | SPA rewrite rule |
+| `frontend/.env` | VITE_API_URL |
+| `docker-compose.yml` | Local full-stack with containerized MongoDB |

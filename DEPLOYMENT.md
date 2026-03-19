@@ -1,286 +1,226 @@
-# Deployment Guide
+# Deployment
 
-## Prerequisites
+Melody Map runs on two separate services:
+- Frontend: Vercel — `https://melodymap.site`
+- Backend: Render — `https://melody-map-wgv2.onrender.com`
 
-- Node.js 18+
+---
+
+## Production Stack
+
+| Layer | Service | Notes |
+|-------|---------|-------|
+| Frontend | Vercel | Auto-deploys from `frontend/` on push |
+| Backend | Render | Docker container, Gunicorn |
+| Database | MongoDB Atlas | Free tier M0 works for dev |
+| Images | Unsplash API | Aesthetic board photos |
+| Pins | Pinterest API | Optional — falls back to Unsplash |
+
+---
+
+## Backend — Render
+
+### Dockerfile
+
+The backend ships with a `backend/Dockerfile`. Render builds and runs it automatically.
+
+```dockerfile
+# backend/Dockerfile (already present in repo)
+```
+
+Render runs Gunicorn as the production server. Make sure `gunicorn` is in `requirements.txt` (it is).
+
+### Environment Variables (Render Dashboard)
+
+Set these under your Render service → Environment:
+
+```
+MONGODB_URI          mongodb+srv://<user>:<password>@cluster.mongodb.net/melodymap?retryWrites=true&w=majority
+SECRET_KEY           <random 32+ char string>
+
+SPOTIFY_CLIENT_ID    <from Spotify Developer Dashboard>
+SPOTIFY_CLIENT_SECRET <from Spotify Developer Dashboard>
+SPOTIFY_REDIRECT_URI https://melody-map-wgv2.onrender.com/auth/spotify/callback
+
+LASTFM_API_KEY       <from Last.fm API account>
+LASTFM_API_SECRET    <from Last.fm API account>
+LASTFM_REDIRECT_URI  https://melody-map-wgv2.onrender.com/auth/lastfm/callback
+
+UNSPLASH_ACCESS_KEY  <from Unsplash Developer>
+PINTEREST_ACCESS_TOKEN <from Pinterest Developer — optional>
+
+FRONTEND_URL         https://melodymap.site
+FLASK_ENV            production
+PORT                 5000
+```
+
+Important notes:
+- `MONGODB_URI` passwords with special characters (e.g. `@`) are safe — `config.py` re-encodes credentials with `urllib.parse.quote_plus` at startup.
+- `SPOTIFY_REDIRECT_URI` must exactly match what's registered in your Spotify app settings. Spotify no longer accepts `localhost` — use the Render URL for production, `http://127.0.0.1:5000/auth/spotify/callback` for local dev.
+- `FRONTEND_URL` is the single source of truth for all OAuth redirects. Never hardcode the Render URL in redirect logic.
+
+### Spotify App Settings
+
+In your Spotify Developer Dashboard → your app → Edit Settings → Redirect URIs, add:
+```
+https://melody-map-wgv2.onrender.com/auth/spotify/callback
+http://127.0.0.1:5000/auth/spotify/callback
+```
+
+### Last.fm App Settings
+
+In your Last.fm API account settings, set the callback URL to:
+```
+https://melody-map-wgv2.onrender.com/auth/lastfm/callback
+```
+
+---
+
+## Frontend — Vercel
+
+### Environment Variables (Vercel Dashboard)
+
+Under your Vercel project → Settings → Environment Variables:
+
+```
+VITE_API_URL    https://melody-map-wgv2.onrender.com
+```
+
+### vercel.json
+
+The `frontend/vercel.json` SPA rewrite rule is already in place:
+
+```json
+{
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
+}
+```
+
+This ensures React Router handles all routes — without it, direct URL access to `/galaxy` or `/soulmate` returns 404.
+
+### Deploy
+
+Vercel auto-deploys when you push to your connected branch. To deploy manually:
+
+```bash
+cd frontend
+npm run build
+# then push to git, or use Vercel CLI: vercel --prod
+```
+
+---
+
+## Local Development
+
+### Prerequisites
+
 - Python 3.9+
-- MongoDB 6.0+
-- Spotify Developer Account
+- Node.js 18+
+- MongoDB (local or Atlas free tier)
 
-## Local Development Setup
-
-### 1. Backend Setup
+### Backend
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-
-# Install dependencies
+source venv/bin/activate        # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-
-# Configure environment
-cp .env.example .env
-# Edit .env with your credentials
-
-# Start MongoDB locally
-mongod --dbpath /path/to/data
-
-# Run backend
+cp .env.example .env            # then fill in your values
 python app.py
 ```
 
-### 2. Frontend Setup
+Backend runs on `http://127.0.0.1:5000`.
+
+Local `.env` minimum:
+
+```env
+MONGODB_URI=mongodb://localhost:27017/melodymap
+SECRET_KEY=any-local-secret
+SPOTIFY_CLIENT_ID=your_id
+SPOTIFY_CLIENT_SECRET=your_secret
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:5000/auth/spotify/callback
+LASTFM_API_KEY=your_key
+LASTFM_API_SECRET=your_secret
+LASTFM_REDIRECT_URI=http://127.0.0.1:5000/auth/lastfm/callback
+FRONTEND_URL=http://localhost:5173
+FLASK_ENV=development
+```
+
+### Frontend
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Start development server
+# create frontend/.env:
+# VITE_API_URL=http://127.0.0.1:5000
 npm run dev
 ```
 
-### 3. Get Spotify API Credentials
+Frontend runs on `http://localhost:5173`.
 
-1. Go to https://developer.spotify.com/dashboard
-2. Create a new app
-3. Copy Client ID and Client Secret
-4. Add to backend/.env
+---
 
-## Production Deployment
+## Docker Compose (local full-stack)
 
-### Option 1: Heroku + Vercel + MongoDB Atlas
-
-#### Backend (Heroku)
+A `docker-compose.yml` is included at the repo root for running the full stack locally with a containerized MongoDB.
 
 ```bash
-# Install Heroku CLI
-heroku login
-
-# Create app
-heroku create melody-map-api
-
-# Add MongoDB Atlas addon or use external
-heroku addons:create mongolab:sandbox
-
-# Set environment variables
-heroku config:set SECRET_KEY=your-secret-key
-heroku config:set SPOTIFY_CLIENT_ID=your-client-id
-heroku config:set SPOTIFY_CLIENT_SECRET=your-client-secret
-
-# Deploy
-git push heroku main
+docker-compose up --build
 ```
 
-#### Frontend (Vercel)
+Services:
+- `backend` → `http://localhost:5000`
+- `frontend` → `http://localhost:3000`
+- `mongodb` → `mongodb://localhost:27017`
 
-```bash
-# Install Vercel CLI
-npm i -g vercel
+For Docker, set `MONGODB_URI=mongodb://mongodb:27017/melodymap` in the backend service environment (uses the container hostname `mongodb`).
 
-cd frontend
+---
 
-# Deploy
-vercel
+## MongoDB Atlas Setup
 
-# Set environment variable
-vercel env add VITE_API_URL production
-# Enter: https://melody-map-api.herokuapp.com
-```
+1. Create a free cluster at [mongodb.com/cloud/atlas](https://www.mongodb.com/cloud/atlas)
+2. Create a database user with read/write access
+3. Whitelist `0.0.0.0/0` (or Render's IP range) under Network Access
+4. Get the connection string: `mongodb+srv://<user>:<password>@cluster.mongodb.net/melodymap`
+5. If your password contains special characters, `config.py` handles encoding automatically
 
-#### Database (MongoDB Atlas)
+Recommended indexes (run once after first deploy):
 
-1. Create account at https://www.mongodb.com/cloud/atlas
-2. Create cluster (free tier available)
-3. Get connection string
-4. Add to Heroku config: `heroku config:set MONGODB_URI=mongodb+srv://...`
-
-### Option 2: Railway (Full Stack)
-
-```bash
-# Install Railway CLI
-npm i -g @railway/cli
-
-# Login
-railway login
-
-# Initialize project
-railway init
-
-# Deploy backend
-cd backend
-railway up
-
-# Deploy frontend
-cd ../frontend
-railway up
-
-# Link services
-railway link
-```
-
-### Option 3: Docker Compose
-
-```yaml
-# docker-compose.yml
-version: '3.8'
-
-services:
-  mongodb:
-    image: mongo:6.0
-    ports:
-      - "27017:27017"
-    volumes:
-      - mongo-data:/data/db
-
-  backend:
-    build: ./backend
-    ports:
-      - "5000:5000"
-    environment:
-      - MONGODB_URI=mongodb://mongodb:27017/melody_map
-      - SECRET_KEY=${SECRET_KEY}
-      - SPOTIFY_CLIENT_ID=${SPOTIFY_CLIENT_ID}
-      - SPOTIFY_CLIENT_SECRET=${SPOTIFY_CLIENT_SECRET}
-    depends_on:
-      - mongodb
-
-  frontend:
-    build: ./frontend
-    ports:
-      - "3000:3000"
-    depends_on:
-      - backend
-
-volumes:
-  mongo-data:
-```
-
-```bash
-# Deploy
-docker-compose up -d
-```
-
-## Environment Variables
-
-### Backend (.env)
-```
-MONGODB_URI=mongodb://localhost:27017/melody_map
-SECRET_KEY=your-secret-key-here
-SPOTIFY_CLIENT_ID=your-spotify-client-id
-SPOTIFY_CLIENT_SECRET=your-spotify-client-secret
-LASTFM_API_KEY=your-lastfm-api-key (optional)
-FLASK_ENV=production
-PORT=5000
-```
-
-### Frontend (.env)
-```
-VITE_API_URL=http://localhost:5000
-```
-
-## Database Initialization
-
-```bash
-# Connect to MongoDB
-mongosh
-
-# Create database
-use melody_map
-
-# Create indexes
+```js
 db.users.createIndex({ email: 1 }, { unique: true })
-db.songs.createIndex({ spotify_id: 1 }, { unique: true })
-db.songs.createIndex({ title: "text", artist: "text" })
+db.taste_profiles.createIndex({ user_id: 1 }, { unique: true })
+db.taste_profiles.createIndex({ username: 1 })
+db.songs.createIndex({ title: "text", artist: "text", album: "text" })
 db.songs.createIndex({ cluster_id: 1 })
 db.interactions.createIndex({ user_id: 1, timestamp: -1 })
 ```
 
-## Performance Optimization
-
-### Backend
-- Enable Flask caching
-- Use Redis for session storage
-- Implement API rate limiting
-- Add database connection pooling
-
-### Frontend
-- Enable code splitting
-- Lazy load components
-- Optimize D3.js rendering
-- Use React.memo for expensive components
-- Implement virtual scrolling for large lists
-
-### Database
-- Add appropriate indexes
-- Use aggregation pipelines
-- Implement data pagination
-- Regular backup schedule
-
-## Monitoring
-
-### Recommended Tools
-- Sentry for error tracking
-- New Relic for performance monitoring
-- MongoDB Atlas monitoring
-- Heroku metrics
-
-## Security Checklist
-
-- [ ] Environment variables secured
-- [ ] HTTPS enabled
-- [ ] CORS properly configured
-- [ ] Rate limiting implemented
-- [ ] Input validation on all endpoints
-- [ ] JWT tokens with expiration
-- [ ] Password hashing with bcrypt
-- [ ] MongoDB authentication enabled
-- [ ] API keys rotated regularly
-
-## Scaling Strategy
-
-### Horizontal Scaling
-- Load balancer (Nginx/AWS ALB)
-- Multiple backend instances
-- MongoDB replica set
-- Redis cluster for caching
-
-### Vertical Scaling
-- Increase server resources
-- Optimize database queries
-- Implement caching layers
-- Use CDN for static assets
-
-## Backup Strategy
-
-```bash
-# MongoDB backup
-mongodump --uri="mongodb://localhost:27017/melody_map" --out=/backup/$(date +%Y%m%d)
-
-# Automated daily backups
-0 2 * * * /usr/bin/mongodump --uri="$MONGODB_URI" --out=/backup/$(date +\%Y\%m\%d)
-```
+---
 
 ## Troubleshooting
 
-### Backend won't start
-- Check MongoDB connection
-- Verify environment variables
-- Check port availability
-- Review logs: `heroku logs --tail`
+**Backend returns 502 on Render**
+- Check Render logs for startup errors
+- Verify `MONGODB_URI` is set and the Atlas cluster is accessible
+- Confirm `gunicorn` is in `requirements.txt`
 
-### Frontend can't connect to API
-- Verify VITE_API_URL
-- Check CORS configuration
-- Inspect network tab in browser
-- Verify backend is running
+**OAuth redirects to Render URL instead of frontend**
+- Verify `FRONTEND_URL` is set correctly in Render env vars
+- Check that `SPOTIFY_REDIRECT_URI` / `LASTFM_REDIRECT_URI` point to the Render backend, not the frontend
 
-### Map not rendering
-- Check if songs have map_coordinates
-- Run `/api/map/generate` endpoint
-- Verify D3.js loaded correctly
-- Check browser console for errors
+**Spotify callback fails with `invalid_client`**
+- Double-check `SPOTIFY_CLIENT_ID` and `SPOTIFY_CLIENT_SECRET`
+- Confirm the redirect URI in Render env vars exactly matches what's registered in Spotify Dashboard
+
+**Last.fm callback fails**
+- Confirm `LASTFM_REDIRECT_URI` in Render env vars matches the callback URL in your Last.fm app settings
+- Check `LASTFM_API_KEY` and `LASTFM_API_SECRET` are correct
+
+**Frontend shows blank page on direct URL access**
+- Confirm `frontend/vercel.json` has the SPA rewrite rule
+- Redeploy on Vercel after adding it
+
+**ML endpoints return 503**
+- This means scikit-learn failed to import at startup — check Render logs for the `ml_engines_failed` log line
+- All other routes still work; only `/api/map/generate`, `/api/songs/<id>/similar`, and `/api/playlists/generate` are affected

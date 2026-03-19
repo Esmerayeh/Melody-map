@@ -109,6 +109,14 @@ export const discoverAPI = {
     api.post('/discover/playlists', { ...profile, ...opts }),
 }
 
+export const auralithAPI = {
+  generatePlaylist: (data) => api.post('/auralith/generate-playlist', data),
+  analyzeTaste: (data) => api.post('/auralith/analyze-taste', data),
+  explainSong: (data) => api.post('/auralith/explain-song', data),
+  critiquePlaylist: (data) => api.post('/auralith/critique-playlist', data),
+  conceptPlaylist: (data) => api.post('/auralith/concept-playlist', data),
+}
+
 // Music Profile — single endpoint that returns the full aggregated profile
 export const musicProfileAPI = {
   get: (params = {}) => spotifyApi.get('/music-profile', { params }),

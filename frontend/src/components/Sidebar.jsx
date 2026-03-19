@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Music2, LayoutDashboard, Compass, Disc3,
-  Heart, Sparkles, BarChart3, LogOut, User,
+  Heart, Sparkles, BarChart3, LogOut, User, Wand2,
 } from 'lucide-react'
 import useStore from '../store/useStore'
 import { ProviderBadge } from './MusicSourceCard'
@@ -15,6 +15,7 @@ const NAV = [
   { section: 'You' },
   { path: '/soulmate',  icon: Heart,           label: 'Soulmates',  color: '#FF5DA2' },
   { path: '/aesthetic', icon: Sparkles,        label: 'Aesthetic',  color: '#FBBF24' },
+  { path: '/auralith',  icon: Wand2,           label: 'Auralith',   color: '#C084FC' },
   { path: '/analytics', icon: BarChart3,       label: 'Analytics',  color: '#2DD4BF' },
   { path: '/profile',   icon: User,            label: 'Profile',    color: '#A78BFA' },
 ]

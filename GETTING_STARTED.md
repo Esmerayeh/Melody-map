@@ -1,271 +1,225 @@
-# Getting Started with Melody Map
+# Getting Started
 
 ## What is Melody Map?
 
-Melody Map is an AI-powered music discovery platform that transforms how you explore music. Instead of traditional genre-based browsing, Melody Map creates an interactive visual universe where songs exist as points in space, positioned by their sonic similarity.
+Melody Map is an AI-powered music identity engine. Connect your Spotify or Last.fm account and it builds a psychological and aesthetic model of your taste — personality archetypes, a Music MBTI type, a living 3D soul orb, a visual aesthetic board, soulmate compatibility scoring, and personalized playlist concepts.
 
-## Key Features
+It's not a recommender. It's a mirror.
 
-🎵 **Interactive Music Map** - Explore music as a 2D constellation where similar songs cluster together
+---
 
-🤖 **AI Recommendations** - Get personalized suggestions based on your listening patterns
-
-🎨 **Mood-Based Playlists** - Generate playlists by mood (dreamy, energetic, melancholic, etc.)
-
-📊 **Analytics Dashboard** - Visualize your music taste with charts and statistics
-
-🔍 **Smart Search** - Find songs and discover similar tracks instantly
-
-## Quick Start (5 minutes)
-
-### Prerequisites
+## Prerequisites
 
 - Python 3.9+
 - Node.js 18+
-- MongoDB 6.0+
-- Spotify Developer Account (free)
+- A Spotify account (free or premium) — or a Last.fm account
+- MongoDB (local install, or a free [MongoDB Atlas](https://www.mongodb.com/cloud/atlas) cluster)
 
-### 1. Clone and Setup
+---
+
+## 1. Clone the repo
 
 ```bash
-# Clone the repository
 git clone https://github.com/yourusername/melody-map.git
 cd melody-map
-
-# Run setup script (Linux/Mac)
-chmod +x SETUP.sh
-./SETUP.sh
-
-# Or setup manually (Windows)
-# Backend
-cd backend
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-
-# Frontend
-cd ../frontend
-npm install
 ```
 
-### 2. Get Spotify API Credentials
+---
 
-1. Go to https://developer.spotify.com/dashboard
-2. Click "Create an App"
-3. Fill in app name and description
+## 2. Get API credentials
+
+### Spotify (required for full experience)
+
+1. Go to [developer.spotify.com/dashboard](https://developer.spotify.com/dashboard)
+2. Create an app
+3. Under Edit Settings → Redirect URIs, add:
+   ```
+   http://127.0.0.1:5000/auth/spotify/callback
+   ```
 4. Copy your Client ID and Client Secret
 
-### 3. Configure Environment
+### Last.fm (optional — alternative to Spotify)
+
+1. Go to [last.fm/api/account/create](https://www.last.fm/api/account/create)
+2. Create an API account
+3. Copy your API Key and Shared Secret
+
+### Unsplash (optional — for aesthetic board images)
+
+1. Go to [unsplash.com/developers](https://unsplash.com/developers)
+2. Create an app
+3. Copy your Access Key
+
+---
+
+## 3. Backend setup
+
+```bash
+cd backend
+python -m venv venv
+source venv/bin/activate        # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env
+```
 
 Edit `backend/.env`:
 
 ```env
-MONGODB_URI=mongodb://localhost:27017/melody_map
-SECRET_KEY=your-random-secret-key-here
-SPOTIFY_CLIENT_ID=your-spotify-client-id
-SPOTIFY_CLIENT_SECRET=your-spotify-client-secret
+MONGODB_URI=mongodb://localhost:27017/melodymap
+SECRET_KEY=any-random-string-here
+
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+SPOTIFY_REDIRECT_URI=http://127.0.0.1:5000/auth/spotify/callback
+
+LASTFM_API_KEY=your_lastfm_api_key
+LASTFM_API_SECRET=your_lastfm_api_secret
+LASTFM_REDIRECT_URI=http://127.0.0.1:5000/auth/lastfm/callback
+
+UNSPLASH_ACCESS_KEY=your_unsplash_key
+
+FRONTEND_URL=http://localhost:5173
+FLASK_ENV=development
+PORT=5000
 ```
 
-### 4. Start MongoDB
+Start the backend:
 
 ```bash
-# Start MongoDB server
-mongod --dbpath /path/to/your/data/directory
-```
-
-### 5. Run the Application
-
-**Terminal 1 - Backend:**
-```bash
-cd backend
-source venv/bin/activate  # On Windows: venv\Scripts\activate
 python app.py
 ```
 
-**Terminal 2 - Frontend:**
+You should see:
+```
+INFO  mongo_connected
+INFO  blueprints_registered
+```
+
+Backend runs on `http://127.0.0.1:5000`.
+
+---
+
+## 4. Frontend setup
+
+Open a new terminal:
+
 ```bash
 cd frontend
+npm install
+```
+
+Create `frontend/.env`:
+
+```env
+VITE_API_URL=http://127.0.0.1:5000
+```
+
+Start the frontend:
+
+```bash
 npm run dev
 ```
 
-### 6. Open the App
+Frontend runs on `http://localhost:5173`.
 
-Visit http://localhost:3000
+---
 
-## First Steps in the App
+## 5. Open the app
 
-### 1. Create an Account
-- Click "Sign Up"
-- Enter username, email, and password
-- You'll be automatically logged in
+Visit `http://localhost:5173`.
 
-### 2. Explore the Music Map
-- Navigate to the "Map" page
-- Each dot represents a song
-- Similar songs are positioned closer together
-- Click on dots to see song details
-- Zoom and pan to explore
+1. Register an account (email + password)
+2. On the login page, click "Connect Spotify" or "Connect Last.fm"
+3. Authorize the app — you'll be redirected back to the frontend
+4. Your music profile loads automatically
 
-### 3. Search for Music
-- Go to "Discover" page
-- Search for your favorite songs or artists
-- Click on results to see similar tracks
+---
 
-### 4. Generate AI Playlists
-- Visit "Playlists" page
-- Select a mood (happy, dreamy, energetic, etc.)
-- Click "Generate Playlist"
-- AI creates a playlist matching that mood
+## What happens after you connect
 
-### 5. View Your Analytics
-- Check "Analytics" page
-- See your genre distribution
-- View cluster analysis
-- Track your listening patterns
+Once Spotify is connected, `useMusicProfile` fetches your top artists, top tracks, recently played, saved tracks, and audio features from the Spotify API. This takes a few seconds on first load.
 
-## Understanding the Music Map
+From that data, the app computes:
+- Your top 3 personality archetypes (Dreamy, Nostalgic, Chaotic, Romantic, Melancholic, Cosmic)
+- Your Music MBTI type (one of 16 types derived from audio features + genre diversity)
+- Galaxy node positions for the 3D artist map
+- Aesthetic tags for the visual identity board
+- Analytics metrics (mood, energy score, nostalgia index, diversity score)
 
-### What are the dots?
-Each dot is a song. The position is determined by its audio features:
-- Energy
-- Valence (happiness)
-- Danceability
-- Acousticness
-- And more...
+All of this is cached in Zustand — navigating between pages doesn't re-fetch.
 
-### What are the colors?
-Colors represent clusters - groups of similar songs discovered by AI.
+---
 
-### How to navigate?
-- **Click and drag** to pan
-- **Scroll** to zoom
-- **Click dots** to see song details
+## Pages overview
 
-## How the AI Works
+| Route | What it does |
+|-------|-------------|
+| `/` | Dashboard — soul orb, identity summary, top artists/tracks |
+| `/galaxy` | 3D artist/genre map — explore your taste as a star system |
+| `/discover` | Playlist concepts generated from your audio profile |
+| `/playlists` | Your Spotify playlists |
+| `/analytics` | Audio feature charts, mood metrics, nostalgia index |
+| `/soulmate` | Find your music soulmate — compatibility scoring |
+| `/aesthetic` | Visual identity board — colors, images, vibe description |
+| `/auralith` | AI reasoning layer — natural language music insights |
+| `/profile` | Account settings |
 
-### Similarity Engine
-Songs are analyzed based on 8 audio features. The AI uses:
-- **Cosine Similarity** to measure how similar songs are
-- **K-Means Clustering** to group similar songs
-- **PCA** to reduce dimensions for visualization
+---
 
-### Recommendations
-The system uses:
-- **Content-Based Filtering** - Recommends songs similar to what you like
-- **Collaborative Filtering** - Suggests songs liked by similar users
-- **Hybrid Approach** - Combines both methods
+## Using the Soulmate feature
 
-### Mood Detection
-Moods are mapped to audio feature ranges:
-- **Happy**: High valence + high energy
-- **Dreamy**: Medium valence + high acousticness
-- **Energetic**: High energy + high danceability
+The soulmate system requires at least two users to have synced profiles.
+
+1. Go to `/soulmate`
+2. Click "Sync My Profile" — this stores your taste data in the database
+3. Share your profile link with someone else
+4. Once they sync, you'll appear in each other's matches
+5. Click a match to see the full compatibility breakdown and constellation graph
+
+---
+
+## Using the Discover feature
+
+1. Go to `/discover`
+2. Your audio features are sent to the backend automatically
+3. The engine scores 10 playlist archetypes against your taste profile
+4. Each concept shows a title, description, "why it fits you", mood tags, and seed artists
+5. Toggle "Serendipity mode" to get recommendations from outside your usual taste
+
+---
 
 ## Troubleshooting
 
-### Backend won't start
-```bash
-# Check if MongoDB is running
-mongosh
+**Backend won't start**
+- Check that MongoDB is running: `mongosh` (or use Atlas)
+- Verify all required env vars are set in `backend/.env`
+- Port 5000 in use? Change `PORT=5001` in `.env`
 
-# Check if port 5000 is available
-lsof -i :5000  # Mac/Linux
-netstat -ano | findstr :5000  # Windows
+**"Spotify token missing" error**
+- Make sure `VITE_API_URL` in `frontend/.env` points to `http://127.0.0.1:5000` (not `localhost`)
+- Spotify's post-2025 rules reject `localhost` as a redirect URI hostname — use `127.0.0.1`
 
-# Check environment variables
-cat backend/.env
-```
+**OAuth redirects to wrong URL**
+- Confirm `FRONTEND_URL` in `backend/.env` is `http://localhost:5173`
+- Confirm `SPOTIFY_REDIRECT_URI` is `http://127.0.0.1:5000/auth/spotify/callback`
+- Confirm the same redirect URI is registered in your Spotify app settings
 
-### Frontend won't start
-```bash
-# Clear node_modules and reinstall
-rm -rf node_modules package-lock.json
-npm install
+**Profile loads but soul orb is grey / "Tuning your frequency..."**
+- This is the fallback state — personality data hasn't computed yet
+- Wait for the full profile fetch to complete (watch the network tab)
+- If it persists, check the browser console for errors from `useMusicProfile`
 
-# Check if port 3000 is available
-lsof -i :3000  # Mac/Linux
-netstat -ano | findstr :3000  # Windows
-```
+**Aesthetic board shows placeholder images**
+- `UNSPLASH_ACCESS_KEY` is not set — add it to `backend/.env`
+- The app falls back to Picsum placeholders automatically
 
-### Map is empty
-```bash
-# Generate the map
-curl -X POST http://localhost:5000/api/map/generate \
-  -H "Authorization: Bearer YOUR_TOKEN"
+**ML endpoints return 503**
+- scikit-learn failed to import at startup — check terminal logs for `ml_engines_failed`
+- Only affects `/api/map/generate`, `/api/songs/<id>/similar`, and `/api/playlists/generate`
+- All other routes work normally
 
-# Or use the UI to trigger generation
-```
+---
 
-### Can't connect to Spotify API
-- Verify credentials in `.env`
-- Check if credentials are correct in Spotify Dashboard
-- Ensure no extra spaces in `.env` file
+## Production deployment
 
-## Next Steps
-
-### Add Your Music
-1. Use Spotify API to import your library
-2. Or manually add songs via the API
-3. Generate the map to visualize
-
-### Customize
-- Adjust number of clusters in `similarity_engine.py`
-- Add new moods in `recommendation_engine.py`
-- Customize UI colors in `tailwind.config.js`
-
-### Deploy
-See [DEPLOYMENT.md](DEPLOYMENT.md) for production deployment guide.
-
-## Learning Resources
-
-### Understanding the Code
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System design
-- [ML_PIPELINE.md](ML_PIPELINE.md) - Machine learning details
-- [API_DOCUMENTATION.md](API_DOCUMENTATION.md) - API reference
-
-### Extending the Project
-- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md) - File organization
-- [DATABASE_SCHEMA.md](DATABASE_SCHEMA.md) - Data models
-
-## Common Use Cases
-
-### For Music Lovers
-- Discover new artists similar to your favorites
-- Create mood-based playlists for different activities
-- Visualize your music taste
-
-### For Developers
-- Learn full-stack development
-- Understand machine learning in practice
-- Build portfolio project
-
-### For Data Scientists
-- Experiment with clustering algorithms
-- Try different dimensionality reduction techniques
-- Implement recommendation systems
-
-## Tips for Best Experience
-
-1. **Add diverse music** - The map is more interesting with variety
-2. **Interact with songs** - Like/play songs to improve recommendations
-3. **Explore clusters** - Each cluster represents a unique music style
-4. **Try different moods** - Experiment with playlist generation
-5. **Check analytics** - Understand your listening patterns
-
-## Getting Help
-
-- Check documentation in `/docs` folder
-- Review code comments
-- Open an issue on GitHub
-- Join our Discord community
-
-## What's Next?
-
-After getting comfortable with the basics:
-1. Import your Spotify library
-2. Invite friends to discover music together
-3. Create custom mood mappings
-4. Experiment with ML parameters
-5. Deploy to production
-
-Happy exploring! 🎵
+See [DEPLOYMENT.md](DEPLOYMENT.md) for the full Render + Vercel + MongoDB Atlas setup.

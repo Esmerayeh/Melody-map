@@ -300,7 +300,13 @@ export default function Dashboard() {
             {/* Soul Orb */}
             {features.energy != null && (
               <div className="shrink-0">
-                <MusicSoulOrb personality={profile?.personality} size={120} showLabels={false} />
+                <MusicSoulOrb
+                  personality={profile?.personality}
+                  mbti={profile?.mbti}
+                  audioFeatures={profile?.audioFeatures}
+                  size={120}
+                  showLabels={false}
+                />
               </div>
             )}
           </div>

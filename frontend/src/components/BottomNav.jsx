@@ -1,5 +1,5 @@
 import { NavLink, useLocation } from 'react-router-dom'
-import { LayoutDashboard, Compass, Disc3, Heart, Sparkles, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, Compass, Disc3, Heart, Sparkles, BarChart3, Wand2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 
 const NAV = [
@@ -8,6 +8,7 @@ const NAV = [
   { path: '/galaxy',    icon: Disc3,           label: 'Galaxy',    color: '#E040FB' },
   { path: '/soulmate',  icon: Heart,           label: 'Soulmate',  color: '#FF5DA2' },
   { path: '/aesthetic', icon: Sparkles,        label: 'Aesthetic', color: '#FBBF24' },
+  { path: '/auralith',  icon: Wand2,           label: 'Auralith',  color: '#C084FC' },
   { path: '/analytics', icon: BarChart3,       label: 'Analytics', color: '#34D399' },
 ]
 

@@ -21,6 +21,7 @@ const MusicSoulmate  = lazy(() => import('./pages/MusicSoulmate'))
 const MusicAesthetic = lazy(() => import('./pages/MusicAesthetic'))
 const Dashboard      = lazy(() => import('./pages/Dashboard'))
 const Profile        = lazy(() => import('./pages/Profile'))
+const Auralith       = lazy(() => import('./pages/Auralith'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -126,6 +127,11 @@ function AnimatedRoutes() {
         <Route path="/profile" element={
           <ProtectedRoute>
             <AppShell><PageWrapper><Profile /></PageWrapper></AppShell>
+          </ProtectedRoute>
+        } />
+        <Route path="/auralith" element={
+          <ProtectedRoute>
+            <AppShell><PageWrapper><Auralith /></PageWrapper></AppShell>
           </ProtectedRoute>
         } />
         <Route path="*" element={<Navigate to="/" replace />} />

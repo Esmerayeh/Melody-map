@@ -321,7 +321,8 @@ def build_music_profile(
         })
 
     # ── Merge recently played + saved tracks ───────────────────────────────────
-    extra_tracks: list[dict] = []
+    recent_tracks: list[dict] = []
+    saved_tracks: list[dict] = []
     seen_ids: set[str] = {t['id'] for t in top_tracks if t.get('id')}
 
     for entry in (recently_played_raw.get('items') or []):
@@ -329,7 +330,7 @@ def build_music_profile(
         if not item or not item.get('id') or item['id'] in seen_ids:
             continue
         seen_ids.add(item['id'])
-        extra_tracks.append({
+        recent_tracks.append({
             'id':          item.get('id'),
             'title':       item.get('name'),
             'artist':      item['artists'][0]['name'] if item.get('artists') else '',
@@ -340,10 +341,9 @@ def build_music_profile(
 
     for entry in (saved_tracks_raw.get('items') or []):
         item = entry.get('track') if isinstance(entry, dict) and 'track' in entry else entry
-        if not item or not item.get('id') or item['id'] in seen_ids:
+        if not item or not item.get('id'):
             continue
-        seen_ids.add(item['id'])
-        extra_tracks.append({
+        saved_tracks.append({
             'id':          item.get('id'),
             'title':       item.get('name'),
             'artist':      item['artists'][0]['name'] if item.get('artists') else '',
@@ -352,7 +352,7 @@ def build_music_profile(
             'release_date': item.get('album', {}).get('release_date', ''),
         })
 
-    all_tracks = top_tracks + extra_tracks
+    all_tracks = top_tracks + recent_tracks + [track for track in saved_tracks if track.get('id') not in seen_ids]
 
     # ── Audio features ─────────────────────────────────────────────────────────
     track_ids = [t['id'] for t in all_tracks if t.get('id')][:50]
@@ -418,7 +418,8 @@ def build_music_profile(
         'userProfile':       user_profile,
         'topArtists':        top_artists,
         'topTracks':         top_tracks,
-        'recentlyPlayed':    extra_tracks[:25],
+        'recentlyPlayed':    recent_tracks[:25],
+        'savedTracks':       saved_tracks[:25],
         'audioFeatures':     avg_features,
         'audioFeaturesList': audio_features_list,
         'galaxyNodes':       galaxy_nodes,
