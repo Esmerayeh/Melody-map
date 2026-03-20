@@ -1,8 +1,9 @@
 import React, { useEffect } from 'react'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useStore from '../store/useStore'
 import { spotifyAPI } from '../services/api'
+import useBackendWake from '../hooks/useBackendWake'
 
 // Spotify green brand color
 const SpotifyIcon = () => (
@@ -13,6 +14,7 @@ const SpotifyIcon = () => (
 
 export default function SpotifyConnect({ variant = 'button' }) {
   const { spotifyConnected, spotifyProfile, setSpotifyProfile, disconnectSpotify } = useStore()
+  const { waking, wake } = useBackendWake()
 
   // Load profile once connected
   useEffect(() => {
@@ -24,7 +26,7 @@ export default function SpotifyConnect({ variant = 'button' }) {
   }, [spotifyConnected, spotifyProfile, setSpotifyProfile])
 
   const handleConnect = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`
+    wake(`${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`)
   }
 
   const handleDisconnect = () => {
@@ -64,10 +66,11 @@ export default function SpotifyConnect({ variant = 'button' }) {
   return (
     <button
       onClick={handleConnect}
-      className="flex items-center gap-2 px-3 py-1.5 bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 hover:border-[#1DB954]/60 rounded-lg text-[#1DB954] text-sm font-medium transition-all"
+      disabled={waking}
+      className="flex items-center gap-2 px-3 py-1.5 bg-[#1DB954]/10 hover:bg-[#1DB954]/20 border border-[#1DB954]/30 hover:border-[#1DB954]/60 rounded-lg text-[#1DB954] text-sm font-medium transition-all disabled:opacity-70"
     >
-      <SpotifyIcon />
-      <span className="hidden sm:inline">Connect Spotify</span>
+      {waking ? <Loader2 className="w-4 h-4 animate-spin" /> : <SpotifyIcon />}
+      <span className="hidden sm:inline">{waking ? 'Connecting...' : 'Connect Spotify'}</span>
     </button>
   )
 }

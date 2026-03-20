@@ -1,7 +1,8 @@
 import React from 'react'
-import { CheckCircle } from 'lucide-react'
+import { CheckCircle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useStore from '../store/useStore'
+import useBackendWake from '../hooks/useBackendWake'
 
 const SpotifyIcon = () => (
   <svg viewBox="0 0 24 24" className="w-5 h-5 fill-current" xmlns="http://www.w3.org/2000/svg">
@@ -62,13 +63,14 @@ export function ProviderBadge() {
  */
 export default function MusicSourceCard({ compact = false }) {
   const { musicProvider, spotifyConnected, lastfmConnected, disconnectSpotify, disconnectLastfm } = useStore()
+  const { waking, wake } = useBackendWake()
 
   const handleSpotify = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`
+    wake(`${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`)
   }
 
   const handleLastfm = () => {
-    window.location.href = `${import.meta.env.VITE_API_URL || ''}/auth/lastfm/login`
+    wake(`${import.meta.env.VITE_API_URL || ''}/auth/lastfm/login`)
   }
 
   // Already connected — show status
@@ -161,24 +163,26 @@ export default function MusicSourceCard({ compact = false }) {
       <div className="grid grid-cols-2 gap-3">
         {/* Spotify */}
         <button onClick={handleSpotify}
-          className="flex flex-col items-center gap-2 p-4 bg-[#1DB954]/8 hover:bg-[#1DB954]/15 border border-[#1DB954]/20 hover:border-[#1DB954]/50 rounded-xl text-[#1DB954] transition-all group">
+          disabled={waking}
+          className="flex flex-col items-center gap-2 p-4 bg-[#1DB954]/8 hover:bg-[#1DB954]/15 border border-[#1DB954]/20 hover:border-[#1DB954]/50 rounded-xl text-[#1DB954] transition-all group disabled:opacity-70">
           <div className="w-10 h-10 rounded-xl bg-[#1DB954]/15 group-hover:bg-[#1DB954]/25 flex items-center justify-center transition-all">
-            <SpotifyIcon />
+            {waking ? <Loader2 className="w-5 h-5 animate-spin" /> : <SpotifyIcon />}
           </div>
           <div className="text-center">
-            <p className="text-sm font-semibold">Spotify</p>
+            <p className="text-sm font-semibold">{waking ? 'Connecting...' : 'Spotify'}</p>
             <p className="text-xs text-gray-500 mt-0.5">Top tracks + audio features</p>
           </div>
         </button>
 
         {/* Last.fm */}
         <button onClick={handleLastfm}
-          className="flex flex-col items-center gap-2 p-4 bg-red-500/8 hover:bg-red-500/15 border border-red-500/20 hover:border-red-500/50 rounded-xl text-red-400 transition-all group">
+          disabled={waking}
+          className="flex flex-col items-center gap-2 p-4 bg-red-500/8 hover:bg-red-500/15 border border-red-500/20 hover:border-red-500/50 rounded-xl text-red-400 transition-all group disabled:opacity-70">
           <div className="w-10 h-10 rounded-xl bg-red-500/15 group-hover:bg-red-500/25 flex items-center justify-center transition-all">
-            <LastfmIcon />
+            {waking ? <Loader2 className="w-5 h-5 animate-spin" /> : <LastfmIcon />}
           </div>
           <div className="text-center">
-            <p className="text-sm font-semibold">Last.fm</p>
+            <p className="text-sm font-semibold">{waking ? 'Connecting...' : 'Last.fm'}</p>
             <p className="text-xs text-gray-500 mt-0.5">Scrobble history + artists</p>
           </div>
         </button>

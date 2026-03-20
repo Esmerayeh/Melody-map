@@ -1,3 +1,5 @@
+print("APP STARTING")
+
 from flask import Flask, jsonify, request, g
 from flask_cors import CORS
 from flask_pymongo import PyMongo
@@ -10,6 +12,8 @@ import bcrypt
 import jwt
 import time
 from datetime import datetime, timedelta
+
+print("IMPORTS FINISHED")
 
 # ── Blueprint imports — these MUST succeed for routes to be reachable ──────────
 from routes.spotify_auth import spotify_auth_bp
@@ -24,26 +28,43 @@ from routes.public_profile import public_profile_bp, init_mongo as public_profil
 from routes.pinterest_aesthetic import pinterest_bp
 from routes.auralith import auralith_bp
 
-# ── ML engines — lazy-loaded so an import failure here doesn't kill routes ─────
-similarity_engine = None
-recommendation_engine = None
-spotify_service = None
+# ── ML engines — truly lazy: instantiated on first use, not at boot ───────────
+_similarity_engine = None
+_recommendation_engine = None
+_spotify_service = None
 
-try:
-    from ml.similarity_engine import MusicSimilarityEngine
-    from ml.recommendation_engine import RecommendationEngine
-    similarity_engine = MusicSimilarityEngine(n_clusters=10)
-    recommendation_engine = RecommendationEngine()
-    logger.info({'event': 'ml_engines_loaded'})
-except Exception as e:
-    logger.error({'event': 'ml_engines_failed', 'err': str(e)})
+def get_similarity_engine():
+    global _similarity_engine
+    if _similarity_engine is None:
+        try:
+            from ml.similarity_engine import MusicSimilarityEngine
+            _similarity_engine = MusicSimilarityEngine(n_clusters=10)
+            logger.info({'event': 'similarity_engine_loaded'})
+        except Exception as e:
+            logger.error({'event': 'similarity_engine_failed', 'err': str(e)})
+    return _similarity_engine
 
-try:
-    from services.spotify_service import SpotifyService
-    spotify_service = SpotifyService()
-    logger.info({'event': 'spotify_service_loaded'})
-except Exception as e:
-    logger.error({'event': 'spotify_service_failed', 'err': str(e)})
+def get_recommendation_engine():
+    global _recommendation_engine
+    if _recommendation_engine is None:
+        try:
+            from ml.recommendation_engine import RecommendationEngine
+            _recommendation_engine = RecommendationEngine()
+            logger.info({'event': 'recommendation_engine_loaded'})
+        except Exception as e:
+            logger.error({'event': 'recommendation_engine_failed', 'err': str(e)})
+    return _recommendation_engine
+
+def get_spotify_service():
+    global _spotify_service
+    if _spotify_service is None:
+        try:
+            from services.spotify_service import SpotifyService
+            _spotify_service = SpotifyService()
+            logger.info({'event': 'spotify_service_loaded'})
+        except Exception as e:
+            logger.error({'event': 'spotify_service_failed', 'err': str(e)})
+    return _spotify_service
 
 app = Flask(__name__)
 app.config['MONGO_URI'] = Config.MONGODB_URI
@@ -80,6 +101,8 @@ app.register_blueprint(pinterest_bp)
 app.register_blueprint(auralith_bp, url_prefix='/api')
 
 # Confirm all blueprints registered — visible in Render logs
+print("BLUEPRINTS REGISTERED")
+print(app.url_map)
 logger.info({'event': 'blueprints_registered', 'routes': [str(r) for r in app.url_map.iter_rules()]})
 
 
@@ -109,6 +132,12 @@ def serialize_doc(doc):
 def validate_fields(data: dict, required: list[str]):
     missing = [f for f in required if not data.get(f)]
     return missing
+
+# ── Root ───────────────────────────────────────────────────────────────────────
+@app.route('/')
+def root():
+    return jsonify({'status': 'ok', 'service': 'melody-map-api'}), 200
+
 
 # ── Health ─────────────────────────────────────────────────────────────────────
 @app.route('/api/health')
@@ -188,6 +217,8 @@ def login():
 @app.route('/api/map/generate', methods=['POST'])
 @require_auth
 def generate_map():
+    similarity_engine = get_similarity_engine()
+    recommendation_engine = get_recommendation_engine()
     if not similarity_engine or not recommendation_engine:
         return jsonify({'error': 'ML engine unavailable'}), 503
     songs = list(mongo.db.songs.find().limit(500))
@@ -235,6 +266,7 @@ def search_songs():
 
 @app.route('/api/songs/<song_id>/similar', methods=['GET'])
 def get_similar_songs(song_id):
+    similarity_engine = get_similarity_engine()
     if not similarity_engine:
         return jsonify({'error': 'ML engine unavailable'}), 503
     try:
@@ -257,6 +289,7 @@ def get_similar_songs(song_id):
 @app.route('/api/playlists/generate', methods=['POST'])
 @rate_limit(max_requests=20, window_seconds=60)
 def generate_playlist():
+    recommendation_engine = get_recommendation_engine()
     if not recommendation_engine:
         return jsonify({'error': 'ML engine unavailable'}), 503
     data = request.json or {}
@@ -293,6 +326,7 @@ def get_playlist(playlist_id):
 @rate_limit(max_requests=30, window_seconds=60)
 def get_recommendations(user_id):
     try:
+        recommendation_engine = get_recommendation_engine()
         interactions = list(mongo.db.interactions.find({'user_id': ObjectId(user_id)}))
         songs        = [serialize_doc(dict(s)) for s in mongo.db.songs.find()]
         profile      = recommendation_engine.build_user_profile(interactions, songs)
