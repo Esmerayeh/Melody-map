@@ -44,7 +44,6 @@ logs/
 # Database
 *.db
 *.sqlite
-data/
 
 # OS
 Thumbs.db

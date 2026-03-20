@@ -14,6 +14,10 @@ class AuralithEngine:
         self.matrix = self._embed_many(self._serialize_song(song) for song in self.songs)
 
     def _load_songs(self) -> list[dict]:
+        if not self.dataset_path.exists():
+            import sys
+            print(f"WARNING: auralith dataset not found at {self.dataset_path} — engine will run with empty catalog", file=sys.stderr)
+            return []
         with self.dataset_path.open("r", encoding="utf-8") as handle:
             return json.load(handle)
 
