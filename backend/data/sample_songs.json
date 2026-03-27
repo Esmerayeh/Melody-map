@@ -1,0 +1,50 @@
+[
+  {
+    "title": "Only Shallow",
+    "artist": "My Bloody Valentine",
+    "album": "Loveless",
+    "genres": ["shoegaze", "dream pop"],
+    "audio_features": {
+      "tempo": 120,
+      "energy": 0.85,
+      "danceability": 0.45,
+      "valence": 0.55,
+      "acousticness": 0.15,
+      "instrumentalness": 0.65,
+      "loudness": -8.5,
+      "speechiness": 0.05
+    }
+  },
+  {
+    "title": "Sometimes",
+    "artist": "My Bloody Valentine",
+    "album": "Loveless",
+    "genres": ["shoegaze", "dream pop"],
+    "audio_features": {
+      "tempo": 95,
+      "energy": 0.65,
+      "danceability": 0.40,
+      "valence": 0.60,
+      "acousticness": 0.25,
+      "instrumentalness": 0.70,
+      "loudness": -10.2,
+      "speechiness": 0.04
+    }
+  },
+  {
+    "title": "Cherry-Coloured Funk",
+    "artist": "Cocteau Twins",
+    "album": "Heaven or Las Vegas",
+    "genres": ["dream pop", "ethereal wave"],
+    "audio_features": {
+      "tempo": 110,
+      "energy": 0.70,
+      "danceability": 0.55,
+      "valence": 0.65,
+      "acousticness": 0.20,
+      "instrumentalness": 0.45,
+      "loudness": -9.0,
+      "speechiness": 0.06
+    }
+  }
+]

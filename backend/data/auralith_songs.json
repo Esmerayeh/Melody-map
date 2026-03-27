@@ -1,0 +1,202 @@
+[
+  {
+    "title": "Holocene",
+    "artist": "Bon Iver",
+    "genre": "Indie Folk",
+    "mood": "Reflective",
+    "energy": 0.32,
+    "valence": 0.46,
+    "tempo": 98,
+    "description": "airy acoustic layers, fragile vocals, and a wide-open feeling that turns introspection into landscape."
+  },
+  {
+    "title": "Space Song",
+    "artist": "Beach House",
+    "genre": "Dream Pop",
+    "mood": "Dreamy",
+    "energy": 0.38,
+    "valence": 0.41,
+    "tempo": 148,
+    "description": "floating synths, soft-focus melancholy, and a slow emotional drift that feels suspended in blue light."
+  },
+  {
+    "title": "Nights",
+    "artist": "Frank Ocean",
+    "genre": "Alternative R&B",
+    "mood": "Nocturnal",
+    "energy": 0.58,
+    "valence": 0.37,
+    "tempo": 90,
+    "description": "a split-structure song with intimate confession, late-night atmosphere, and production that transforms mid-flight."
+  },
+  {
+    "title": "Motion Picture Soundtrack",
+    "artist": "Radiohead",
+    "genre": "Art Rock",
+    "mood": "Haunting",
+    "energy": 0.27,
+    "valence": 0.22,
+    "tempo": 72,
+    "description": "ghostly harp textures and farewell energy create a beautiful, dissolving emotional afterglow."
+  },
+  {
+    "title": "Pink Moon",
+    "artist": "Nick Drake",
+    "genre": "Singer-Songwriter",
+    "mood": "Intimate",
+    "energy": 0.24,
+    "valence": 0.48,
+    "tempo": 88,
+    "description": "minimal acoustic guitar, hushed vocal presence, and a closeness that feels like a private conversation."
+  },
+  {
+    "title": "Myth",
+    "artist": "Beach House",
+    "genre": "Dream Pop",
+    "mood": "Euphoric",
+    "energy": 0.55,
+    "valence": 0.52,
+    "tempo": 140,
+    "description": "shimmering melodies and emotional lift that feel huge without ever breaking the spell."
+  },
+  {
+    "title": "Breathe",
+    "artist": "Telepopmusik",
+    "genre": "Downtempo",
+    "mood": "Ethereal",
+    "energy": 0.29,
+    "valence": 0.44,
+    "tempo": 84,
+    "description": "soft electronic pulse, whispery vocals, and a floating sense of distance."
+  },
+  {
+    "title": "Cherry-coloured Funk",
+    "artist": "Cocteau Twins",
+    "genre": "Shoegaze",
+    "mood": "Heavenly",
+    "energy": 0.51,
+    "valence": 0.61,
+    "tempo": 120,
+    "description": "glossy guitars and wordless ecstasy blur melody into pure atmosphere."
+  },
+  {
+    "title": "Teardrop",
+    "artist": "Massive Attack",
+    "genre": "Trip-Hop",
+    "mood": "Melancholic",
+    "energy": 0.47,
+    "valence": 0.35,
+    "tempo": 77,
+    "description": "heartbeat percussion, elegant sadness, and a polished emotional tension."
+  },
+  {
+    "title": "Archangel",
+    "artist": "Burial",
+    "genre": "UK Garage",
+    "mood": "Urban Nocturne",
+    "energy": 0.42,
+    "valence": 0.29,
+    "tempo": 138,
+    "description": "rain-soaked textures, chopped vocals, and lonely city energy in motion."
+  },
+  {
+    "title": "Your Best American Girl",
+    "artist": "Mitski",
+    "genre": "Indie Rock",
+    "mood": "Longing",
+    "energy": 0.63,
+    "valence": 0.36,
+    "tempo": 100,
+    "description": "tender verses explode into distorted release, capturing ache, identity, and desire."
+  },
+  {
+    "title": "K.",
+    "artist": "Cigarettes After Sex",
+    "genre": "Dream Pop",
+    "mood": "Romantic",
+    "energy": 0.25,
+    "valence": 0.42,
+    "tempo": 92,
+    "description": "low-lit guitars, whispered vocals, and sensual slowness create intimate late-night gravity."
+  },
+  {
+    "title": "Reckoner",
+    "artist": "Radiohead",
+    "genre": "Art Rock",
+    "mood": "Weightless",
+    "energy": 0.41,
+    "valence": 0.49,
+    "tempo": 104,
+    "description": "falsetto, shimmering percussion, and harmonic openness give the song a levitating quality."
+  },
+  {
+    "title": "Silver Soul",
+    "artist": "Beach House",
+    "genre": "Dream Pop",
+    "mood": "Yearning",
+    "energy": 0.47,
+    "valence": 0.38,
+    "tempo": 136,
+    "description": "warm synth haze and repeating phrases create longing that feels endless."
+  },
+  {
+    "title": "Retrograde",
+    "artist": "James Blake",
+    "genre": "Alternative R&B",
+    "mood": "Tense",
+    "energy": 0.44,
+    "valence": 0.28,
+    "tempo": 92,
+    "description": "minimal structure, heavy sub-bass, and emotional suspense build a dark pull."
+  },
+  {
+    "title": "Alison",
+    "artist": "Slowdive",
+    "genre": "Shoegaze",
+    "mood": "Misty",
+    "energy": 0.43,
+    "valence": 0.45,
+    "tempo": 119,
+    "description": "blurred guitars and gentle propulsion make the song feel like memory in motion."
+  },
+  {
+    "title": "Sugar for the Pill",
+    "artist": "Slowdive",
+    "genre": "Shoegaze",
+    "mood": "Bittersweet",
+    "energy": 0.52,
+    "valence": 0.47,
+    "tempo": 126,
+    "description": "cleanly blooming guitars and emotional restraint create beautiful unresolved tension."
+  },
+  {
+    "title": "Cellophane",
+    "artist": "FKA twigs",
+    "genre": "Art Pop",
+    "mood": "Exposed",
+    "energy": 0.28,
+    "valence": 0.18,
+    "tempo": 68,
+    "description": "bare vocals and dramatic space make heartbreak feel physically delicate."
+  },
+  {
+    "title": "Porcelain",
+    "artist": "Moby",
+    "genre": "Downtempo",
+    "mood": "Adrift",
+    "energy": 0.3,
+    "valence": 0.36,
+    "tempo": 95,
+    "description": "gentle breakbeats and wistful keys make the song feel suspended between movement and stillness."
+  },
+  {
+    "title": "Fade Into You",
+    "artist": "Mazzy Star",
+    "genre": "Dream Pop",
+    "mood": "Tender",
+    "energy": 0.29,
+    "valence": 0.44,
+    "tempo": 84,
+    "description": "dusty guitar and hushed longing make the song feel intimate, fragile, and twilight-bound."
+  }
+]
