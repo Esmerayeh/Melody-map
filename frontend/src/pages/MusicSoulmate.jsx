@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useParams } from 'react-router-dom'
 import { Heart, Users, Music, RefreshCw, Star, Zap, ChevronRight, AlertCircle, Sparkles, ExternalLink, Link2 } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
@@ -284,12 +285,16 @@ function SoulmateSkeleton() {
 }
 
 // ── Invite link system ────────────────────────────────────────────────────────
-function InviteLink({ userId, username }) {
+function InviteLink({ publicSlug, userId, username }) {
   const [copied, setCopied] = useState(false)
   const [pasteLink, setPasteLink] = useState('')
-  const link = `${window.location.origin}/soulmate?user=${encodeURIComponent(userId || username || 'me')}`
+  const preferredIdentifier = (publicSlug || userId || username || '').trim()
+  const link = preferredIdentifier
+    ? `${window.location.origin}/soulmate/${encodeURIComponent(preferredIdentifier)}`
+    : ''
 
   const copy = () => {
+    if (!link) return
     navigator.clipboard.writeText(link).then(() => {
       setCopied(true)
       setTimeout(() => setCopied(false), 2000)
@@ -300,7 +305,8 @@ function InviteLink({ userId, username }) {
   const extractUser = (url) => {
     try {
       const u = new URL(url)
-      return u.searchParams.get('user')
+      const pathMatch = u.pathname.match(/\/soulmate\/([^/?#]+)/)
+      return pathMatch?.[1] || u.searchParams.get('user')
     } catch {
       return null
     }
@@ -319,14 +325,17 @@ function InviteLink({ userId, username }) {
         <div className="flex items-center gap-2">
           <div className="flex-1 px-3 py-2 rounded-xl text-xs font-mono text-gray-400 truncate"
             style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)' }}>
-            {link}
+            {link || 'Sync your profile to generate a shareable soulmate link'}
           </div>
-          <motion.button onClick={copy} whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
+          <motion.button onClick={copy} whileHover={link ? { scale: 1.05 } : undefined} whileTap={link ? { scale: 0.95 } : undefined}
+            disabled={!link}
             className="px-3 py-2 rounded-xl text-xs font-semibold shrink-0 transition-all"
             style={{ background: copied ? 'rgba(52,211,153,0.15)' : 'rgba(168,85,247,0.15)',
                      color: copied ? '#34d399' : '#c084fc',
-                     border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(168,85,247,0.3)'}` }}>
-            {copied ? '✓ Copied' : 'Copy'}
+                     border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(168,85,247,0.3)'}`,
+                     opacity: link ? 1 : 0.45,
+                     cursor: link ? 'pointer' : 'not-allowed' }}>
+            {copied ? 'Copied' : 'Copy'}
           </motion.button>
         </div>
       </div>
@@ -339,12 +348,12 @@ function InviteLink({ userId, username }) {
             type="text"
             value={pasteLink}
             onChange={(e) => setPasteLink(e.target.value)}
-            placeholder="https://melodymap.app/soulmate?user=..."
+            placeholder="https://melodymap.site/soulmate/your-public-slug"
             className="flex-1 px-3 py-2 rounded-xl text-xs font-mono text-gray-300 bg-white/4 border border-white/10 outline-none focus:border-purple-500/50 placeholder-gray-600 transition-colors"
           />
           {pastedUser && (
             <a
-              href={`/soulmate?user=${encodeURIComponent(pastedUser)}`}
+              href={`/soulmate/${encodeURIComponent(pastedUser)}`}
               className="px-3 py-2 rounded-xl text-xs font-semibold shrink-0 transition-all"
               style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.3)' }}
             >
@@ -372,10 +381,12 @@ function computeLocalSimilarity(profileA, profileB) {
 
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function MusicSoulmate() {
+  const { identifier: routeIdentifier } = useParams()
   const musicProvider = useStore((s) => s.musicProvider)
   const vibeFeatures  = useStore((s) => s.vibeFeatures)
   const myUsername    = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || 'You')
   const myUserId      = useStore((s) => s.spotifyProfile?.id || s.lastfmUsername || '')
+  const [myPublicSlug, setMyPublicSlug] = useState('')
   const [syncing,    setSyncing]    = useState(false)
   const [synced,     setSynced]     = useState(false)
   const [matches,    setMatches]    = useState([])
@@ -388,10 +399,16 @@ export default function MusicSoulmate() {
 
   const { profile, loading: profileLoading } = useMusicProfile({ autoFetch: true })
 
+  useEffect(() => {
+    soulmateAPI.getMyProfile()
+      .then(({ data }) => setMyPublicSlug(data?.public_slug || ''))
+      .catch(() => setMyPublicSlug(''))
+  }, [])
+
   // Handle ?user= invite link — wait for profile to load before fetching
   useEffect(() => {
     const params = new URLSearchParams(window.location.search)
-    const inviteUser = params.get('user')
+    const inviteUser = routeIdentifier || params.get('user')
     // Don't run until profile has finished loading (or we know there's no profile)
     if (!inviteUser) return
     if (profileLoading) return  // wait for auth + profile to settle
@@ -420,28 +437,17 @@ export default function MusicSoulmate() {
       })
       .catch(() => {
         if (cancelled) return
-        if (profile) {
-          const fallback = computeAdvancedCompatibility(profile, profile)
-          setInviteComparison({
-            inviteUser,
-            otherUsername: inviteUser,
-            loading: false,
-            result: fallback ? { ...fallback, _advanced: fallback, note: `${inviteUser} hasn't synced their profile yet. Showing your own baseline.` } : null,
-            error: null,
-          })
-        } else {
-          setInviteComparison({
-            inviteUser,
-            otherUsername: inviteUser,
-            loading: false,
-            result: null,
-            error: `Could not load ${inviteUser}'s profile. They may need to sync first.`,
-          })
-        }
+        setInviteComparison({
+          inviteUser,
+          otherUsername: inviteUser,
+          loading: false,
+          result: null,
+          error: `Could not load ${inviteUser}'s profile. They may need to sync first.`,
+        })
       })
 
     return () => { cancelled = true }
-  }, [profile, profileLoading])
+  }, [profile, profileLoading, routeIdentifier])
 
   // ── Sync profile ─────────────────────────────────────────────────────────────
   const syncProfile = useCallback(async () => {
@@ -457,7 +463,7 @@ export default function MusicSoulmate() {
       if (profile?.topArtists?.length) {
         topArtists = profile.topArtists.map((a) => a.name)
         topTracks  = profile.topTracks.map((t) => t.title || t.name)
-        genres     = profile.genres.slice(0, 30).map((g) => g.genre)
+        genres     = profile.genres.slice(0, 50).map((g) => g.genre)
         const af   = profile.audioFeatures || {}
         audioFeatures = {
           energy: af.energy, valence: af.valence, danceability: af.danceability,
@@ -469,13 +475,13 @@ export default function MusicSoulmate() {
         // Fallback: fetch directly
         const [tracks, artists] = await Promise.all([
           musicService.getTopTracks({ limit: 50 }),
-          musicService.getTopArtists({ limit: 30 }),
+          musicService.getTopArtists({ limit: 50 }),
         ])
         const genreSet = new Set()
         artists.forEach((a) => a.genres?.forEach((g) => genreSet.add(g)))
         topArtists = artists.map((a) => a.name)
         topTracks  = tracks.map((t) => t.title || t.name)
-        genres     = [...genreSet].slice(0, 30)
+        genres     = [...genreSet].slice(0, 50)
 
         if (musicProvider === 'spotify' && tracks.length) {
           try {
@@ -492,7 +498,7 @@ export default function MusicSoulmate() {
         userProfile = await musicService.getProfile()
       }
 
-      await soulmateAPI.syncProfile({
+      const { data } = await soulmateAPI.syncProfile({
         top_artists:    topArtists,
         top_tracks:     topTracks,
         genres,
@@ -501,6 +507,7 @@ export default function MusicSoulmate() {
         avatar:         userProfile?.image,
       })
 
+      setMyPublicSlug(data?.public_slug || '')
       setSynced(true)
       toast.success('Music profile synced!')
       loadMatches()
@@ -564,7 +571,7 @@ export default function MusicSoulmate() {
       {/* Invite link — visible as soon as provider is connected */}
       {musicProvider && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6 max-w-xl">
-          <InviteLink userId={myUserId || 'me'} username={myUsername} />
+          <InviteLink publicSlug={myPublicSlug} userId={myUserId} username={myUsername} />
         </motion.div>
       )}
 

@@ -7,6 +7,32 @@
 // ── Clamp helper ───────────────────────────────────────────────────────────────
 const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v ?? 0.5))
 
+const GENRE_ARCHETYPE_HINTS = {
+  dreamy: ['shoegaze', 'dream pop', 'ambient', 'slowcore', 'post-rock'],
+  nostalgic: ['indie', 'folk', 'lo-fi', 'singer-songwriter'],
+  chaotic: ['hyperpop', 'edm', 'punk', 'metal', 'trap', 'drum and bass'],
+  romantic: ['r&b', 'soul', 'neo-soul', 'jazz'],
+  melancholic: ['emo', 'darkwave', 'sadcore', 'goth', 'slowcore'],
+  cosmic: ['ambient', 'electronic', 'synthwave', 'experimental', 'drone'],
+}
+
+function getGenreText(profile = {}) {
+  return (profile.genres || [])
+    .map((genre) => (typeof genre === 'string' ? genre : genre?.genre))
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase()
+}
+
+function getGenreBonus(profile, archetypeId) {
+  const genreText = getGenreText(profile)
+  if (!genreText) return 0
+
+  const hints = GENRE_ARCHETYPE_HINTS[archetypeId] || []
+  const hits = hints.filter((hint) => genreText.includes(hint)).length
+  return Math.min(1, hits / Math.max(hints.length, 1))
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // 1. MUSIC PERSONALITY ARCHETYPES
 // ─────────────────────────────────────────────────────────────────────────────
@@ -75,7 +101,15 @@ const ARCHETYPES = [
  * computePersonality(audioFeatures)
  * Returns top-3 archetypes with normalized percentage scores.
  */
-export function computePersonality(af = {}) {
+export function computePersonality(profileOrFeatures = {}) {
+  const profile = profileOrFeatures.audioFeatures ? profileOrFeatures : { audioFeatures: profileOrFeatures }
+  const af = profile.audioFeatures || {}
+  const hasAudioSignals = ['energy', 'valence', 'danceability', 'acousticness', 'tempo', 'instrumentalness']
+    .some((key) => af[key] != null)
+  const hasGenreSignals = (profile.genres || []).length > 0
+
+  if (!hasAudioSignals && !hasGenreSignals) return null
+
   const input = {
     energy:           clamp(af.energy),
     valence:          clamp(af.valence),
@@ -85,7 +119,14 @@ export function computePersonality(af = {}) {
     tempo:            af.tempo ?? 120,
   }
 
-  const raw = ARCHETYPES.map((a) => ({ ...a, raw: a.score(input) }))
+  const raw = ARCHETYPES.map((a) => {
+    const audioScore = hasAudioSignals ? a.score(input) : 0
+    const genreScore = getGenreBonus(profile, a.id)
+    return {
+      ...a,
+      raw: audioScore * (hasAudioSignals ? 0.75 : 0) + genreScore * (hasGenreSignals ? 0.25 : 0),
+    }
+  })
   const total = raw.reduce((s, a) => s + a.raw, 0) || 1
   const scored = raw
     .map((a) => ({ ...a, pct: Math.round((a.raw / total) * 100) }))
@@ -124,7 +165,11 @@ export function computeMBTI(profile = {}) {
   const af      = profile.audioFeatures || {}
   const genres  = profile.genres        || []
   const artists = profile.topArtists    || []
-  const tracks  = profile.topTracks     || []
+  const hasAudioSignals = af.acousticness != null || af.danceability != null || af.instrumentalness != null || af.valence != null
+
+  if (!hasAudioSignals || genres.length === 0 || artists.length === 0) {
+    return null
+  }
 
   // I/E — Introversion vs Extraversion
   // High acousticness + low danceability → Introvert
@@ -193,25 +238,30 @@ export function computeAdvancedCompatibility(profileA, profileB) {
   const sharedArtists = [...artistsA].filter((a) => artistsB.has(a))
   const artistOverlap = artistsA.size ? sharedArtists.length / Math.max(artistsA.size, artistsB.size) : 0
 
-  // Audio feature similarity (cosine-like)
+  // Audio feature similarity only uses keys that exist on both profiles.
+  // Missing audio should reduce certainty, not collapse to a fake neutral match.
   const afA = profileA.audioFeatures || {}
   const afB = profileB.audioFeatures || {}
   const audioKeys = ['energy', 'valence', 'danceability', 'acousticness']
-  const audioSim = audioKeys.reduce((sum, k) => {
-    return sum + (1 - Math.abs(clamp(afA[k]) - clamp(afB[k])))
-  }, 0) / audioKeys.length
+  const sharedAudioKeys = audioKeys.filter((key) => afA[key] != null && afB[key] != null)
+  const audioSim = sharedAudioKeys.length
+    ? sharedAudioKeys.reduce((sum, key) => sum + (1 - Math.abs(clamp(afA[key]) - clamp(afB[key]))), 0) / sharedAudioKeys.length
+    : null
 
-  // Weighted total
-  const total = Math.round(
-    (genreOverlap  * WEIGHTS.genre  +
-     artistOverlap * WEIGHTS.artist +
-     audioSim      * WEIGHTS.audio) * 100
-  )
+  const activeWeights = [
+    { key: 'genre', value: genreOverlap, weight: WEIGHTS.genre },
+    { key: 'artist', value: artistOverlap, weight: WEIGHTS.artist },
+    ...(audioSim != null ? [{ key: 'audio', value: audioSim, weight: WEIGHTS.audio }] : []),
+  ]
+  const totalWeight = activeWeights.reduce((sum, item) => sum + item.weight, 0) || 1
+  const weightedScore = activeWeights.reduce((sum, item) => sum + (item.value * item.weight), 0) / totalWeight
+  const total = Math.round(weightedScore * 100)
 
   // Mood alignment — energy + valence delta
-  const energyDelta   = Math.abs(clamp(afA.energy)  - clamp(afB.energy))
-  const valenceDelta  = Math.abs(clamp(afA.valence) - clamp(afB.valence))
-  const moodAlignment = Math.round((1 - (energyDelta + valenceDelta) / 2) * 100)
+  const hasMoodSignals = afA.energy != null && afB.energy != null && afA.valence != null && afB.valence != null
+  const energyDelta   = hasMoodSignals ? Math.abs(clamp(afA.energy)  - clamp(afB.energy)) : null
+  const valenceDelta  = hasMoodSignals ? Math.abs(clamp(afA.valence) - clamp(afB.valence)) : null
+  const moodAlignment = hasMoodSignals ? Math.round((1 - (energyDelta + valenceDelta) / 2) * 100) : null
 
   // Discovery match — popularity spread similarity
   const popA = (profileA.topArtists || []).map((a) => (a.popularity || 50) / 100)
@@ -234,10 +284,11 @@ export function computeAdvancedCompatibility(profileA, profileB) {
     breakdown: {
       genres:         Math.round(genreOverlap  * 100),
       artists:        Math.round(artistOverlap * 100),
-      audio:          Math.round(audioSim      * 100),
+      audio:          audioSim != null ? Math.round(audioSim * 100) : null,
       moodAlignment,
       discoveryMatch,
       eraMatch,
     },
+    note: audioSim == null ? 'Compared using artist and genre overlap because one profile is missing audio feature coverage.' : null,
   }
 }

@@ -1,7 +1,7 @@
 """
 Public Profile route
 --------------------
-GET /api/public-profile/<username_or_id>
+GET /api/public-profile/<username_or_id_or_slug>
 
 Returns a sanitised taste profile for any user who has synced their
 soulmate profile.  No authentication required — this is intentionally
@@ -32,7 +32,9 @@ def get_public_profile(identifier: str):
     if _mongo is None:
         return jsonify({'error': 'Database not initialised'}), 500
 
-    doc = _mongo.db.taste_profiles.find_one({'username': identifier})
+    doc = _mongo.db.taste_profiles.find_one({'public_slug': identifier})
+    if not doc:
+        doc = _mongo.db.taste_profiles.find_one({'username': identifier})
     if not doc:
         doc = _mongo.db.taste_profiles.find_one({'user_id': identifier})
     if not doc:
@@ -65,6 +67,7 @@ def get_public_profile(identifier: str):
 
     return jsonify({
         'username':      doc.get('username', identifier),
+        'publicSlug':    doc.get('public_slug'),
         'avatar':        doc.get('avatar'),
         'topArtists':    top_artists,
         'topTracks':     top_tracks,

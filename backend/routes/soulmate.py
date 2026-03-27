@@ -10,6 +10,7 @@ from flask import Blueprint, jsonify, request, g
 from flask_pymongo import PyMongo
 from bson import ObjectId
 from datetime import datetime
+import re
 from middleware.auth import require_auth
 from middleware.rate_limit import rate_limit
 from ml.soulmate_engine import soulmate_engine
@@ -45,6 +46,25 @@ def _profile_to_engine_format(doc: dict) -> dict:
     }
 
 
+def _build_public_slug(username: str | None, user_id: str) -> str:
+    base = (username or '').strip().lower()
+    slug = re.sub(r'[^a-z0-9]+', '-', base).strip('-')
+    return slug or user_id
+
+
+def _ensure_public_slug(username: str | None, user_id: str) -> str:
+    base_slug = _build_public_slug(username, user_id)
+    slug = base_slug
+    suffix = 2
+
+    while True:
+        existing = _mongo.db.taste_profiles.find_one({'public_slug': slug})
+        if not existing or existing.get('user_id') == user_id:
+            return slug
+        slug = f'{base_slug}-{suffix}'
+        suffix += 1
+
+
 # ── Routes ─────────────────────────────────────────────────────────────────────
 
 @soulmate_bp.route('/soulmate/profile', methods=['POST'])
@@ -75,10 +95,11 @@ def upsert_profile():
     profile = {
         'user_id':        user_id,
         'username':       username,
+        'public_slug':    _ensure_public_slug(username, user_id),
         'avatar':         data.get('avatar'),
         'top_artists':    data.get('top_artists', [])[:50],
         'top_tracks':     data.get('top_tracks',  [])[:50],
-        'genres':         data.get('genres',      [])[:30],
+        'genres':         data.get('genres',      [])[:50],
         'audio_features': data.get('audio_features', {}),
         'updated_at':     datetime.utcnow(),
     }
@@ -89,7 +110,7 @@ def upsert_profile():
         upsert=True,
     )
     logger.info({'event': 'profile_upsert', 'user_id': user_id})
-    return jsonify({'ok': True, 'username': username}), 200
+    return jsonify({'ok': True, 'username': username, 'public_slug': profile['public_slug']}), 200
 
 
 @soulmate_bp.route('/soulmate/matches', methods=['GET'])

@@ -7,7 +7,6 @@
 import { motion } from 'framer-motion'
 import { Brain, Sparkles } from 'lucide-react'
 
-// ── Animated percentage bar ────────────────────────────────────────────────────
 function TraitBar({ label, emoji, pct, color, delay = 0 }) {
   return (
     <motion.div
@@ -35,7 +34,6 @@ function TraitBar({ label, emoji, pct, color, delay = 0 }) {
   )
 }
 
-// ── MBTI axis row ──────────────────────────────────────────────────────────────
 function AxisRow({ axis, data, delay = 0 }) {
   const pct = Math.min(100, Math.max(0, data.score))
   const color = data.flipped ? '#60a5fa' : '#a78bfa'
@@ -62,25 +60,26 @@ function AxisRow({ axis, data, delay = 0 }) {
   )
 }
 
-// ── Main panel ─────────────────────────────────────────────────────────────────
 export default function MusicIdentityPanel({ profile }) {
-  // Read pre-computed values — never compute here
   const personality = profile?.personality
-  const mbti        = profile?.mbti
+  const mbti = profile?.mbti
+  const dataQuality = profile?.dataQuality
 
-  // Guard: require real data — profile loaded + MBTI computed from real data
-  if (!profile || !mbti || !personality) {
-    if (!profile) return null
-    // Profile loaded but MBTI not ready (missing audio features / artists / genres)
+  if (!profile) return null
+
+  if (!mbti && !personality?.length) {
     return (
       <div className="rounded-2xl border border-white/8 bg-white/2 p-6 text-center">
         <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Music Identity</p>
-        <p className="text-sm text-gray-600">Analyzing your music DNA…</p>
+        <p className="text-sm text-gray-600">Not enough listening data yet to compute identity.</p>
       </div>
     )
   }
 
-  const topTrait = personality[0]
+  const topTrait = personality?.[0] || {
+    color: '#a78bfa',
+    description: 'Your listening identity is still taking shape.',
+  }
 
   return (
     <motion.div
@@ -93,75 +92,98 @@ export default function MusicIdentityPanel({ profile }) {
         border: `1px solid ${topTrait.color}25`,
       }}
     >
-      {/* Ambient glow */}
-      <div className="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl pointer-events-none"
-        style={{ background: `${topTrait.color}12` }} />
+      <div
+        className="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl pointer-events-none"
+        style={{ background: `${topTrait.color}12` }}
+      />
 
       <div className="p-5 relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6">
-
-        {/* Left — Personality Report */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: `${topTrait.color}20`, border: `1px solid ${topTrait.color}30` }}>
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: `${topTrait.color}20`, border: `1px solid ${topTrait.color}30` }}
+            >
               <Sparkles className="w-3.5 h-3.5" style={{ color: topTrait.color }} />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Music Personality</p>
-            </div>
+            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Music Personality</p>
           </div>
 
-          <p className="text-xs text-gray-500 mb-1">You are:</p>
-          <div className="space-y-3 mb-4">
-            {personality.map((trait, i) => (
-              <TraitBar
-                key={trait.id}
-                label={trait.label}
-                emoji={trait.emoji}
-                pct={trait.pct}
-                color={trait.color}
-                delay={i * 0.08}
-              />
-            ))}
-          </div>
-          <p className="text-xs text-gray-500 leading-relaxed italic">
-            "{topTrait.description}"
-          </p>
+          {personality?.length ? (
+            <>
+              <p className="text-xs text-gray-500 mb-1">You are:</p>
+              <div className="space-y-3 mb-4">
+                {personality.map((trait, i) => (
+                  <TraitBar
+                    key={trait.id}
+                    label={trait.label}
+                    emoji={trait.emoji}
+                    pct={trait.pct}
+                    color={trait.color}
+                    delay={i * 0.08}
+                  />
+                ))}
+              </div>
+              <p className="text-xs text-gray-500 leading-relaxed italic">
+                "{topTrait.description}"
+              </p>
+            </>
+          ) : (
+            <p className="text-xs text-gray-500 leading-relaxed">
+              We need a little more listening variety before your personality traits become reliable.
+            </p>
+          )}
         </div>
 
-        {/* Right — MBTI */}
         <div>
           <div className="flex items-center gap-2 mb-4">
-            <div className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)' }}>
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center"
+              style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)' }}
+            >
               <Brain className="w-3.5 h-3.5 text-purple-400" />
             </div>
-            <div>
-              <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Music Identity</p>
+            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Music Identity</p>
+          </div>
+
+          {mbti ? (
+            <>
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: 'spring', stiffness: 300, damping: 24, delay: 0.1 }}
+                className="inline-flex items-center gap-2 mb-3"
+              >
+                <span
+                  className="text-3xl font-black tracking-widest"
+                  style={{
+                    background: 'linear-gradient(135deg, #a78bfa, #60a5fa)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
+                >
+                  {mbti.type}
+                </span>
+                <span className="text-sm text-gray-400 font-semibold">· {mbti.name}</span>
+              </motion.div>
+
+              <p className="text-xs text-gray-400 leading-relaxed mb-4">{mbti.desc}</p>
+
+              <div className="space-y-2">
+                {Object.entries(mbti.axes).map(([axis, data], i) => (
+                  <AxisRow key={axis} axis={axis[0]} data={data} delay={0.15 + i * 0.06} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-white/8 bg-white/3 p-4">
+              <p className="text-sm text-gray-300 mb-2">MBTI-style identity needs stronger signal coverage.</p>
+              <p className="text-xs text-gray-500 leading-relaxed">
+                Audio coverage: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%.
+                We can still show your personality traits, but the four-letter type stays hidden until the profile is more complete.
+              </p>
             </div>
-          </div>
-
-          {/* Type badge */}
-          <motion.div
-            initial={{ scale: 0.8, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 24, delay: 0.1 }}
-            className="inline-flex items-center gap-2 mb-3"
-          >
-            <span className="text-3xl font-black tracking-widest"
-              style={{ background: 'linear-gradient(135deg, #a78bfa, #60a5fa)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {mbti.type}
-            </span>
-            <span className="text-sm text-gray-400 font-semibold">· {mbti.name}</span>
-          </motion.div>
-
-          <p className="text-xs text-gray-400 leading-relaxed mb-4">{mbti.desc}</p>
-
-          <div className="space-y-2">
-            {Object.entries(mbti.axes).map(([axis, data], i) => (
-              <AxisRow key={axis} axis={axis[0]} data={data} delay={0.15 + i * 0.06} />
-            ))}
-          </div>
+          )}
         </div>
       </div>
     </motion.div>

@@ -172,8 +172,8 @@ function TrackRow({ track, rank }) {
 // ── Identity card ──────────────────────────────────────────────────────────────
 function IdentityCard({ metrics, genres }) {
   if (!metrics) return null
-  const e = (metrics.energyScore || 50) / 100
-  const v = (metrics.valenceScore || 50) / 100
+  const e = metrics.energyScore != null ? metrics.energyScore / 100 : null
+  const v = metrics.valenceScore != null ? metrics.valenceScore / 100 : null
   const genreStr = genres.map((g) => g.genre).join(' ')
 
   let personality = 'Sonic Explorer'
@@ -181,15 +181,15 @@ function IdentityCard({ metrics, genres }) {
   let traits = ['eclectic', 'open-minded']
   let accentColor = '#7C6FFF'
 
-  if (e < 0.45 && v < 0.45) {
+  if (e != null && v != null && e < 0.45 && v < 0.45) {
     personality = 'Nocturnal Dreamer'; accentColor = '#60a5fa'
     description = 'You gravitate toward atmospheric soundscapes, nostalgic melodies, and late-night music.'
     traits = ['introspective', 'atmospheric', 'nocturnal']
-  } else if (e > 0.65 && metrics.tempoAvg > 120) {
+  } else if (e != null && e > 0.65 && metrics.tempoAvg != null && metrics.tempoAvg > 120) {
     personality = 'Electric Wanderer'; accentColor = '#FBBF24'
     description = 'You chase energy and movement — your music is kinetic, charged, and always in motion.'
     traits = ['energetic', 'restless', 'adventurous']
-  } else if (v > 0.6 && e < 0.55) {
+  } else if (v != null && e != null && v > 0.6 && e < 0.55) {
     personality = 'Velvet Romantic'; accentColor = '#f472b6'
     description = 'Warm, soulful, and deeply emotional — you feel music in your chest.'
     traits = ['emotional', 'warm', 'soulful']
@@ -356,7 +356,7 @@ export default function Dashboard() {
             <StatOrb icon={Users}      label="Top Artists"  value={artists.length || '—'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
             <StatOrb icon={Music2}     label="Top Tracks"   value={tracks.length  || '—'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
             <StatOrb icon={TrendingUp} label="Genres Found" value={genres.length  || '—'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
-            <StatOrb icon={Zap}        label="Energy Avg"   value={metrics ? `${metrics.energyScore}%` : '—'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
+            <StatOrb icon={Zap}        label="Energy Avg"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : '—'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
           </div>
 
           {/* Identity + radar */}
@@ -387,13 +387,13 @@ export default function Dashboard() {
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neon-cyan mb-4 relative z-10">Auditory DNA Report</p>
               <div className="flex flex-wrap gap-2 relative z-10">
                 {[
-                  { label: `${metrics.energyScore}% Energy`,      color: '#FBBF24' },
-                  { label: `${metrics.valenceScore}% Valence`,     color: '#E040FB' },
-                  { label: `${metrics.tempoAvg} BPM`,              color: '#00D1FF' },
-                  { label: `${metrics.danceabilityScore}% Dance`,  color: '#7C6FFF' },
-                  { label: `${metrics.nostalgiaIndex}% Nostalgia`, color: '#f472b6' },
-                  { label: `${metrics.diversityScore}% Diversity`, color: '#34D399' },
-                ].map(({ label, color }, i) => (
+                  metrics?.energyScore != null ? { label: `${metrics.energyScore}% Energy`, color: '#FBBF24' } : null,
+                  metrics?.valenceScore != null ? { label: `${metrics.valenceScore}% Valence`, color: '#E040FB' } : null,
+                  metrics?.tempoAvg != null ? { label: `${metrics.tempoAvg} BPM`, color: '#00D1FF' } : null,
+                  metrics?.danceabilityScore != null ? { label: `${metrics.danceabilityScore}% Dance`, color: '#7C6FFF' } : null,
+                  metrics?.nostalgiaIndex != null ? { label: `${metrics.nostalgiaIndex}% Nostalgia`, color: '#f472b6' } : null,
+                  metrics?.diversityScore != null ? { label: `${metrics.diversityScore}% Diversity`, color: '#34D399' } : null,
+                ].filter(Boolean).map(({ label, color }, i) => (
                   <motion.span key={label}
                     initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: 0.3 + i * 0.04 }}
@@ -404,7 +404,7 @@ export default function Dashboard() {
                 ))}
               </div>
               <p className="text-gray-400 text-sm mt-4 relative z-10">
-                Mood: <span className="text-white font-medium capitalize">{metrics.mood}</span>
+                Mood: <span className="text-white font-medium capitalize">{metrics.mood || 'insufficient data'}</span>
                 {metrics.sonicBrightness != null && <> · Brightness: <span className="text-white font-medium">{metrics.sonicBrightness}%</span></>}
               </p>
             </motion.div>
@@ -414,7 +414,7 @@ export default function Dashboard() {
           <div>
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-gray-600 uppercase tracking-[0.2em]">Music Identity</p>
-              {profile?.mbti && (
+              {profile?.mbti && profile?.personality?.length > 0 && (
                 <motion.button
                   onClick={() => setShowReveal(true)}
                   whileHover={{ scale: 1.04 }}
@@ -520,7 +520,7 @@ export default function Dashboard() {
 
       {/* Identity Reveal modal */}
       <AnimatePresence>
-        {showReveal && profile?.mbti && profile?.personality && (
+        {showReveal && profile?.mbti && profile?.personality?.length > 0 && (
           <IdentityReveal
             mbti={profile.mbti}
             personality={profile.personality}

@@ -42,11 +42,11 @@ export const musicService = {
   async getTopArtists(params = {}) {
     const p = getProvider()
     if (p === 'spotify') {
-      const { data } = await spotifyAPI.getTopArtists({ limit: 20, time_range: 'medium_term', ...params })
+      const { data } = await spotifyAPI.getTopArtists({ limit: 50, time_range: 'medium_term', ...params })
       return data
     }
     if (p === 'lastfm') {
-      const { data } = await lastfmAPI.getTopArtists({ limit: 20, period: 'overall', ...params })
+      const { data } = await lastfmAPI.getTopArtists({ limit: 50, period: 'overall', ...params })
       return data
     }
     return []
@@ -86,6 +86,15 @@ export const musicService = {
     const p = getProvider()
     if (p === 'lastfm' && artist) {
       const { data } = await lastfmAPI.getSimilarArtists(artist)
+      return data
+    }
+    return []
+  },
+
+  async getArtistTags(artist) {
+    const p = getProvider()
+    if (p === 'lastfm' && artist) {
+      const { data } = await lastfmAPI.getArtistTags(artist)
       return data
     }
     return []

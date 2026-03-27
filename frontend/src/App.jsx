@@ -119,6 +119,11 @@ function AnimatedRoutes() {
             <AppShell><PageWrapper><MusicSoulmate /></PageWrapper></AppShell>
           </ProtectedRoute>
         } />
+        <Route path="/soulmate/:identifier" element={
+          <ProtectedRoute>
+            <AppShell><PageWrapper><MusicSoulmate /></PageWrapper></AppShell>
+          </ProtectedRoute>
+        } />
         <Route path="/aesthetic" element={
           <ProtectedRoute>
             <AppShell><PageWrapper><MusicAesthetic /></PageWrapper></AppShell>
