@@ -1,6 +1,8 @@
 import { describeCluster, describeEdge, describeNode } from './galaxyExplainer'
 import { buildArtistMetrics, buildGenreMetrics, genreColor, seededOffset, similarityScore, sonicColor, stableHash } from './galaxyScoring'
 
+export const GALAXY_LAYOUT_VERSION = 'canonical-galaxy-v1'
+
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value ?? 0))
 const slugify = (value = '') => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
@@ -100,6 +102,7 @@ export function buildLegacyGalaxyModel(rawNodes = [], source = 'legacy') {
     clusters,
     metadata: {
       layoutVersion: 'legacy-adapter-v1',
+      galaxyDataVersion: GALAXY_LAYOUT_VERSION,
       generatedAt: new Date().toISOString(),
       source,
       dataQuality: null,
@@ -286,9 +289,11 @@ export function buildGalaxyModel(profile = null) {
     clusters,
     metadata: {
       layoutVersion: 'canonical-profile-v1',
+      galaxyDataVersion: GALAXY_LAYOUT_VERSION,
       generatedAt: new Date().toISOString(),
       source: 'profile',
       dataQuality: profile.dataQuality || null,
+      confidence: profile.confidence || null,
     },
   }
 }

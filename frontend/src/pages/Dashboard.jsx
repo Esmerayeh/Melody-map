@@ -251,7 +251,7 @@ export default function Dashboard() {
   const setTimeRange         = useStore((s) => s.setMusicProfileTimeRange)
   const isConnected          = spotifyConnected || lastfmConnected
 
-  const { profile, loading, error, refetch, timeRange } = useMusicProfile()
+  const { profile, loading, error, refetch, timeRange, confidence, dataQuality } = useMusicProfile()
 
   const [showReveal, setShowReveal] = useState(false)
 
@@ -260,6 +260,16 @@ export default function Dashboard() {
   const tracks   = profile?.topTracks     || []
   const genres   = profile?.genres        || []
   const metrics  = profile?.analyticsMetrics || null
+  const analyticsConfidence = confidence?.labels?.analytics || metrics?.metricConfidence?.energyScore?.label || 'unavailable'
+  const identityConfidence = profile?.personalityMeta?.confidence != null
+    ? profile.personalityMeta.confidence >= 0.8
+      ? 'high'
+      : profile.personalityMeta.confidence >= 0.5
+        ? 'medium'
+        : profile.personalityMeta.confidence > 0
+          ? 'low'
+          : 'unavailable'
+    : confidence?.labels?.identity || 'unavailable'
 
   // Extract pastel palette from album art and apply as CSS custom properties
   const [pastelPalette, setPastelPalette] = useState([])
@@ -351,6 +361,27 @@ export default function Dashboard() {
 
       {isConnected && !loading && profile && (
         <div className="space-y-6">
+          {profile?.isDegraded && (
+            <div className="flex flex-wrap gap-2 text-[11px] text-amber-300/80">
+              <span>Degraded mode</span>
+              <span>•</span>
+              <span>
+                {dataQuality?.degradedReasons?.[0] === 'spotify_audio_features_unavailable'
+                  ? 'Spotify audio features are unavailable, so analytics stay hidden instead of guessed.'
+                  : 'Some Spotify analysis inputs are incomplete, so confidence is reduced.'}
+              </span>
+            </div>
+          )}
+          <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
+            <span>Based on {dataQuality?.topTracksCount || tracks.length || 0} top tracks</span>
+            <span>•</span>
+            <span>{dataQuality?.audioFeaturesCount || 0}/{dataQuality?.audioFeaturesRequested || 0} tracks had audio features</span>
+            <span>•</span>
+            <span>Analytics confidence: {analyticsConfidence}</span>
+            <span>•</span>
+            <span>Identity confidence: {identityConfidence}</span>
+          </div>
+
           {/* Stat orbs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             <StatOrb icon={Users}      label="Top Artists"  value={artists.length || '—'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
@@ -377,7 +408,7 @@ export default function Dashboard() {
           </div>
 
           {/* DNA report */}
-          {metrics && (
+          {metrics && profile?.canComputeAnalytics && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
               className="p-6 rounded-2xl relative overflow-hidden"
               style={{ background: 'linear-gradient(135deg, rgba(0,209,255,0.04), rgba(224,64,251,0.04))', border: '1px solid rgba(0,209,255,0.1)' }}
@@ -406,6 +437,11 @@ export default function Dashboard() {
               <p className="text-gray-400 text-sm mt-4 relative z-10">
                 Mood: <span className="text-white font-medium capitalize">{metrics.mood || 'insufficient data'}</span>
                 {metrics.sonicBrightness != null && <> · Brightness: <span className="text-white font-medium">{metrics.sonicBrightness}%</span></>}
+              </p>
+              <p className="text-[11px] text-gray-500 mt-2 relative z-10">
+                {metrics.sampleSizes?.energyScore != null && <>Energy based on {metrics.sampleSizes.energyScore} tracks</>}
+                {metrics.sampleSizes?.sonicBrightness != null && <> · Brightness based on {metrics.sampleSizes.sonicBrightness} tracks</>}
+                {metrics.sampleSizes?.nostalgiaIndex != null && <> · Nostalgia based on {metrics.sampleSizes.nostalgiaIndex} release dates</>}
               </p>
             </motion.div>
           )}

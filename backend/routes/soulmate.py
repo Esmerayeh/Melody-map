@@ -53,6 +53,10 @@ def _build_public_slug(username: str | None, user_id: str) -> str:
 
 
 def _ensure_public_slug(username: str | None, user_id: str) -> str:
+    existing_profile = _get_profile(user_id)
+    if existing_profile and existing_profile.get('public_slug'):
+        return existing_profile['public_slug']
+
     base_slug = _build_public_slug(username, user_id)
     slug = base_slug
     suffix = 2
@@ -101,6 +105,10 @@ def upsert_profile():
         'top_tracks':     data.get('top_tracks',  [])[:50],
         'genres':         data.get('genres',      [])[:50],
         'audio_features': data.get('audio_features', {}),
+        'data_quality':   data.get('data_quality', {}),
+        'confidence':     data.get('confidence', {}),
+        'soulmate_readiness': data.get('soulmate_readiness', {}),
+        'identity_readiness': data.get('identity_readiness', {}),
         'updated_at':     datetime.utcnow(),
     }
 
@@ -110,7 +118,17 @@ def upsert_profile():
         upsert=True,
     )
     logger.info({'event': 'profile_upsert', 'user_id': user_id})
-    return jsonify({'ok': True, 'username': username, 'public_slug': profile['public_slug']}), 200
+    public_url = f'/soulmate/{profile["public_slug"]}'
+    return jsonify({
+        'ok': True,
+        'username': username,
+        'public_slug': profile['public_slug'],
+        'public_url': public_url,
+        'data_quality': profile['data_quality'],
+        'confidence': profile['confidence'],
+        'soulmate_readiness': profile['soulmate_readiness'],
+        'identity_readiness': profile['identity_readiness'],
+    }), 200
 
 
 @soulmate_bp.route('/soulmate/matches', methods=['GET'])

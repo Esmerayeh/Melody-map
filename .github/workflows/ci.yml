@@ -2,9 +2,14 @@ name: CI
 
 on:
   push:
-    branches: [main, develop]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   backend:
@@ -31,7 +36,7 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pytest pytest-cov
 
-      - name: Run tests
+      - name: Run backend tests
         env:
           MONGODB_URI: mongodb://localhost:27017/melody_map_test
           SECRET_KEY: test-secret
@@ -40,10 +45,17 @@ jobs:
           LASTFM_API_KEY: dummy
           LASTFM_API_SECRET: dummy
           FRONTEND_URL: http://localhost:3000
-        run: pytest tests/ -v --cov=. --cov-report=xml || true
+        run: pytest tests/ -v --cov=. --cov-report=xml
+
+      - name: Upload backend coverage
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: backend-coverage
+          path: backend/coverage.xml
 
   frontend:
-    name: Frontend Build
+    name: Frontend Build Verification
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -62,14 +74,29 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Build
+      # Authoritative frontend verification happens in CI because
+      # sandboxed terminals can surface non-project Vite/esbuild spawn EPERM failures.
+      - name: Run lint if present
+        run: npm run lint --if-present
+
+      - name: Run tests if present
+        run: npm run test --if-present
+
+      - name: Build frontend (authoritative CI check)
         run: npm run build
+
+      - name: Upload frontend build artifact
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: frontend-dist
+          path: frontend/dist
 
   docker:
     name: Docker Build
     runs-on: ubuntu-latest
     needs: [backend, frontend]
-    if: github.ref == 'refs/heads/main'
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/master'
 
     steps:
       - uses: actions/checkout@v4

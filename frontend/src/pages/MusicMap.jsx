@@ -101,6 +101,13 @@ export default function MusicMap() {
     if (!model) return 'No galaxy data available yet'
     return `${model.nodes.length} nodes • ${model.edges.length} edges • ${model.metadata?.layoutVersion || 'canonical model'}`
   }, [loading, isDemo, model])
+  const trustBanner = useMemo(() => {
+    if (!model) return null
+    if (isDemo) return 'Demo galaxy — not based on your live Spotify profile yet.'
+    if (model.metadata?.source !== 'profile') return 'Legacy galaxy data — canonical profile graph is not fully available yet.'
+    if ((model.metadata?.confidence?.galaxy?.score || 0) < 0.5) return 'Galaxy is rendered from partial profile data. Neighborhoods may be less reliable.'
+    return null
+  }, [isDemo, model])
 
   const scene = (
     <div className="relative h-full w-full">
@@ -188,6 +195,11 @@ export default function MusicMap() {
           >
             {scene}
           </motion.div>
+        )}
+        {trustBanner && !loading && (
+          <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-300">
+            {trustBanner}
+          </div>
         )}
       </div>
 

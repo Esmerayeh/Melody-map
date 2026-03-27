@@ -62,8 +62,11 @@ function AxisRow({ axis, data, delay = 0 }) {
 
 export default function MusicIdentityPanel({ profile }) {
   const personality = profile?.personality
+  const personalityMeta = profile?.personalityMeta
   const mbti = profile?.mbti
+  const mbtiMeta = profile?.mbtiMeta
   const dataQuality = profile?.dataQuality
+  const confidence = profile?.confidence
 
   if (!profile) return null
 
@@ -111,6 +114,13 @@ export default function MusicIdentityPanel({ profile }) {
 
           {personality?.length ? (
             <>
+              <div className="flex flex-wrap gap-2 mb-3 text-[11px] text-gray-500">
+                <span>Confidence: {confidence?.labels?.identity || 'unavailable'}</span>
+                <span>•</span>
+                <span>Genres: {dataQuality?.genresCount || 0}</span>
+                <span>•</span>
+                <span>Audio tracks: {dataQuality?.audioFeaturesCount || 0}</span>
+              </div>
               <p className="text-xs text-gray-500 mb-1">You are:</p>
               <div className="space-y-3 mb-4">
                 {personality.map((trait, i) => (
@@ -127,6 +137,11 @@ export default function MusicIdentityPanel({ profile }) {
               <p className="text-xs text-gray-500 leading-relaxed italic">
                 "{topTrait.description}"
               </p>
+              {personalityMeta?.missingInputs?.length > 0 && (
+                <p className="text-[11px] text-gray-600 mt-3">
+                  Missing inputs: {personalityMeta.missingInputs.slice(0, 3).join(', ')}
+                </p>
+              )}
             </>
           ) : (
             <p className="text-xs text-gray-500 leading-relaxed">
@@ -182,6 +197,11 @@ export default function MusicIdentityPanel({ profile }) {
                 Audio coverage: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%.
                 We can still show your personality traits, but the four-letter type stays hidden until the profile is more complete.
               </p>
+              {mbtiMeta?.missingInputs?.length > 0 && (
+                <p className="text-[11px] text-gray-600 mt-2">
+                  Missing inputs: {mbtiMeta.missingInputs.slice(0, 4).join(', ')}
+                </p>
+              )}
             </div>
           )}
         </div>

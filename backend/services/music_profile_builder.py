@@ -7,14 +7,53 @@ Calls Spotify Web API directly — no internal proxy self-calls.
 """
 
 from __future__ import annotations
+from datetime import datetime, timezone
 import math
 import requests as req
+
+PROFILE_SCHEMA_VERSION = '2026-03-profile-v1'
+ANALYTICS_METHODS = {
+    'energyScore': 'mean(spotify_audio_features.energy)',
+    'valenceScore': 'mean(spotify_audio_features.valence)',
+    'danceabilityScore': 'mean(spotify_audio_features.danceability)',
+    'acousticnessScore': 'mean(spotify_audio_features.acousticness)',
+    'tempoAvg': 'mean(spotify_audio_features.tempo)',
+    'speechinessScore': 'mean(spotify_audio_features.speechiness)',
+    'instrumentalScore': 'mean(spotify_audio_features.instrumentalness)',
+    'nostalgiaIndex': 'normalized age of release years from analyzed top tracks',
+    'diversityScore': 'normalized genre entropy derived from canonical top artists',
+    'sonicBrightness': '0.45*valence + 0.35*energy + 0.2*(1-acousticness)',
+    'mood': 'threshold classification over aggregate energy and valence',
+}
 
 # ── Audio feature averages ─────────────────────────────────────────────────────
 
 def _avg(items: list[dict], key: str) -> float | None:
     vals = [float(v[key]) for v in items if v and v.get(key) is not None]
     return sum(vals) / len(vals) if vals else None
+
+
+def _count_present(items: list[dict], key: str) -> int:
+    return sum(1 for item in items if item and item.get(key) is not None)
+
+
+def _confidence_from_ratio(ratio: float) -> dict:
+    score = round(max(0.0, min(1.0, ratio)), 3)
+    if score >= 0.8:
+        label = 'high'
+    elif score >= 0.5:
+        label = 'medium'
+    elif score > 0:
+        label = 'low'
+    else:
+        label = 'unavailable'
+    return {'score': score, 'label': label}
+
+
+def _position_from_feature(value: float | None, spread: float) -> float:
+    if value is None:
+        return 0.0
+    return (value - 0.5) * spread
 
 
 # ── Mood derivation ────────────────────────────────────────────────────────────
@@ -107,7 +146,7 @@ _VALENCE_TAGS = {
 }
 
 
-def _build_aesthetic_tags(genres: list[dict], energy: float, valence: float) -> list[str]:
+def _build_aesthetic_tags(genres: list[dict], energy: float | None, valence: float | None) -> list[str]:
     tags: list[str] = []
     seen: set[str] = set()
     for g in genres[:4]:
@@ -115,20 +154,22 @@ def _build_aesthetic_tags(genres: list[dict], energy: float, valence: float) -> 
             if tag not in seen:
                 seen.add(tag)
                 tags.append(tag)
-    for (lo, hi), etags in _ENERGY_TAGS.items():
-        if lo <= energy < hi:
-            for t in etags[:2]:
-                if t not in seen:
-                    seen.add(t)
-                    tags.append(t)
-            break
-    for (lo, hi), vtags in _VALENCE_TAGS.items():
-        if lo <= valence < hi:
-            for t in vtags[:2]:
-                if t not in seen:
-                    seen.add(t)
-                    tags.append(t)
-            break
+    if energy is not None:
+        for (lo, hi), etags in _ENERGY_TAGS.items():
+            if lo <= energy < hi:
+                for t in etags[:2]:
+                    if t not in seen:
+                        seen.add(t)
+                        tags.append(t)
+                break
+    if valence is not None:
+        for (lo, hi), vtags in _VALENCE_TAGS.items():
+            if lo <= valence < hi:
+                for t in vtags[:2]:
+                    if t not in seen:
+                        seen.add(t)
+                        tags.append(t)
+                break
     return tags[:16]
 
 
@@ -149,9 +190,9 @@ def _sonic_color(energy: float, valence: float) -> str:
 def _build_galaxy_nodes(artists: list[dict], genres: list[dict], audio_features: dict) -> list[dict]:
     nodes: list[dict] = []
     connections: dict[str, list[str]] = {}
-    energy  = audio_features.get('energy',       0.5)
-    valence = audio_features.get('valence',       0.5)
-    dance   = audio_features.get('danceability',  0.5)
+    energy  = audio_features.get('energy')
+    valence = audio_features.get('valence')
+    dance   = audio_features.get('danceability')
     SPREAD  = 10.0
 
     genre_node_ids: dict[str, str] = {}
@@ -167,7 +208,7 @@ def _build_galaxy_nodes(artists: list[dict], genres: list[dict], audio_features:
             'size':        0.4 + (g['count'] / max(genres[0]['count'], 1)) * 0.8,
             'color':       _hsl_from_genre(g['genre'], i),
             'x':           round(r * math.cos(angle), 2),
-            'y':           round((energy - 0.5) * SPREAD * 0.5, 2),
+            'y':           round(_position_from_feature(energy, SPREAD * 0.5), 2),
             'z':           round(r * math.sin(angle), 2),
             'connections': [],
             'count':       g['count'],
@@ -189,13 +230,13 @@ def _build_galaxy_nodes(artists: list[dict], genres: list[dict], audio_features:
                 y = gnode['y'] + (pop - 0.5) * 2
                 z = gnode['z'] + jitter * 0.7
             else:
-                x = (valence - 0.5) * SPREAD + (i % 5 - 2) * 1.5
-                y = (energy  - 0.5) * SPREAD + (pop - 0.5) * 3
-                z = (dance   - 0.5) * SPREAD + (i % 3 - 1) * 1.5
+                x = _position_from_feature(valence, SPREAD) + (i % 5 - 2) * 1.5
+                y = _position_from_feature(energy, SPREAD) + (pop - 0.5) * 3
+                z = _position_from_feature(dance, SPREAD) + (i % 3 - 1) * 1.5
         else:
-            x = (valence - 0.5) * SPREAD + (i % 5 - 2) * 1.5
-            y = (energy  - 0.5) * SPREAD + (pop - 0.5) * 3
-            z = (dance   - 0.5) * SPREAD + (i % 3 - 1) * 1.5
+            x = _position_from_feature(valence, SPREAD) + (i % 5 - 2) * 1.5
+            y = _position_from_feature(energy, SPREAD) + (pop - 0.5) * 3
+            z = _position_from_feature(dance, SPREAD) + (i % 3 - 1) * 1.5
 
         node = {
             'id':          aid,
@@ -203,7 +244,7 @@ def _build_galaxy_nodes(artists: list[dict], genres: list[dict], audio_features:
             'type':        'artist',
             'genre':       primary_genre or '',
             'size':        0.3 + pop * 0.9,
-            'color':       _sonic_color(energy, valence),
+            'color':       _sonic_color(energy if energy is not None else 0.5, valence if valence is not None else 0.5),
             'image':       artist.get('image'),
             'x':           round(x, 2),
             'y':           round(y, 2),
@@ -262,6 +303,94 @@ def _build_analytics(genres: list[dict], audio_features: dict, tracks: list[dict
         'diversityScore':    diversity,
         'sonicBrightness':   brightness,
     }
+
+
+def _build_metric_metadata(
+    audio_features_list: list[dict],
+    track_count: int,
+    genres: list[dict],
+    analytics: dict,
+    tracks: list[dict],
+) -> dict:
+    feature_map = {
+        'energy': 'energyScore',
+        'valence': 'valenceScore',
+        'danceability': 'danceabilityScore',
+        'acousticness': 'acousticnessScore',
+        'tempo': 'tempoAvg',
+        'speechiness': 'speechinessScore',
+        'instrumentalness': 'instrumentalScore',
+    }
+
+    sample_sizes = {}
+    feature_coverage = {}
+    metric_confidence = {}
+
+    for feature_key, metric_key in feature_map.items():
+        present = _count_present(audio_features_list, feature_key)
+        ratio = (present / track_count) if track_count else 0.0
+        sample_sizes[metric_key] = present
+        feature_coverage[feature_key] = {
+            'count': present,
+            'requested': track_count,
+            'ratio': round(ratio, 3),
+        }
+        metric_confidence[metric_key] = {
+            **_confidence_from_ratio(ratio),
+            'sampleSize': present,
+            'requested': track_count,
+            'method': ANALYTICS_METHODS[metric_key],
+        }
+
+    genre_total = sum(g['count'] for g in genres) or 0
+    genre_ratio = min(1.0, genre_total / max(len(tracks), 1)) if tracks else 0.0
+    sample_sizes['diversityScore'] = len(genres)
+    metric_confidence['diversityScore'] = {
+        **_confidence_from_ratio(genre_ratio),
+        'sampleSize': len(genres),
+        'requested': max(len(tracks), 1),
+        'method': ANALYTICS_METHODS['diversityScore'],
+    }
+
+    years_available = sum(1 for track in tracks if (track.get('release_date') or '')[:4].isdigit())
+    year_ratio = years_available / max(len(tracks), 1) if tracks else 0.0
+    sample_sizes['nostalgiaIndex'] = years_available
+    metric_confidence['nostalgiaIndex'] = {
+        **_confidence_from_ratio(year_ratio),
+        'sampleSize': years_available,
+        'requested': len(tracks),
+        'method': ANALYTICS_METHODS['nostalgiaIndex'],
+    }
+
+    mood_sources = min(sample_sizes.get('energyScore', 0), sample_sizes.get('valenceScore', 0))
+    mood_ratio = mood_sources / max(track_count, 1) if track_count else 0.0
+    sample_sizes['mood'] = mood_sources
+    metric_confidence['mood'] = {
+        **_confidence_from_ratio(mood_ratio),
+        'sampleSize': mood_sources,
+        'requested': track_count,
+        'method': ANALYTICS_METHODS['mood'],
+    }
+
+    brightness_sources = min(
+        sample_sizes.get('energyScore', 0),
+        sample_sizes.get('valenceScore', 0),
+        sample_sizes.get('acousticnessScore', 0),
+    )
+    brightness_ratio = brightness_sources / max(track_count, 1) if track_count else 0.0
+    sample_sizes['sonicBrightness'] = brightness_sources
+    metric_confidence['sonicBrightness'] = {
+        **_confidence_from_ratio(brightness_ratio),
+        'sampleSize': brightness_sources,
+        'requested': track_count,
+        'method': ANALYTICS_METHODS['sonicBrightness'],
+    }
+
+    analytics['sampleSizes'] = sample_sizes
+    analytics['metricConfidence'] = metric_confidence
+    analytics['featureCoverageByMetric'] = feature_coverage
+    analytics['methodology'] = ANALYTICS_METHODS
+    return analytics
 
 
 # ── Main builder ───────────────────────────────────────────────────────────────
@@ -377,14 +506,14 @@ def build_music_profile(
                         continue
                     audio_features_list.append({
                         'id':               f.get('id'),
-                        'energy':           f.get('energy', 0),
-                        'valence':          f.get('valence', 0),
-                        'danceability':     f.get('danceability', 0),
-                        'acousticness':     f.get('acousticness', 0),
-                        'instrumentalness': f.get('instrumentalness', 0),
-                        'speechiness':      f.get('speechiness', 0),
-                        'tempo':            f.get('tempo', 120),
-                        'loudness':         f.get('loudness', 0),
+                        'energy':           f.get('energy'),
+                        'valence':          f.get('valence'),
+                        'danceability':     f.get('danceability'),
+                        'acousticness':     f.get('acousticness'),
+                        'instrumentalness': f.get('instrumentalness'),
+                        'speechiness':      f.get('speechiness'),
+                        'tempo':            f.get('tempo'),
+                        'loudness':         f.get('loudness'),
                     })
         except Exception:
             pass
@@ -406,12 +535,57 @@ def build_music_profile(
     genres         = _extract_genres(top_artists)
     aesthetic_tags = _build_aesthetic_tags(
         genres,
-        avg_features.get('energy') if avg_features.get('energy') is not None else 0.5,
-        avg_features.get('valence') if avg_features.get('valence') is not None else 0.5,
+        avg_features.get('energy'),
+        avg_features.get('valence'),
     )
     galaxy_nodes   = _build_galaxy_nodes(top_artists, genres, avg_features)
     analytics      = _build_analytics(genres, avg_features, top_tracks)
+    analytics      = _build_metric_metadata(audio_features_list, len(track_ids), genres, analytics, top_tracks)
     audio_coverage = round(len(audio_features_list) / len(track_ids), 3) if track_ids else 0.0
+    feature_coverage_by_metric = {
+        key: {
+            'count': _count_present(audio_features_list, key),
+            'requested': len(track_ids),
+            'ratio': round((_count_present(audio_features_list, key) / len(track_ids)), 3) if track_ids else 0.0,
+        }
+        for key in ['energy', 'valence', 'danceability', 'acousticness', 'tempo', 'speechiness', 'instrumentalness', 'loudness']
+    }
+    confidence = {
+        'analytics': _confidence_from_ratio(audio_coverage),
+        'identity': _confidence_from_ratio(min(audio_coverage, len(genres) / 12 if genres else 0.0)),
+        'galaxy': _confidence_from_ratio(min(1.0, (len(top_artists) / 50) * 0.7 + (len(genres) / 12) * 0.3)),
+        'soulmate': _confidence_from_ratio(min(1.0, (len(top_artists) / 50) * 0.5 + audio_coverage * 0.5)),
+    }
+    confidence['overall'] = _confidence_from_ratio(
+        (confidence['analytics']['score'] + confidence['identity']['score'] + confidence['galaxy']['score']) / 3
+    )
+    degraded_reasons = []
+    if len(top_artists) < min(limit, 50):
+        degraded_reasons.append('top_artists_below_requested_limit')
+    if len(top_tracks) < min(limit, 50):
+        degraded_reasons.append('top_tracks_below_requested_limit')
+    if audio_coverage == 0:
+        degraded_reasons.append('spotify_audio_features_unavailable')
+    elif audio_coverage < 0.6:
+        degraded_reasons.append('spotify_audio_feature_coverage_low')
+    if not genres:
+        degraded_reasons.append('genre_extraction_unavailable')
+
+    identity_readiness = {
+        'ready': confidence['identity']['score'] >= 0.2 and bool(genres),
+        'confidence': confidence['identity'],
+        'reasons': [] if confidence['identity']['score'] >= 0.2 and bool(genres) else ['insufficient_identity_inputs'],
+    }
+    analytics_readiness = {
+        'ready': confidence['analytics']['score'] >= 0.35,
+        'confidence': confidence['analytics'],
+        'reasons': [] if confidence['analytics']['score'] >= 0.35 else ['insufficient_audio_feature_coverage'],
+    }
+    soulmate_readiness = {
+        'ready': confidence['soulmate']['score'] >= 0.35 and len(top_artists) >= 10,
+        'confidence': confidence['soulmate'],
+        'reasons': [] if confidence['soulmate']['score'] >= 0.35 and len(top_artists) >= 10 else ['insufficient_overlap_inputs'],
+    }
     data_quality = {
         'provider': 'spotify',
         'topArtistsCount': len(top_artists),
@@ -421,6 +595,10 @@ def build_music_profile(
         'audioFeaturesCount': len(audio_features_list),
         'audioCoverage': audio_coverage,
         'hasAudioProfile': len(audio_features_list) > 0,
+        'degradedReasons': degraded_reasons,
+        'sampleSizes': analytics.get('sampleSizes', {}),
+        'featureCoverageByMetric': feature_coverage_by_metric,
+        'confidence': confidence,
     }
 
     # ── User profile ───────────────────────────────────────────────────────────
@@ -436,6 +614,9 @@ def build_music_profile(
     } if user_profile_raw else {}
 
     return {
+        'profileSchemaVersion': PROFILE_SCHEMA_VERSION,
+        'generatedAt':       datetime.now(timezone.utc).isoformat(),
+        'syncedAt':          datetime.now(timezone.utc).isoformat(),
         'userProfile':       user_profile,
         'topArtists':        top_artists,
         'topTracks':         top_tracks,
@@ -449,4 +630,8 @@ def build_music_profile(
         'genres':            genres,
         'timeRange':         time_range,
         'dataQuality':       data_quality,
+        'confidence':        confidence,
+        'analyticsReadiness': analytics_readiness,
+        'identityReadiness': identity_readiness,
+        'soulmateReadiness': soulmate_readiness,
     }

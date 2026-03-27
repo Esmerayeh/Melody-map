@@ -382,6 +382,7 @@ function computeLocalSimilarity(profileA, profileB) {
 // ── Main page ──────────────────────────────────────────────────────────────────
 export default function MusicSoulmate() {
   const { identifier: routeIdentifier } = useParams()
+  const isAuthenticated = useStore((s) => s.isAuthenticated)
   const musicProvider = useStore((s) => s.musicProvider)
   const vibeFeatures  = useStore((s) => s.vibeFeatures)
   const myUsername    = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || 'You')
@@ -398,12 +399,25 @@ export default function MusicSoulmate() {
   const [inviteComparison, setInviteComparison] = useState(null)
 
   const { profile, loading: profileLoading } = useMusicProfile({ autoFetch: true })
+  const soulmateConfidenceLabel = profile?.confidence?.labels?.soulmate || 'unavailable'
+  const comparisonModeLabel = inviteComparison?.mode === 'degraded'
+    ? 'Degraded mode'
+    : inviteComparison?.mode === 'local'
+      ? 'Local comparison'
+      : inviteComparison?.mode === 'public'
+        ? 'Public comparison'
+        : null
 
   useEffect(() => {
+    if (!isAuthenticated) {
+      setMyPublicSlug('')
+      return
+    }
+
     soulmateAPI.getMyProfile()
       .then(({ data }) => setMyPublicSlug(data?.public_slug || ''))
       .catch(() => setMyPublicSlug(''))
-  }, [])
+  }, [isAuthenticated])
 
   // Handle ?user= invite link — wait for profile to load before fetching
   useEffect(() => {
@@ -426,13 +440,14 @@ export default function MusicSoulmate() {
           genres:        otherProfile.genres        || [],
           audioFeatures: otherProfile.audioFeatures || {},
         }
-        const result = computeAdvancedCompatibility(profile, normalised)
+        const result = profile ? computeAdvancedCompatibility(profile, normalised) : null
         setInviteComparison({
           inviteUser,
           otherUsername: otherProfile.username || inviteUser,
           loading: false,
           result: result ? { ...result, _advanced: result } : null,
-          error: null,
+          error: result ? null : 'Connect and sync your music to compare against this public profile.',
+          mode: profile?.dataQuality?.hasAudioProfile === false ? 'degraded' : profile ? 'local' : 'public',
         })
       })
       .catch(() => {
@@ -443,6 +458,7 @@ export default function MusicSoulmate() {
           loading: false,
           result: null,
           error: `Could not load ${inviteUser}'s profile. They may need to sync first.`,
+          mode: 'public',
         })
       })
 
@@ -505,6 +521,10 @@ export default function MusicSoulmate() {
         audio_features: audioFeatures,
         username:       userProfile?.name || userProfile?.username,
         avatar:         userProfile?.image,
+        data_quality:   profile?.dataQuality || {},
+        confidence:     profile?.confidence || {},
+        soulmate_readiness: profile?.soulmateReadiness || {},
+        identity_readiness: profile?.identityReadiness || {},
       })
 
       setMyPublicSlug(data?.public_slug || '')
@@ -572,6 +592,17 @@ export default function MusicSoulmate() {
       {musicProvider && (
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6 max-w-xl">
           <InviteLink publicSlug={myPublicSlug} userId={myUserId} username={myUsername} />
+          {profile && (
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-gray-500">
+              <span>Soulmate confidence: {soulmateConfidenceLabel}</span>
+              <span>•</span>
+              <span>Top artists available: {profile?.dataQuality?.topArtistsCount || profile?.topArtists?.length || 0}/50</span>
+              <span>•</span>
+              <span>
+                Audio coverage: {profile?.dataQuality?.audioFeaturesCount || 0}/{profile?.dataQuality?.audioFeaturesRequested || 0}
+              </span>
+            </div>
+          )}
         </motion.div>
       )}
 
@@ -586,6 +617,14 @@ export default function MusicSoulmate() {
           <p className="text-sm text-gray-300 mb-4">
             Comparing with: <span className="text-white font-semibold">{inviteComparison.otherUsername || inviteComparison.inviteUser}</span>
           </p>
+          {comparisonModeLabel && (
+            <p className="text-[11px] text-gray-500 mb-3 uppercase tracking-[0.18em]">{comparisonModeLabel}</p>
+          )}
+          {!inviteComparison.loading && inviteComparison.result?._advanced && (
+            <p className="text-[11px] text-gray-500 mb-3">
+              Confidence: {inviteComparison.mode === 'degraded' ? 'low' : profile?.confidence?.labels?.soulmate || 'medium'}
+            </p>
+          )}
           {inviteComparison.loading && (
             <div className="flex items-center gap-3 py-6">
               <VibeEmitter bpm={120} size={48} label="Fetching their profile…" />
@@ -613,17 +652,24 @@ export default function MusicSoulmate() {
 
       {/* Step 2 — sync profile */}
       {musicProvider && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="mb-8 flex items-center gap-4 p-5 rounded-2xl max-w-xl relative overflow-hidden"
-          style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(236,72,153,0.05))', border: '1px solid rgba(168,85,247,0.2)' }}>
+          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1 }}
+            className="mb-8 flex items-center gap-4 p-5 rounded-2xl max-w-xl relative overflow-hidden"
+            style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(236,72,153,0.05))', border: '1px solid rgba(168,85,247,0.2)' }}>
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: 'radial-gradient(ellipse at 80% 50%, rgba(168,85,247,0.08) 0%, transparent 60%)' }} />
           <div className="flex-1 relative z-10">
             <p className="font-semibold text-sm text-white">{synced ? 'Profile synced' : 'Sync your music taste'}</p>
             <p className="text-gray-400 text-xs mt-0.5">
-              {synced ? 'Your taste profile is up to date. Re-sync anytime.' : "We'll analyse your top artists, tracks, and genres."}
+              {synced ? 'Your taste profile is up to date. Re-sync anytime.' : "We'll sync your canonical profile, confidence, and data quality for comparison."}
             </p>
+            {profile && (
+              <p className="text-[11px] text-gray-500 mt-2">
+                {profile.soulmateReadiness?.ready
+                  ? `Ready to compare with ${soulmateConfidenceLabel} confidence.`
+                  : 'Comparison will be marked degraded until enough Spotify-backed inputs are available.'}
+              </p>
+            )}
           </div>
           <motion.button onClick={syncProfile} disabled={syncing} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 relative z-10 disabled:opacity-60"

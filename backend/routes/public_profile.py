@@ -9,6 +9,7 @@ public so that invite links work without the viewer being logged in.
 """
 
 from flask import Blueprint, jsonify
+from datetime import datetime, timezone
 from middleware.rate_limit import rate_limit
 from utils.logger import logger
 
@@ -66,11 +67,17 @@ def get_public_profile(identifier: str):
             genres.append(g)
 
     return jsonify({
-        'username':      doc.get('username', identifier),
-        'publicSlug':    doc.get('public_slug'),
-        'avatar':        doc.get('avatar'),
-        'topArtists':    top_artists,
-        'topTracks':     top_tracks,
-        'genres':        genres,
-        'audioFeatures': doc.get('audio_features', {}),
+        'profileSchemaVersion': '2026-03-profile-v1',
+        'username':             doc.get('username', identifier),
+        'publicSlug':           doc.get('public_slug'),
+        'avatar':               doc.get('avatar'),
+        'topArtists':           top_artists,
+        'topTracks':            top_tracks,
+        'genres':               genres,
+        'audioFeatures':        doc.get('audio_features', {}),
+        'syncedAt':             doc.get('updated_at').replace(tzinfo=timezone.utc).isoformat() if doc.get('updated_at') else None,
+        'dataQuality':          doc.get('data_quality', {}),
+        'confidence':           doc.get('confidence', {}),
+        'soulmateReadiness':    doc.get('soulmate_readiness', {}),
+        'identityReadiness':    doc.get('identity_readiness', {}),
     }), 200

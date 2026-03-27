@@ -5,7 +5,14 @@
  */
 
 // ── Clamp helper ───────────────────────────────────────────────────────────────
-const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v ?? 0.5))
+const clamp = (v, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, v))
+const normalizeTempo = (tempo) => (tempo == null ? null : clamp(tempo / 200))
+const weightedAverage = (parts = []) => {
+  const present = parts.filter((part) => part?.value != null && part?.weight > 0)
+  if (!present.length) return null
+  const weightSum = present.reduce((sum, part) => sum + part.weight, 0) || 1
+  return present.reduce((sum, part) => sum + (part.value * part.weight), 0) / weightSum
+}
 
 const GENRE_ARCHETYPE_HINTS = {
   dreamy: ['shoegaze', 'dream pop', 'ambient', 'slowcore', 'post-rock'],
@@ -43,10 +50,11 @@ const ARCHETYPES = [
     emoji: '🌙',
     color: '#a78bfa',
     description: 'Atmospheric, introspective, and beautifully hazy.',
-    score: ({ acousticness, valence, energy }) =>
-      clamp(acousticness) * 0.5 +
-      clamp(valence) * 0.3 * (1 - Math.abs(clamp(valence) - 0.55)) +
-      (1 - clamp(energy)) * 0.2,
+    score: ({ acousticness, valence, energy }) => weightedAverage([
+      { value: acousticness != null ? clamp(acousticness) : null, weight: 0.5 },
+      { value: valence != null ? clamp(valence) * (1 - Math.abs(clamp(valence) - 0.55)) : null, weight: 0.3 },
+      { value: energy != null ? (1 - clamp(energy)) : null, weight: 0.2 },
+    ]),
   },
   {
     id: 'nostalgic',
@@ -54,8 +62,10 @@ const ARCHETYPES = [
     emoji: '🎞️',
     color: '#fbbf24',
     description: 'Warm memories wrapped in slow, organic sound.',
-    score: ({ tempo, acousticness }) =>
-      (1 - clamp(tempo / 200)) * 0.55 + clamp(acousticness) * 0.45,
+    score: ({ tempo, acousticness }) => weightedAverage([
+      { value: normalizeTempo(tempo) != null ? (1 - normalizeTempo(tempo)) : null, weight: 0.55 },
+      { value: acousticness != null ? clamp(acousticness) : null, weight: 0.45 },
+    ]),
   },
   {
     id: 'chaotic',
@@ -63,8 +73,10 @@ const ARCHETYPES = [
     emoji: '⚡',
     color: '#ef4444',
     description: 'High-octane, unpredictable, and relentlessly intense.',
-    score: ({ energy, tempo }) =>
-      clamp(energy) * 0.55 + clamp(tempo / 200) * 0.45,
+    score: ({ energy, tempo }) => weightedAverage([
+      { value: energy != null ? clamp(energy) : null, weight: 0.55 },
+      { value: normalizeTempo(tempo), weight: 0.45 },
+    ]),
   },
   {
     id: 'romantic',
@@ -72,8 +84,11 @@ const ARCHETYPES = [
     emoji: '🌹',
     color: '#f472b6',
     description: 'Tender, emotional, and deeply soulful.',
-    score: ({ valence, acousticness, energy }) =>
-      clamp(valence) * 0.45 + clamp(acousticness) * 0.35 + (1 - clamp(energy)) * 0.2,
+    score: ({ valence, acousticness, energy }) => weightedAverage([
+      { value: valence != null ? clamp(valence) : null, weight: 0.45 },
+      { value: acousticness != null ? clamp(acousticness) : null, weight: 0.35 },
+      { value: energy != null ? (1 - clamp(energy)) : null, weight: 0.2 },
+    ]),
   },
   {
     id: 'melancholic',
@@ -81,8 +96,10 @@ const ARCHETYPES = [
     emoji: '🌧️',
     color: '#60a5fa',
     description: 'Beautifully sad — you find meaning in the minor key.',
-    score: ({ valence, energy }) =>
-      (1 - clamp(valence)) * 0.65 + (1 - clamp(energy)) * 0.35,
+    score: ({ valence, energy }) => weightedAverage([
+      { value: valence != null ? (1 - clamp(valence)) : null, weight: 0.65 },
+      { value: energy != null ? (1 - clamp(energy)) : null, weight: 0.35 },
+    ]),
   },
   {
     id: 'cosmic',
@@ -90,10 +107,11 @@ const ARCHETYPES = [
     emoji: '🪐',
     color: '#34d399',
     description: 'Ambient, vast, and instrumental — music as a universe.',
-    score: ({ instrumentalness, acousticness, energy }) =>
-      clamp(instrumentalness ?? 0.3) * 0.5 +
-      clamp(acousticness) * 0.3 +
-      (1 - clamp(energy)) * 0.2,
+    score: ({ instrumentalness, acousticness, energy }) => weightedAverage([
+      { value: instrumentalness != null ? clamp(instrumentalness) : null, weight: 0.5 },
+      { value: acousticness != null ? clamp(acousticness) : null, weight: 0.3 },
+      { value: energy != null ? (1 - clamp(energy)) : null, weight: 0.2 },
+    ]),
   },
 ]
 
@@ -101,38 +119,69 @@ const ARCHETYPES = [
  * computePersonality(audioFeatures)
  * Returns top-3 archetypes with normalized percentage scores.
  */
-export function computePersonality(profileOrFeatures = {}) {
+export function computePersonalityDetails(profileOrFeatures = {}) {
   const profile = profileOrFeatures.audioFeatures ? profileOrFeatures : { audioFeatures: profileOrFeatures }
   const af = profile.audioFeatures || {}
-  const hasAudioSignals = ['energy', 'valence', 'danceability', 'acousticness', 'tempo', 'instrumentalness']
-    .some((key) => af[key] != null)
+  const audioKeys = ['energy', 'valence', 'danceability', 'acousticness', 'tempo', 'instrumentalness']
+  const presentAudioKeys = audioKeys.filter((key) => af[key] != null)
+  const hasAudioSignals = presentAudioKeys.length > 0
   const hasGenreSignals = (profile.genres || []).length > 0
+  const missingInputs = audioKeys.filter((key) => af[key] == null)
 
-  if (!hasAudioSignals && !hasGenreSignals) return null
+  if (!hasAudioSignals && !hasGenreSignals) {
+    return {
+      traits: null,
+      confidence: 0,
+      missingInputs,
+      inputsUsed: [],
+      methodology: 'music-personality-archetypes-v1',
+    }
+  }
 
   const input = {
-    energy:           clamp(af.energy),
-    valence:          clamp(af.valence),
-    danceability:     clamp(af.danceability),
-    acousticness:     clamp(af.acousticness),
-    instrumentalness: clamp(af.instrumentalness ?? 0.2),
-    tempo:            af.tempo ?? 120,
+    energy:           af.energy ?? null,
+    valence:          af.valence ?? null,
+    danceability:     af.danceability ?? null,
+    acousticness:     af.acousticness ?? null,
+    instrumentalness: af.instrumentalness ?? null,
+    tempo:            af.tempo ?? null,
   }
 
   const raw = ARCHETYPES.map((a) => {
-    const audioScore = hasAudioSignals ? a.score(input) : 0
-    const genreScore = getGenreBonus(profile, a.id)
-    return {
-      ...a,
-      raw: audioScore * (hasAudioSignals ? 0.75 : 0) + genreScore * (hasGenreSignals ? 0.25 : 0),
-    }
-  })
+      const audioScore = hasAudioSignals ? a.score(input) : null
+      const genreScore = getGenreBonus(profile, a.id)
+      const blended = weightedAverage([
+        { value: audioScore, weight: hasAudioSignals ? 0.75 : 0 },
+        { value: hasGenreSignals ? genreScore : null, weight: hasGenreSignals ? 0.25 : 0 },
+      ])
+      return {
+        ...a,
+        raw: blended ?? 0,
+      }
+    })
   const total = raw.reduce((s, a) => s + a.raw, 0) || 1
   const scored = raw
     .map((a) => ({ ...a, pct: Math.round((a.raw / total) * 100) }))
     .sort((a, b) => b.pct - a.pct)
 
-  return scored.slice(0, 3)
+  const confidence = hasAudioSignals
+    ? Math.min(1, (presentAudioKeys.length / audioKeys.length) * 0.8 + (hasGenreSignals ? 0.2 : 0))
+    : Math.min(0.45, (profile.genres || []).length / 12)
+
+  return {
+    traits: scored.slice(0, 3),
+    confidence: Number(confidence.toFixed(3)),
+    missingInputs,
+    inputsUsed: [
+      ...(hasAudioSignals ? presentAudioKeys : []),
+      ...(hasGenreSignals ? ['genres'] : []),
+    ],
+    methodology: 'music-personality-archetypes-v1',
+  }
+}
+
+export function computePersonality(profileOrFeatures = {}) {
+  return computePersonalityDetails(profileOrFeatures).traits
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -161,14 +210,31 @@ const MBTI_TYPES = {
  * computeMBTI(profile)
  * Returns { type, name, desc, axes } where axes shows each dimension score.
  */
-export function computeMBTI(profile = {}) {
+export function computeMBTIDetails(profile = {}) {
   const af      = profile.audioFeatures || {}
   const genres  = profile.genres        || []
   const artists = profile.topArtists    || []
-  const hasAudioSignals = af.acousticness != null || af.danceability != null || af.instrumentalness != null || af.valence != null
+  const inputKeys = ['acousticness', 'danceability', 'instrumentalness', 'valence']
+  const availableKeys = inputKeys.filter((key) => af[key] != null)
+  const hasAudioSignals = availableKeys.length > 0
+  const popularities = artists
+    .map((artist) => artist?.popularity)
+    .filter((value) => value != null)
+    .map((value) => value / 100)
 
-  if (!hasAudioSignals || genres.length === 0 || artists.length === 0) {
-    return null
+  if (!hasAudioSignals || genres.length === 0 || artists.length === 0 || popularities.length === 0) {
+    return {
+      value: null,
+      confidence: 0,
+      missingInputs: [
+        ...inputKeys.filter((key) => af[key] == null),
+        ...(genres.length === 0 ? ['genres'] : []),
+        ...(artists.length === 0 ? ['topArtists'] : []),
+        ...(popularities.length === 0 ? ['artistPopularity'] : []),
+      ],
+      inputsUsed: availableKeys,
+      methodology: 'music-mbti-v1',
+    }
   }
 
   // I/E — Introversion vs Extraversion
@@ -189,29 +255,36 @@ export function computeMBTI(profile = {}) {
 
   // J/P — Judging vs Perceiving
   // Listening consistency (low artist spread) → Judging; high variety → Perceiving
-  const popularities = artists.map((a) => (a.popularity || 50) / 100)
-  const avgPop = popularities.length
-    ? popularities.reduce((s, v) => s + v, 0) / popularities.length
-    : 0.5
-  const spread = popularities.length
-    ? Math.sqrt(popularities.reduce((s, v) => s + (v - avgPop) ** 2, 0) / popularities.length)
-    : 0.3
+  const avgPop = popularities.reduce((s, v) => s + v, 0) / popularities.length
+  const spread = Math.sqrt(popularities.reduce((s, v) => s + (v - avgPop) ** 2, 0) / popularities.length)
   const P = spread > 0.25
 
   const type = `${I ? 'I' : 'E'}${N ? 'N' : 'S'}${T ? 'T' : 'F'}${P ? 'P' : 'J'}`
   const meta = MBTI_TYPES[type] || { name: 'The Sonic Explorer', desc: 'Your taste defies easy categorization.' }
 
+  const confidence = Math.min(1, (availableKeys.length / inputKeys.length) * 0.7 + Math.min(1, genres.length / 12) * 0.15 + Math.min(1, artists.length / 50) * 0.15)
+
   return {
-    type,
-    name: meta.name,
-    desc: meta.desc,
-    axes: {
-      IE: { label: I ? 'Introvert' : 'Extravert', score: Math.round(ie * 100), flipped: !I },
-      NS: { label: N ? 'Intuition' : 'Sensing',   score: Math.round(genreDiversity * 100), flipped: !N },
-      TF: { label: T ? 'Thinking'  : 'Feeling',   score: Math.round(tf * 100), flipped: !T },
-      JP: { label: P ? 'Perceiving': 'Judging',   score: Math.round(spread * 200), flipped: !P },
+    value: {
+      type,
+      name: meta.name,
+      desc: meta.desc,
+      axes: {
+        IE: { label: I ? 'Introvert' : 'Extravert', score: Math.round(ie * 100), flipped: !I },
+        NS: { label: N ? 'Intuition' : 'Sensing',   score: Math.round(genreDiversity * 100), flipped: !N },
+        TF: { label: T ? 'Thinking'  : 'Feeling',   score: Math.round(tf * 100), flipped: !T },
+        JP: { label: P ? 'Perceiving': 'Judging',   score: Math.round(spread * 200), flipped: !P },
+      },
     },
+    confidence: Number(confidence.toFixed(3)),
+    missingInputs: inputKeys.filter((key) => af[key] == null),
+    inputsUsed: [...availableKeys, 'genres', 'topArtists'],
+    methodology: 'music-mbti-v1',
   }
+}
+
+export function computeMBTI(profile = {}) {
+  return computeMBTIDetails(profile).value
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -264,18 +337,27 @@ export function computeAdvancedCompatibility(profileA, profileB) {
   const moodAlignment = hasMoodSignals ? Math.round((1 - (energyDelta + valenceDelta) / 2) * 100) : null
 
   // Discovery match — popularity spread similarity
-  const popA = (profileA.topArtists || []).map((a) => (a.popularity || 50) / 100)
-  const popB = (profileB.topArtists || []).map((a) => (a.popularity || 50) / 100)
-  const avgA = popA.length ? popA.reduce((s, v) => s + v, 0) / popA.length : 0.5
-  const avgB = popB.length ? popB.reduce((s, v) => s + v, 0) / popB.length : 0.5
-  const discoveryMatch = Math.round((1 - Math.abs(avgA - avgB)) * 100)
+  const popA = (profileA.topArtists || []).map((a) => a?.popularity).filter((value) => value != null).map((value) => value / 100)
+  const popB = (profileB.topArtists || []).map((a) => a?.popularity).filter((value) => value != null).map((value) => value / 100)
+  const avgA = popA.length ? popA.reduce((s, v) => s + v, 0) / popA.length : null
+  const avgB = popB.length ? popB.reduce((s, v) => s + v, 0) / popB.length : null
+  const discoveryMatch = avgA != null && avgB != null ? Math.round((1 - Math.abs(avgA - avgB)) * 100) : null
 
   // Listening era match — use release_year from tracks if available
-  const yearA = (profileA.topTracks || []).map((t) => t.release_year || t.year).filter(Boolean)
-  const yearB = (profileB.topTracks || []).map((t) => t.release_year || t.year).filter(Boolean)
-  const avgYearA = yearA.length ? yearA.reduce((s, v) => s + v, 0) / yearA.length : 2015
-  const avgYearB = yearB.length ? yearB.reduce((s, v) => s + v, 0) / yearB.length : 2015
-  const eraMatch = Math.round(Math.max(0, 1 - Math.abs(avgYearA - avgYearB) / 30) * 100)
+  const parseTrackYear = (track) => {
+    const direct = track?.release_year || track?.year
+    if (direct != null && Number.isFinite(Number(direct))) return Number(direct)
+    const releaseDate = track?.release_date || ''
+    const parsed = Number.parseInt(String(releaseDate).slice(0, 4), 10)
+    return Number.isFinite(parsed) ? parsed : null
+  }
+  const yearA = (profileA.topTracks || []).map(parseTrackYear).filter((value) => value != null)
+  const yearB = (profileB.topTracks || []).map(parseTrackYear).filter((value) => value != null)
+  const avgYearA = yearA.length ? yearA.reduce((s, v) => s + v, 0) / yearA.length : null
+  const avgYearB = yearB.length ? yearB.reduce((s, v) => s + v, 0) / yearB.length : null
+  const eraMatch = avgYearA != null && avgYearB != null
+    ? Math.round(Math.max(0, 1 - Math.abs(avgYearA - avgYearB) / 30) * 100)
+    : null
 
   return {
     score:          Math.min(100, total),
