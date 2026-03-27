@@ -1,5 +1,5 @@
 import os
-from urllib.parse import quote_plus, urlparse, urlunparse
+from urllib.parse import quote_plus, unquote_plus, urlparse, urlunparse
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -15,8 +15,9 @@ def _build_mongo_uri() -> str:
     try:
         parsed = urlparse(uri)
         if parsed.username or parsed.password:
-            safe_user = quote_plus(parsed.username or '')
-            safe_pass = quote_plus(parsed.password or '')
+            # Decode first so already-encoded credentials do not get double-encoded.
+            safe_user = quote_plus(unquote_plus(parsed.username or ''))
+            safe_pass = quote_plus(unquote_plus(parsed.password or ''))
             host_part = parsed.hostname
             if parsed.port:
                 host_part = f"{host_part}:{parsed.port}"
