@@ -4,18 +4,36 @@ Aesthetic routes:
   POST /api/aesthetic/regenerate   — regenerate with seed offset
   POST /api/aesthetic/personality  — music personality profile only
 """
+from pathlib import Path
+import sys
+
 from flask import Blueprint, request, jsonify
 from middleware.rate_limit import rate_limit
-from ml.aesthetic_engine import (
-    build_aesthetic_report,
-    generate_personality,
-    generate_shared_aesthetic,
-    classify_vibe,
-    generate_poetic_persona,
-    extract_palette_from_features,
-)
 from config import Config
 import requests as req
+
+try:
+    from ml.aesthetic_engine import (
+        build_aesthetic_report,
+        generate_personality,
+        generate_shared_aesthetic,
+        classify_vibe,
+        generate_poetic_persona,
+        extract_palette_from_features,
+    )
+except ModuleNotFoundError:
+    backend_root = Path(__file__).resolve().parent.parent
+    backend_root_str = str(backend_root)
+    if backend_root_str not in sys.path:
+        sys.path.insert(0, backend_root_str)
+    from ml.aesthetic_engine import (
+        build_aesthetic_report,
+        generate_personality,
+        generate_shared_aesthetic,
+        classify_vibe,
+        generate_poetic_persona,
+        extract_palette_from_features,
+    )
 
 aesthetic_bp = Blueprint('aesthetic', __name__)
 
