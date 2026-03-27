@@ -37,12 +37,19 @@ export default function MusicMap() {
 
   const [model, setModel] = useState(null)
   const [selectedNode, setSelectedNode] = useState(null)
+  const [selectedClusterId, setSelectedClusterId] = useState(null)
+  const [selectedRegionId, setSelectedRegionId] = useState(null)
   const [hoveredNodeId, setHoveredNodeId] = useState(null)
   const [hoveredEdge, setHoveredEdge] = useState(null)
   const [loading, setLoading] = useState(true)
   const [isDemo, setIsDemo] = useState(false)
   const [constellationMode, setConstellationMode] = useState(false)
   const [constellationOrigin, setConstellationOrigin] = useState(null)
+  const [viewMode, setViewMode] = useState('identity')
+  const [showTracks, setShowTracks] = useState(true)
+  const [showMoodRegions, setShowMoodRegions] = useState(true)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [focusTarget, setFocusTarget] = useState(null)
 
   const hoveredNode = useMemo(
     () => (model?.nodes || []).find((node) => node.id === hoveredNodeId) || null,
@@ -52,6 +59,38 @@ export default function MusicMap() {
     () => model?.clusters?.find((cluster) => cluster.id === hoveredNode?.clusterId) || null,
     [model, hoveredNode],
   )
+  const selectedCluster = useMemo(
+    () => model?.clusters?.find((cluster) => cluster.id === selectedClusterId) || null,
+    [model, selectedClusterId],
+  )
+  const selectedRegion = useMemo(
+    () => model?.regions?.find((region) => region.id === selectedRegionId) || null,
+    [model, selectedRegionId],
+  )
+
+  const resolveFocusPosition = useCallback((ids = []) => {
+    if (!model) return null
+    const targets = ids
+      .map((id) => model.nodes.find((node) => node.id === id))
+      .filter(Boolean)
+
+    if (!targets.length) return null
+
+    const total = targets.reduce(
+      (accumulator, node) => ({
+        x: accumulator.x + (node.position?.x || 0),
+        y: accumulator.y + (node.position?.y || 0),
+        z: accumulator.z + (node.position?.z || 0),
+      }),
+      { x: 0, y: 0, z: 0 },
+    )
+
+    return {
+      x: total.x / targets.length,
+      y: total.y / targets.length,
+      z: total.z / targets.length,
+    }
+  }, [model])
 
   const loadData = useCallback(async () => {
     setLoading(true)
@@ -90,23 +129,108 @@ export default function MusicMap() {
     setSelectedNode(nextSelected)
   }, [model, selectedNode])
 
+  useEffect(() => {
+    if (!model) return
+    if (selectedClusterId && !model.clusters?.some((cluster) => cluster.id === selectedClusterId)) {
+      setSelectedClusterId(null)
+    }
+    if (selectedRegionId && !model.regions?.some((region) => region.id === selectedRegionId)) {
+      setSelectedRegionId(null)
+    }
+  }, [model, selectedClusterId, selectedRegionId])
+
   const handleSelectNode = useCallback((node) => {
     setSelectedNode(node)
+    setSelectedClusterId(node?.clusterId || null)
+    setSelectedRegionId(null)
+    setFocusTarget(node?.position || null)
     if (constellationMode) setConstellationOrigin(node?.id || null)
   }, [constellationMode])
+
+  const handleSelectCluster = useCallback((clusterId) => {
+    if (!model) return
+    const cluster = model.clusters?.find((entry) => entry.id === clusterId) || null
+    if (!cluster) return
+
+    setSelectedClusterId(cluster.id)
+    setSelectedRegionId(null)
+    setSelectedNode(null)
+    setHoveredEdge(null)
+    setFocusTarget(cluster.centroid || resolveFocusPosition(cluster.members || []))
+  }, [model, resolveFocusPosition])
+
+  const handleFocusPreset = useCallback((presetKey) => {
+    const ids = model?.metadata?.focusPresets?.[presetKey] || []
+    const target = resolveFocusPosition(ids)
+    if (!target) return
+
+    setFocusTarget(target)
+    setSelectedRegionId(null)
+    setHoveredEdge(null)
+
+    if (ids.length === 1) {
+      const node = model?.nodes?.find((entry) => entry.id === ids[0]) || null
+      setSelectedNode(node)
+      setSelectedClusterId(node?.clusterId || null)
+    } else {
+      setSelectedNode(null)
+      setSelectedClusterId(null)
+    }
+  }, [model, resolveFocusPosition])
+
+  useEffect(() => {
+    if (!model || !searchQuery.trim()) return
+    const query = searchQuery.trim().toLowerCase()
+
+    const nodeMatch = model.nodes.find((node) => node.label?.toLowerCase().includes(query))
+    if (nodeMatch) {
+      setSelectedNode(nodeMatch)
+      setSelectedClusterId(nodeMatch.clusterId || null)
+      setSelectedRegionId(null)
+      setFocusTarget(nodeMatch.position || null)
+      return
+    }
+
+    const clusterMatch = model.clusters?.find((cluster) => cluster.label?.toLowerCase().includes(query))
+    if (clusterMatch) {
+      handleSelectCluster(clusterMatch.id)
+      return
+    }
+
+    const regionMatch = model.regions?.find((region) => region.label?.toLowerCase().includes(query))
+    if (regionMatch) {
+      setSelectedNode(null)
+      setSelectedClusterId(null)
+      setSelectedRegionId(regionMatch.id)
+      setHoveredEdge(null)
+      setFocusTarget(regionMatch.centroid || null)
+    }
+  }, [handleSelectCluster, model, searchQuery])
+
+  const activeViewMode = constellationMode ? 'constellation' : viewMode
 
   const subtitle = useMemo(() => {
     if (loading) return 'Loading your galaxy...'
     if (isDemo) return 'Demo galaxy - connect a music source to see your own'
     if (!model) return 'No galaxy data available yet'
-    return `${model.nodes.length} nodes • ${model.edges.length} edges • ${model.metadata?.layoutVersion || 'canonical model'}`
+
+    const density = model.metadata?.density
+    return `${density?.artistStars || model.nodes.length} artist stars • ${density?.trackSatellites || 0} satellites • ${model.clusters?.length || 0} neighborhoods • ${model.metadata?.layoutVersion || 'canonical model'}`
   }, [loading, isDemo, model])
+
   const trustBanner = useMemo(() => {
     if (!model) return null
-    if (isDemo) return 'Demo galaxy — not based on your live Spotify profile yet.'
-    if (model.metadata?.source !== 'profile') return 'Legacy galaxy data — canonical profile graph is not fully available yet.'
+    if (isDemo) return 'Demo galaxy - not based on your live Spotify profile yet.'
+    if (model.metadata?.source !== 'profile') return 'Legacy galaxy data - canonical profile graph is not fully available yet.'
     if ((model.metadata?.confidence?.galaxy?.score || 0) < 0.5) return 'Galaxy is rendered from partial profile data. Neighborhoods may be less reliable.'
     return null
+  }, [isDemo, model])
+
+  const detailBanner = useMemo(() => {
+    if (!model || isDemo) return null
+    const density = model.metadata?.density
+    if (!density) return null
+    return `${density.anchors} anchors • ${density.artistStars} artist stars • ${density.trackSatellites} satellites • ${density.regions} nebulae`
   }, [isDemo, model])
 
   const scene = (
@@ -120,6 +244,10 @@ export default function MusicMap() {
         hoveredEdge={hoveredEdge}
         onHoverEdge={setHoveredEdge}
         constellationOrigin={constellationMode ? constellationOrigin : null}
+        viewMode={activeViewMode}
+        showTracks={showTracks}
+        showMoodRegions={showMoodRegions}
+        focusTarget={focusTarget}
       />
       {constellationMode && !constellationOrigin && !loading && (
         <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full border border-purple-500/30 bg-purple-500/20 px-3 py-1.5 text-xs text-purple-300">
@@ -127,9 +255,34 @@ export default function MusicMap() {
         </div>
       )}
       <ClusterOverlay cluster={hoveredCluster} />
-      <GalaxyLegend clusters={model?.clusters || []} />
+      <GalaxyLegend
+        clusters={model?.clusters || []}
+        regions={model?.regions || []}
+        density={model?.metadata?.density}
+        onSelectCluster={handleSelectCluster}
+      />
     </div>
   )
+
+  const controlProps = {
+    isDemo,
+    loading,
+    cinemaMode,
+    onRefresh: loadData,
+    viewMode: activeViewMode,
+    onChangeViewMode: (mode) => {
+      setViewMode(mode)
+      setConstellationMode(mode === 'constellation')
+      if (mode !== 'constellation') setConstellationOrigin(null)
+    },
+    showTracks,
+    onToggleTracks: () => setShowTracks((value) => !value),
+    showMoodRegions,
+    onToggleMoodRegions: () => setShowMoodRegions((value) => !value),
+    onFocusPreset: handleFocusPreset,
+    searchQuery,
+    onSearchChange: setSearchQuery,
+  }
 
   if (cinemaMode) {
     return (
@@ -141,15 +294,7 @@ export default function MusicMap() {
         ) : scene}
         <div className="absolute right-4 top-4 z-10">
           <GalaxyControls
-            isDemo={isDemo}
-            loading={loading}
-            constellationMode={constellationMode}
-            onRefresh={loadData}
-            onToggleConstellation={() => {
-              setConstellationMode((value) => !value)
-              if (constellationMode) setConstellationOrigin(null)
-            }}
-            cinemaMode={cinemaMode}
+            {...controlProps}
             onToggleCinema={() => setCinemaMode(false)}
           />
         </div>
@@ -165,15 +310,7 @@ export default function MusicMap() {
           <p className="mt-0.5 text-sm text-gray-400">{subtitle}</p>
         </div>
         <GalaxyControls
-          isDemo={isDemo}
-          loading={loading}
-          constellationMode={constellationMode}
-          onRefresh={loadData}
-          onToggleConstellation={() => {
-            setConstellationMode((value) => !value)
-            if (constellationMode) setConstellationOrigin(null)
-          }}
-          cinemaMode={cinemaMode}
+          {...controlProps}
           onToggleCinema={() => setCinemaMode(true)}
         />
       </div>
@@ -201,9 +338,19 @@ export default function MusicMap() {
             {trustBanner}
           </div>
         )}
+        {detailBanner && !loading && !trustBanner && (
+          <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[11px] text-gray-300 backdrop-blur">
+            {detailBanner}
+          </div>
+        )}
       </div>
 
-      <GalaxyInspector node={selectedNode} edge={selectedNode ? null : hoveredEdge} />
+      <GalaxyInspector
+        node={selectedNode}
+        edge={selectedNode || selectedCluster || selectedRegion ? null : hoveredEdge}
+        cluster={selectedNode ? null : selectedCluster}
+        region={selectedNode || selectedCluster ? null : selectedRegion}
+      />
     </div>
   )
 }
