@@ -749,14 +749,19 @@ export default function MusicSoulmate() {
                     score:          comparison.match_score,
                     sharedGenres:   comparison.shared_genres  || [],
                     sharedArtists:  comparison.shared_artists || [],
+                    sharedTracks:   comparison.shared_tracks  || [],
                     breakdown: {
                       genres:         comparison.breakdown?.genres         ?? 0,
                       artists:        comparison.breakdown?.artists        ?? 0,
-                      audio:          comparison.breakdown?.audio          ?? 0,
+                      audio:          comparison.breakdown?.audio          ?? null,
+                      tracks:         comparison.breakdown?.tracks         ?? null,
+                      vibe:           comparison.breakdown?.vibe           ?? null,
                       moodAlignment:  comparison.breakdown?.mood_alignment ?? comparison.breakdown?.moodAlignment ?? 0,
                       discoveryMatch: comparison.breakdown?.discovery_match ?? comparison.breakdown?.discoveryMatch ?? 0,
                       eraMatch:       comparison.breakdown?.era_match       ?? comparison.breakdown?.eraMatch       ?? null,
                     },
+                    confidence: comparison.confidence,
+                    note: comparison.note,
                   }}
                   userAName={myUsername}
                   userBName={comparison.user_b?.username || selected.username}

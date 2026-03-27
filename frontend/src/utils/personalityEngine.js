@@ -222,7 +222,7 @@ export function computeMBTIDetails(profile = {}) {
     .filter((value) => value != null)
     .map((value) => value / 100)
 
-  if (!hasAudioSignals || genres.length === 0 || artists.length === 0 || popularities.length === 0) {
+  if (availableKeys.length < inputKeys.length || genres.length === 0 || artists.length === 0 || popularities.length === 0) {
     return {
       value: null,
       confidence: 0,
@@ -250,7 +250,7 @@ export function computeMBTIDetails(profile = {}) {
 
   // T/F — Thinking vs Feeling
   // High instrumentalness → Thinking; high valence/speechiness → Feeling
-  const tf = clamp(af.instrumentalness ?? 0.2) * 0.5 + (1 - clamp(af.valence)) * 0.5
+  const tf = clamp(af.instrumentalness) * 0.5 + (1 - clamp(af.valence)) * 0.5
   const T  = tf > 0.5
 
   // J/P — Judging vs Perceiving
@@ -290,7 +290,7 @@ export function computeMBTI(profile = {}) {
 // ─────────────────────────────────────────────────────────────────────────────
 // 3. ADVANCED SOULMATE COMPATIBILITY
 // ─────────────────────────────────────────────────────────────────────────────
-const WEIGHTS = { genre: 0.35, artist: 0.35, audio: 0.30 }
+const WEIGHTS = { artist: 0.4, genre: 0.25, audio: 0.2, track: 0.1, vibe: 0.05 }
 
 /**
  * computeAdvancedCompatibility(profileA, profileB)
@@ -311,20 +311,32 @@ export function computeAdvancedCompatibility(profileA, profileB) {
   const sharedArtists = [...artistsA].filter((a) => artistsB.has(a))
   const artistOverlap = artistsA.size ? sharedArtists.length / Math.max(artistsA.size, artistsB.size) : 0
 
+  // Track overlap
+  const tracksA = new Set((profileA.topTracks || []).map((t) => (t.title || t.name || '').toLowerCase()).filter(Boolean))
+  const tracksB = new Set((profileB.topTracks || []).map((t) => (t.title || t.name || '').toLowerCase()).filter(Boolean))
+  const sharedTracks = [...tracksA].filter((track) => tracksB.has(track))
+  const trackOverlap = tracksA.size ? sharedTracks.length / Math.max(tracksA.size, tracksB.size) : 0
+
   // Audio feature similarity only uses keys that exist on both profiles.
   // Missing audio should reduce certainty, not collapse to a fake neutral match.
   const afA = profileA.audioFeatures || {}
   const afB = profileB.audioFeatures || {}
-  const audioKeys = ['energy', 'valence', 'danceability', 'acousticness']
+  const audioKeys = ['energy', 'valence', 'danceability', 'acousticness', 'instrumentalness', 'speechiness']
   const sharedAudioKeys = audioKeys.filter((key) => afA[key] != null && afB[key] != null)
   const audioSim = sharedAudioKeys.length
     ? sharedAudioKeys.reduce((sum, key) => sum + (1 - Math.abs(clamp(afA[key]) - clamp(afB[key]))), 0) / sharedAudioKeys.length
     : null
 
+  const vibeSim = afA.energy != null && afB.energy != null && afA.valence != null && afB.valence != null
+    ? 1 - ((Math.abs(clamp(afA.energy) - clamp(afB.energy)) + Math.abs(clamp(afA.valence) - clamp(afB.valence))) / 2)
+    : null
+
   const activeWeights = [
-    { key: 'genre', value: genreOverlap, weight: WEIGHTS.genre },
     { key: 'artist', value: artistOverlap, weight: WEIGHTS.artist },
+    { key: 'genre', value: genreOverlap, weight: WEIGHTS.genre },
+    { key: 'track', value: trackOverlap, weight: WEIGHTS.track },
     ...(audioSim != null ? [{ key: 'audio', value: audioSim, weight: WEIGHTS.audio }] : []),
+    ...(vibeSim != null ? [{ key: 'vibe', value: vibeSim, weight: WEIGHTS.vibe }] : []),
   ]
   const totalWeight = activeWeights.reduce((sum, item) => sum + item.weight, 0) || 1
   const weightedScore = activeWeights.reduce((sum, item) => sum + (item.value * item.weight), 0) / totalWeight
@@ -363,14 +375,27 @@ export function computeAdvancedCompatibility(profileA, profileB) {
     score:          Math.min(100, total),
     sharedGenres:   sharedGenres.slice(0, 8),
     sharedArtists:  sharedArtists.slice(0, 8),
+    sharedTracks:   sharedTracks.slice(0, 8),
     breakdown: {
-      genres:         Math.round(genreOverlap  * 100),
       artists:        Math.round(artistOverlap * 100),
+      genres:         Math.round(genreOverlap  * 100),
       audio:          audioSim != null ? Math.round(audioSim * 100) : null,
+      tracks:         Math.round(trackOverlap * 100),
+      vibe:           vibeSim != null ? Math.round(vibeSim * 100) : null,
       moodAlignment,
       discoveryMatch,
       eraMatch,
     },
-    note: audioSim == null ? 'Compared using artist and genre overlap because one profile is missing audio feature coverage.' : null,
+    confidence: {
+      score: Number((totalWeight / (WEIGHTS.artist + WEIGHTS.genre + WEIGHTS.audio + WEIGHTS.track + WEIGHTS.vibe)).toFixed(3)),
+      label: totalWeight >= 0.85 ? 'high' : totalWeight >= 0.55 ? 'medium' : totalWeight > 0 ? 'low' : 'unavailable',
+    },
+    methodology: {
+      weights: WEIGHTS,
+      audioKeysUsed: sharedAudioKeys,
+    },
+    note: audioSim == null
+      ? 'Compared with reduced confidence because one profile is missing Spotify audio feature coverage.'
+      : null,
   }
 }

@@ -51,6 +51,8 @@ export function ScoreRing({ score, size = 144 }) {
 
 // ── Animated bar ───────────────────────────────────────────────────────────────
 function Bar({ label, value, color, icon: Icon, delay = 0 }) {
+  const numericValue = typeof value === 'number' ? value : 0
+  const isUnavailable = value == null
   return (
     <motion.div
       initial={{ opacity: 0, x: -10 }}
@@ -63,13 +65,15 @@ function Bar({ label, value, color, icon: Icon, delay = 0 }) {
       <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
         <motion.div
           className="h-full rounded-full"
-          style={{ background: color, boxShadow: `0 0 6px ${color}` }}
+          style={{ background: color, boxShadow: `0 0 6px ${color}`, opacity: isUnavailable ? 0.25 : 1 }}
           initial={{ width: 0 }}
-          animate={{ width: `${value}%` }}
+          animate={{ width: `${numericValue}%` }}
           transition={{ delay: delay + 0.1, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
         />
       </div>
-      <span className="text-xs font-semibold w-8 text-right" style={{ color }}>{value}%</span>
+      <span className="text-xs font-semibold w-8 text-right" style={{ color }}>
+        {isUnavailable ? 'N/A' : `${numericValue}%`}
+      </span>
     </motion.div>
   )
 }
@@ -92,7 +96,7 @@ function PillList({ items, color }) {
 // ── Main card ──────────────────────────────────────────────────────────────────
 export default function CompatibilityCard({ result, userAName = 'You', userBName = 'Friend' }) {
   if (!result) return null
-  const { score, sharedGenres, sharedArtists, breakdown } = result
+  const { score, sharedGenres, sharedArtists, breakdown, confidence, note } = result
   const accentColor = score >= 75 ? '#a78bfa' : score >= 50 ? '#60a5fa' : '#f472b6'
 
   const tagline =
@@ -120,6 +124,11 @@ export default function CompatibilityCard({ result, userAName = 'You', userBName
         <div className="flex-1 w-full">
           <p className="font-black text-white text-lg mb-1">{userAName} &amp; {userBName}</p>
           <p className="text-gray-400 text-sm mb-4">{tagline}</p>
+          {confidence?.label && (
+            <p className="text-[11px] text-gray-500 mb-3 uppercase tracking-[0.18em]">
+              Match confidence: {confidence.label}
+            </p>
+          )}
           <div className="space-y-2.5">
             <Bar label="Genre Overlap"    value={breakdown.genres}         color="#a78bfa" icon={Heart}   delay={0.05} />
             <Bar label="Artist Overlap"   value={breakdown.artists}        color="#60a5fa" icon={Heart}   delay={0.10} />
@@ -144,6 +153,10 @@ export default function CompatibilityCard({ result, userAName = 'You', userBName
           <PillList items={sharedGenres} color="#60a5fa" />
         </div>
       </div>
+
+      {note && (
+        <p className="text-xs text-amber-400/80 mt-4 relative z-10">{note}</p>
+      )}
     </motion.div>
   )
 }

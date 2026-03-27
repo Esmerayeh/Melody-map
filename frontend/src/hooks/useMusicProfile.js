@@ -11,7 +11,7 @@ import { musicService } from '../services/musicService'
 import useStore from '../store/useStore'
 import { computePersonalityDetails, computeMBTIDetails } from '../utils/personalityEngine'
 
-const PROFILE_SCHEMA_VERSION = '2026-03-profile-v1'
+const PROFILE_SCHEMA_VERSION = '2026-03-profile-v2'
 
 function mapLastfmPeriod(timeRange) {
   if (timeRange === 'short_term') return '1month'
@@ -32,66 +32,6 @@ function buildGenreList(artists = []) {
   return [...counts.entries()]
     .sort((a, b) => b[1] - a[1])
     .map(([genre, count]) => ({ genre, count }))
-}
-
-function buildAnalytics(audioFeatures = {}, genres = [], tracks = []) {
-  const energy = audioFeatures.energy
-  const valence = audioFeatures.valence
-  const acousticness = audioFeatures.acousticness
-  const totalGenreWeight = genres.reduce((sum, item) => sum + (item.count || 0), 0) || 1
-  const entropy = genres.reduce((sum, item) => {
-    const p = (item.count || 0) / totalGenreWeight
-    return p > 0 ? sum - p * Math.log2(p) : sum
-  }, 0)
-  const maxEntropy = genres.length > 1 ? Math.log2(genres.length) : 1
-
-  const releaseYears = tracks
-    .map((track) => {
-      const directYear = track.release_year || track.year
-      if (directYear != null && Number.isFinite(Number(directYear))) {
-        return Number(directYear)
-      }
-      const releaseDate = track.release_date || ''
-      const parsedYear = Number.parseInt(String(releaseDate).slice(0, 4), 10)
-      return Number.isFinite(parsedYear) ? parsedYear : null
-    })
-    .filter((year) => year != null)
-
-  const nostalgiaIndex = releaseYears.length
-    ? (() => {
-        const currentYear = new Date().getUTCFullYear()
-        const avgYear = releaseYears.reduce((sum, year) => sum + year, 0) / releaseYears.length
-        return Math.round(
-          Math.min(1, Math.max(0, (currentYear - avgYear) / (currentYear - 1970))) * 100
-        )
-      })()
-    : null
-
-  return {
-    mood: energy != null && valence != null ? (
-      energy > 0.7 && valence > 0.6 ? 'euphoric'
-        : energy > 0.7 && valence < 0.4 ? 'intense'
-        : energy > 0.7 ? 'energetic'
-        : energy < 0.35 && valence < 0.35 ? 'melancholic'
-        : energy < 0.35 && valence > 0.6 ? 'serene'
-        : energy < 0.35 ? 'dreamy'
-        : valence > 0.65 ? 'uplifting'
-        : valence < 0.35 ? 'brooding'
-        : 'balanced'
-    ) : null,
-    energyScore: energy != null ? Math.round(energy * 100) : null,
-    valenceScore: valence != null ? Math.round(valence * 100) : null,
-    danceabilityScore: audioFeatures.danceability != null ? Math.round(audioFeatures.danceability * 100) : null,
-    acousticnessScore: acousticness != null ? Math.round(acousticness * 100) : null,
-    tempoAvg: audioFeatures.tempo != null ? Math.round(audioFeatures.tempo) : null,
-    speechinessScore: audioFeatures.speechiness != null ? Math.round(audioFeatures.speechiness * 100) : null,
-    instrumentalScore: audioFeatures.instrumentalness != null ? Math.round(audioFeatures.instrumentalness * 100) : null,
-    nostalgiaIndex,
-    diversityScore: Math.round(Math.min(1, entropy / maxEntropy) * 100),
-    sonicBrightness: energy != null && valence != null && acousticness != null
-      ? Math.round((valence * 0.45 + energy * 0.35 + (1 - acousticness) * 0.2) * 100)
-      : null,
-  }
 }
 
 function validateProfilePayload(raw) {
@@ -195,7 +135,10 @@ async function buildLastfmProfile(timeRange) {
   const genres = buildGenreList(topArtists)
 
   return {
+    profileSchemaVersion: PROFILE_SCHEMA_VERSION,
     provider: 'lastfm',
+    generatedAt: new Date().toISOString(),
+    syncedAt: new Date().toISOString(),
     userProfile,
     topArtists,
     topTracks: topTracksRaw,
@@ -227,6 +170,23 @@ async function buildLastfmProfile(timeRange) {
       galaxy: { score: Math.min(1, Number((((topArtists.length / 50) * 0.7) + (genres.length / 12) * 0.3).toFixed(3))), label: topArtists.length >= 15 ? 'medium' : 'low' },
       soulmate: { score: Math.min(0.45, Number((((topArtists.length / 50) * 0.25) + (genres.length / 12) * 0.2).toFixed(3))), label: topArtists.length >= 15 ? 'low' : 'unavailable' },
     },
+    analyticsReadiness: {
+      ready: false,
+      confidence: { score: 0, label: 'unavailable' },
+      reasons: ['spotify_audio_features_unavailable_for_lastfm_profile'],
+    },
+    identityReadiness: {
+      ready: genres.length > 0,
+      confidence: { score: Math.min(0.45, Number((genres.length / 12).toFixed(3))), label: genres.length >= 6 ? 'low' : 'unavailable' },
+      mbtiReady: false,
+      reasons: genres.length > 0 ? [] : ['insufficient_identity_inputs'],
+    },
+    soulmateReadiness: {
+      ready: false,
+      confidence: { score: Math.min(0.45, Number((((topArtists.length / 50) * 0.25) + (genres.length / 12) * 0.2).toFixed(3))), label: topArtists.length >= 15 ? 'low' : 'unavailable' },
+      mode: 'degraded',
+      reasons: ['spotify_audio_features_unavailable_for_lastfm_profile'],
+    },
   }
 }
 
@@ -255,17 +215,20 @@ function normalizeProfile(raw, provider) {
     normalized.analyticsMetrics = null
   }
 
-  const identityInput = {
+  const backendPersonalityMeta = raw.personalityMeta && typeof raw.personalityMeta === 'object' ? raw.personalityMeta : null
+  const backendMbtiMeta = raw.mbtiMeta && typeof raw.mbtiMeta === 'object' ? raw.mbtiMeta : null
+  const personalityDetails = backendPersonalityMeta || computePersonalityDetails({
     audioFeatures: normalized.audioFeatures || {},
     genres: normalized.genres || [],
-  }
-  const personalityDetails = computePersonalityDetails(identityInput)
-  const mbtiDetails = normalized.dataQuality?.hasAudioProfile === false
-    ? { value: null, confidence: 0, missingInputs: ['audioFeatures'], inputsUsed: [], methodology: 'music-mbti-v1' }
-    : computeMBTIDetails(normalized)
+  })
+  const mbtiDetails = backendMbtiMeta || (
+    normalized.dataQuality?.hasAudioProfile === false
+      ? { value: null, confidence: 0, missingInputs: ['audioFeatures'], inputsUsed: [], methodology: 'music-mbti-v1' }
+      : computeMBTIDetails(normalized)
+  )
 
-  normalized.personality = personalityDetails.traits
-  normalized.mbti = mbtiDetails.value
+  normalized.personality = raw.personality ?? personalityDetails.traits
+  normalized.mbti = raw.mbti ?? mbtiDetails.value
   normalized.confidence = deriveConfidence(normalized.dataQuality || {}, normalized, raw.confidence)
   const identityConfidence = Math.min(
     normalized.confidence.identity ?? 0,
@@ -296,18 +259,17 @@ function normalizeProfile(raw, provider) {
     || normalized.confidence.analytics < 0.5
     || normalized.confidence.identity < 0.5
   )
-  normalized.canComputeAnalytics = Boolean(normalized.analyticsMetrics) && normalized.confidence.analytics >= 0.35
-  normalized.canComputeIdentity = Boolean(normalized.personality?.length) && normalized.confidence.identity >= 0.2
-  normalized.canRenderGalaxy = Boolean(normalized.topArtists?.length || normalized.galaxyNodes?.length)
+  const fallbackCanComputeIdentity = Boolean(normalized.personality?.length) && normalized.confidence.identity >= 0.2
+  const fallbackCanComputeAnalytics = Boolean(normalized.analyticsMetrics) && normalized.confidence.analytics >= 0.35
   normalized.identityReadiness = raw.identityReadiness || {
-    ready: normalized.canComputeIdentity,
+    ready: fallbackCanComputeIdentity,
     confidence: normalized.confidence.identity,
-    reasons: normalized.canComputeIdentity ? [] : ['insufficient_identity_inputs'],
+    reasons: fallbackCanComputeIdentity ? [] : ['insufficient_identity_inputs'],
   }
   normalized.analyticsReadiness = raw.analyticsReadiness || {
-    ready: normalized.canComputeAnalytics,
+    ready: fallbackCanComputeAnalytics,
     confidence: normalized.confidence.analytics,
-    reasons: normalized.canComputeAnalytics ? [] : ['insufficient_audio_feature_coverage'],
+    reasons: fallbackCanComputeAnalytics ? [] : ['insufficient_audio_feature_coverage'],
   }
   normalized.soulmateReadiness = {
     ...(raw.soulmateReadiness || {}),
@@ -316,6 +278,9 @@ function normalizeProfile(raw, provider) {
     mode: normalized.dataQuality?.hasAudioProfile === false ? 'degraded' : 'full',
     degradedReasons: normalized.dataQuality?.degradedReasons || raw.soulmateReadiness?.reasons || [],
   }
+  normalized.canComputeAnalytics = Boolean(normalized.analyticsReadiness?.ready) && Boolean(normalized.analyticsMetrics)
+  normalized.canComputeIdentity = Boolean(normalized.identityReadiness?.ready) && Boolean(normalized.personality?.length)
+  normalized.canRenderGalaxy = Boolean(normalized.topArtists?.length || normalized.galaxyNodes?.length)
   return normalized
 }
 

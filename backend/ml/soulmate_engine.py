@@ -48,6 +48,16 @@ def _normalise_names(items: list[str]) -> set[str]:
     return {s.strip().lower() for s in items if s}
 
 
+def _confidence_label(score: float) -> str:
+    if score >= 0.8:
+        return 'high'
+    if score >= 0.5:
+        return 'medium'
+    if score > 0:
+        return 'low'
+    return 'unavailable'
+
+
 # ── Main engine ────────────────────────────────────────────────────────────────
 
 class SoulmateEngine:
@@ -73,33 +83,39 @@ class SoulmateEngine:
         track_sim  = _jaccard(tracks_a,  tracks_b)
         genre_sim  = _jaccard(genres_a,  genres_b)
 
-        # Audio cosine similarity
+        # Audio cosine similarity only counts when both profiles have analyzable audio.
         vec_a = _audio_vector(profile_a.get('audio', {}))
         vec_b = _audio_vector(profile_b.get('audio', {}))
-        if np.any(vec_a) and np.any(vec_b):
-            audio_sim = float(cosine_similarity([vec_a], [vec_b])[0][0])
-        else:
-            audio_sim = 0.0
+        audio_sim = float(cosine_similarity([vec_a], [vec_b])[0][0]) if np.any(vec_a) and np.any(vec_b) else None
 
-        # Vibe similarity — mood/energy proximity (1 - normalised distance)
+        # Vibe similarity uses real energy/valence only; missing audio lowers confidence.
         mood_a = profile_a.get('mood', {}) or profile_a.get('audio', {})
         mood_b = profile_b.get('mood', {}) or profile_b.get('audio', {})
-        e_diff = abs(float(mood_a.get('energy', 0.5) or 0.5) - float(mood_b.get('energy', 0.5) or 0.5))
-        v_diff = abs(float(mood_a.get('valence', 0.5) or 0.5) - float(mood_b.get('valence', 0.5) or 0.5))
-        vibe_sim = max(0.0, 1.0 - (e_diff + v_diff) / 2.0)
+        if mood_a.get('energy') is not None and mood_b.get('energy') is not None and mood_a.get('valence') is not None and mood_b.get('valence') is not None:
+            e_diff = abs(float(mood_a.get('energy')) - float(mood_b.get('energy')))
+            v_diff = abs(float(mood_a.get('valence')) - float(mood_b.get('valence')))
+            vibe_sim = max(0.0, 1.0 - (e_diff + v_diff) / 2.0)
+        else:
+            vibe_sim = None
 
-        raw_score = (
-            artist_sim * WEIGHTS['artists'] +
-            genre_sim  * WEIGHTS['genres']  +
-            audio_sim  * WEIGHTS['audio']   +
-            track_sim  * WEIGHTS['tracks']  +
-            vibe_sim   * WEIGHTS['vibe']
-        )
+        active_components = [
+            ('artists', artist_sim, WEIGHTS['artists']),
+            ('genres', genre_sim, WEIGHTS['genres']),
+            ('tracks', track_sim, WEIGHTS['tracks']),
+        ]
+        if audio_sim is not None:
+            active_components.append(('audio', audio_sim, WEIGHTS['audio']))
+        if vibe_sim is not None:
+            active_components.append(('vibe', vibe_sim, WEIGHTS['vibe']))
+
+        total_weight = sum(weight for _, _, weight in active_components) or 1.0
+        raw_score = sum(value * weight for _, value, weight in active_components) / total_weight
         match_score = round(raw_score * 100)
 
         shared_artists = sorted(artists_a & artists_b)
         shared_tracks  = sorted(tracks_a  & tracks_b)
         shared_genres  = sorted(genres_a  & genres_b)
+        confidence_score = round(total_weight / sum(WEIGHTS.values()), 3)
 
         return {
             'match_score':     match_score,
@@ -109,10 +125,19 @@ class SoulmateEngine:
             'breakdown': {
                 'artists': round(artist_sim * 100),
                 'genres':  round(genre_sim  * 100),
-                'audio':   round(audio_sim  * 100),
+                'audio':   round(audio_sim * 100) if audio_sim is not None else None,
                 'tracks':  round(track_sim  * 100),
-                'vibe':    round(vibe_sim   * 100),
+                'vibe':    round(vibe_sim * 100) if vibe_sim is not None else None,
             },
+            'confidence': {
+                'score': confidence_score,
+                'label': _confidence_label(confidence_score),
+            },
+            'methodology': {
+                'weights': WEIGHTS,
+                'audio_keys': AUDIO_KEYS,
+            },
+            'note': None if audio_sim is not None else 'Compared with reduced confidence because one profile is missing Spotify audio feature coverage.',
         }
 
     def rank_matches(self, user_profile: dict, all_profiles: list[dict]) -> list[dict]:
@@ -132,6 +157,7 @@ class SoulmateEngine:
                 'shared_artists': result['shared_artists'][:3],
                 'shared_genres':  result['shared_genres'][:3],
                 'breakdown':     result['breakdown'],
+                'confidence':    result.get('confidence'),
             })
         results.sort(key=lambda x: x['match_score'], reverse=True)
         return results

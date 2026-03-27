@@ -3,8 +3,11 @@
 from services.music_profile_builder import (
     _build_analytics,
     _build_aesthetic_tags,
+    _build_domain_confidence,
     _build_metric_metadata,
+    _compute_mbti,
     _confidence_from_ratio,
+    _score_personality_archetypes,
 )
 
 
@@ -42,7 +45,7 @@ def test_metric_metadata_reports_sample_sizes_and_confidence():
 
     enriched = _build_metric_metadata(
         audio_features_list=audio_rows,
-        track_count=4,
+        requested_track_count=4,
         genres=[{'genre': 'shoegaze', 'count': 3}, {'genre': 'dream pop', 'count': 2}],
         analytics=analytics,
         tracks=[{'release_date': '2018-01-01'}, {'release_date': '2020-01-01'}],
@@ -72,3 +75,41 @@ def test_confidence_ratio_zero_is_unavailable():
 
     assert confidence['score'] == 0
     assert confidence['label'] == 'unavailable'
+
+
+def test_personality_is_partial_but_not_faked_without_audio():
+    personality = _score_personality_archetypes(
+        audio_features={},
+        genres=[{'genre': 'shoegaze', 'count': 4}, {'genre': 'dream pop', 'count': 3}],
+    )
+
+    assert personality['traits'] is not None
+    assert personality['confidence'] <= 0.45
+    assert 'genres' in personality['inputsUsed']
+
+
+def test_mbti_requires_audio_genres_and_artists():
+    mbti = _compute_mbti(
+        audio_features={'acousticness': None, 'danceability': None, 'instrumentalness': None, 'valence': None},
+        genres=[],
+        artists=[],
+    )
+
+    assert mbti['value'] is None
+    assert mbti['confidence'] == 0
+    assert 'genres' in mbti['missingInputs']
+
+
+def test_domain_confidence_uses_audio_coverage_and_catalog_size():
+    confidence = _build_domain_confidence(
+        audio_coverage=0.82,
+        top_artists_count=50,
+        top_tracks_count=50,
+        genres_count=10,
+        personality_meta={'confidence': 0.74},
+        mbti_meta={'confidence': 0.61},
+    )
+
+    assert confidence['analytics']['label'] in {'medium', 'high'}
+    assert confidence['identity']['score'] > 0.5
+    assert confidence['soulmate']['score'] > 0.5
