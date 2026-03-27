@@ -202,8 +202,15 @@ export default function Analytics() {
           </div>
           <MusicSoulOrb
             personality={profile?.personality}
+            personalityMeta={profile?.personalityMeta}
             mbti={profile?.mbti}
+            mbtiMeta={profile?.mbtiMeta}
             audioFeatures={profile?.audioFeatures}
+            analyticsMetrics={profile?.analyticsMetrics}
+            confidence={profile?.confidence}
+            dataQuality={profile?.dataQuality}
+            genres={profile?.genres}
+            topArtists={profile?.topArtists}
             size={160}
             showLabels
           />

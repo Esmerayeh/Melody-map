@@ -312,8 +312,15 @@ export default function Dashboard() {
               <div className="shrink-0">
                 <MusicSoulOrb
                   personality={profile?.personality}
+                  personalityMeta={profile?.personalityMeta}
                   mbti={profile?.mbti}
+                  mbtiMeta={profile?.mbtiMeta}
                   audioFeatures={profile?.audioFeatures}
+                  analyticsMetrics={profile?.analyticsMetrics}
+                  confidence={profile?.confidence}
+                  dataQuality={profile?.dataQuality}
+                  genres={profile?.genres}
+                  topArtists={profile?.topArtists}
                   size={120}
                   showLabels={false}
                 />
