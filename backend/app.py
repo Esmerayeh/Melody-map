@@ -79,7 +79,7 @@ if 'localhost' in Config.FRONTEND_URL or '127.0.0.1' in Config.FRONTEND_URL:
 CORS(app, resources={r"/*": {"origins": _cors_origins}}, supports_credentials=True)
 
 try:
-    mongo = PyMongo(app)
+    mongo = PyMongo(app, serverSelectionTimeoutMS=3000)
     logger.info({'event': 'mongo_connected'})
 except Exception as e:
     logger.error({'event': 'mongo_init_failed', 'err': str(e)})
@@ -145,13 +145,14 @@ def health():
     try:
         mongo.db.command('ping')
         db_ok = True
-    except Exception:
+    except Exception as e:
         db_ok = False
+        logger.warning({'event': 'health_db_unreachable', 'err': str(e)})
     return jsonify({
         'status': 'ok' if db_ok else 'degraded',
         'db':     'connected' if db_ok else 'unreachable',
         'ts':     datetime.utcnow().isoformat(),
-    }), 200 if db_ok else 503
+    }), 200
 
 
 # ── Auth ───────────────────────────────────────────────────────────────────────
