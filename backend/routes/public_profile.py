@@ -1,7 +1,7 @@
 """
 Public Profile route
 --------------------
-GET /api/public-profile/<username_or_id_or_slug>
+GET /api/public-profile/<public_slug>
 
 Returns a sanitised taste profile for any user who has synced their
 soulmate profile.  No authentication required — this is intentionally
@@ -27,7 +27,7 @@ def init_mongo(mongo_instance):
 @rate_limit(max_requests=60, window_seconds=60)
 def get_public_profile(identifier: str):
     """
-    Look up a taste_profile by username OR user_id.
+    Look up a taste_profile by public_slug, with limited legacy fallback.
     Returns a safe subset: topArtists, topTracks, genres, audioFeatures.
     """
     if _mongo is None:
@@ -67,8 +67,9 @@ def get_public_profile(identifier: str):
             genres.append(g)
 
     return jsonify({
-        'profileSchemaVersion': '2026-03-profile-v1',
+        'profileSchemaVersion': '2026-03-public-profile-v2',
         'username':             doc.get('username', identifier),
+        'displayName':          doc.get('username', identifier),
         'publicSlug':           doc.get('public_slug'),
         'avatar':               doc.get('avatar'),
         'topArtists':           top_artists,

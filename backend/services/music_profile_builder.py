@@ -225,6 +225,10 @@ def _extract_genres(artists: list[dict]) -> list[dict]:
     return [{'genre': genre, 'count': round(weight, 3)} for genre, weight in sorted_items]
 
 
+def _count_artists_with_genres(artists: list[dict]) -> int:
+    return sum(1 for artist in artists if artist.get('genres'))
+
+
 def _build_aesthetic_tags(genres: list[dict], energy: float | None, valence: float | None) -> list[str]:
     tags: list[str] = []
     seen: set[str] = set()
@@ -756,6 +760,7 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         track['audio_features'] = features_by_track_id.get(track.get('id'))
 
     genres = _extract_genres(top_artists)
+    genre_artists_count = _count_artists_with_genres(top_artists)
     analytics = _build_analytics(genres, average_audio_features, top_tracks)
     analytics = _build_metric_metadata(audio_features_list, len(canonical_track_ids), genres, analytics, top_tracks)
     personality_meta = _score_personality_archetypes(average_audio_features, genres)
@@ -782,6 +787,8 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         degraded_reasons.append('spotify_audio_feature_coverage_low')
     if not genres:
         degraded_reasons.append('genre_extraction_unavailable')
+    if top_artists and genre_artists_count == 0:
+        degraded_reasons.append('spotify_artist_genres_unavailable')
     if not personality_meta.get('traits'):
         degraded_reasons.append('identity_inputs_missing')
     elif confidence['identity']['score'] < 0.5:
@@ -815,6 +822,8 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'topArtistsCount': len(top_artists),
         'topTracksCount': len(top_tracks),
         'genresCount': len(genres),
+        'genreArtistsCount': genre_artists_count,
+        'hasGenreProfile': genre_artists_count > 0 and len(genres) > 0,
         'audioFeaturesRequested': len(canonical_track_ids),
         'audioFeaturesCount': len(audio_features_list),
         'audioCoverage': audio_coverage,

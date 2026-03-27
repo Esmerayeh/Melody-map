@@ -4,18 +4,38 @@
  */
 import { spotifyAPI, lastfmAPI } from './api'
 
+function hasSpotifyToken() {
+  return !!localStorage.getItem('spotify_token')
+}
+
+function hasLastfmSession() {
+  return !!localStorage.getItem('lastfm_session')
+}
+
 function getProvider() {
-  return localStorage.getItem('music_provider') // 'spotify' | 'lastfm' | null
+  const explicit = localStorage.getItem('music_provider')
+  if (explicit === 'spotify' && hasSpotifyToken()) return 'spotify'
+  if (explicit === 'lastfm' && hasLastfmSession()) return 'lastfm'
+  if (hasSpotifyToken()) return 'spotify'
+  if (hasLastfmSession()) return 'lastfm'
+  return null
+}
+
+function getTruthProvider() {
+  if (hasSpotifyToken()) return 'spotify'
+  if (hasLastfmSession()) return 'lastfm'
+  return null
 }
 
 export const musicService = {
   /** Returns 'spotify', 'lastfm', or null */
   getProvider,
+  getTruthProvider,
 
   isConnected() {
     const p = getProvider()
-    if (p === 'spotify') return !!localStorage.getItem('spotify_token')
-    if (p === 'lastfm')  return !!localStorage.getItem('lastfm_session')
+    if (p === 'spotify') return hasSpotifyToken()
+    if (p === 'lastfm') return hasLastfmSession()
     return false
   },
 

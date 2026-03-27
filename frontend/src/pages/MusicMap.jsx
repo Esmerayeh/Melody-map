@@ -8,6 +8,8 @@ import GalaxyControls from '../features/galaxy/GalaxyControls'
 import GalaxyInspector from '../features/galaxy/GalaxyInspector'
 import GalaxyLegend from '../features/galaxy/GalaxyLegend'
 import GalaxyScene from '../features/galaxy/GalaxyScene'
+import SoulResonancePanel from '../components/SoulResonancePanel'
+import { mapGalaxySelectionToResonance } from '../features/orb/resonanceEngine'
 
 const DEMO_NODES = [
   { _id: 'demo-1', title: 'Only Shallow', artist: 'My Bloody Valentine', genres: ['shoegaze'], popularity: 80, sonic_color: 'hsl(198, 85%, 44%)', map_coords_3d: { x: -2, y: 4, z: -1 } },
@@ -66,6 +68,10 @@ export default function MusicMap() {
   const selectedRegion = useMemo(
     () => model?.regions?.find((region) => region.id === selectedRegionId) || null,
     [model, selectedRegionId],
+  )
+  const hoveredRegion = useMemo(
+    () => model?.regions?.find((region) => region.label === hoveredNode?.regionLabel) || null,
+    [hoveredNode, model],
   )
 
   const resolveFocusPosition = useCallback((ids = []) => {
@@ -208,6 +214,34 @@ export default function MusicMap() {
   }, [handleSelectCluster, model, searchQuery])
 
   const activeViewMode = constellationMode ? 'constellation' : viewMode
+  const selectedResonance = useMemo(() => mapGalaxySelectionToResonance({
+    node: selectedNode,
+    cluster: selectedNode ? null : selectedCluster,
+    region: selectedNode || selectedCluster ? null : selectedRegion,
+    edge: selectedNode || selectedCluster || selectedRegion ? null : null,
+    model,
+    mode: 'focused',
+  }), [model, selectedCluster, selectedNode, selectedRegion])
+  const liveResonance = useMemo(() => {
+    if (selectedResonance) return selectedResonance
+    return mapGalaxySelectionToResonance({
+      node: hoveredNode,
+      cluster: hoveredNode ? null : hoveredCluster,
+      region: hoveredNode || hoveredCluster ? null : hoveredRegion,
+      edge: hoveredNode || hoveredCluster || hoveredRegion ? null : hoveredEdge,
+      model,
+      mode: 'live',
+    })
+  }, [hoveredCluster, hoveredEdge, hoveredNode, hoveredRegion, model, selectedResonance])
+  const resonanceHint = useMemo(() => {
+    if (selectedResonance?.label) {
+      return `Soul Orb is holding ${selectedResonance.label.toLowerCase()} in focused reflection.`
+    }
+    if (liveResonance?.label) {
+      return `Soul Orb is reacting live to ${liveResonance.label.toLowerCase()}.`
+    }
+    return 'Soul Orb is resting in your full-profile state.'
+  }, [liveResonance, selectedResonance])
 
   const subtitle = useMemo(() => {
     if (loading) return 'Loading your galaxy...'
@@ -345,12 +379,21 @@ export default function MusicMap() {
         )}
       </div>
 
-      <GalaxyInspector
-        node={selectedNode}
-        edge={selectedNode || selectedCluster || selectedRegion ? null : hoveredEdge}
-        cluster={selectedNode ? null : selectedCluster}
-        region={selectedNode || selectedCluster ? null : selectedRegion}
-      />
+      <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,340px)_minmax(0,1fr)]">
+        <SoulResonancePanel profile={musicProfile} resonance={liveResonance} />
+
+        <div>
+          <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-300">
+            {resonanceHint}
+          </div>
+          <GalaxyInspector
+            node={selectedNode}
+            edge={selectedNode || selectedCluster || selectedRegion ? null : hoveredEdge}
+            cluster={selectedNode ? null : selectedCluster}
+            region={selectedNode || selectedCluster ? null : selectedRegion}
+          />
+        </div>
+      </div>
     </div>
   )
 }

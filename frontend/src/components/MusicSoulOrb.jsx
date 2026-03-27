@@ -15,6 +15,7 @@ import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { motion, AnimatePresence } from 'framer-motion'
 import { deriveOrbProfile } from '../features/orb/orbProfile'
+import { blendOrbProfile } from '../features/orb/resonanceEngine'
 
 function OrbHaloRing({ radius, color, opacity, behavior, warped = false, rotationOffset = 0 }) {
   const ringRef = useRef()
@@ -206,7 +207,7 @@ function OrbCanvas({ orbProfile, hovered }) {
 }
 
 function OrbDetailPanel({ orbProfile }) {
-  const { traits, labels, formation, descriptors, evidence, missingInputs } = orbProfile
+  const { traits, labels, formation, descriptors, evidence, missingInputs, resonance } = orbProfile
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -238,9 +239,11 @@ function OrbDetailPanel({ orbProfile }) {
         <p><span className="text-gray-500">Texture:</span> {descriptors.texture}</p>
         <p><span className="text-gray-500">Listening style:</span> {descriptors.listening}</p>
         <p><span className="text-gray-500">Formation:</span> {Math.round(formation.score * 100)}%</p>
+        {resonance?.label && <p><span className="text-gray-500">Current resonance:</span> {resonance.label}</p>}
       </div>
 
       <div className="mt-3 space-y-1 text-[11px] text-gray-400">
+        {resonance?.explanation && <p>{resonance.explanation}</p>}
         {evidence.slice(0, 3).map((line) => <p key={line}>{line}</p>)}
         {!!missingInputs.length && (
           <p>Limited by missing inputs: {missingInputs.join(', ')}</p>
@@ -261,13 +264,28 @@ export default function MusicSoulOrb({
   dataQuality,
   genres,
   topArtists,
+  resonance = null,
   size = 180,
   showLabels = true,
 }) {
   const [hovered, setHovered] = useState(false)
   const [expanded, setExpanded] = useState(false)
 
-  const orbProfile = useMemo(() => deriveOrbProfile({
+  const orbProfile = useMemo(() => {
+    const baseProfile = deriveOrbProfile({
+      personality,
+      personalityMeta,
+      mbti,
+      mbtiMeta,
+      audioFeatures,
+      analyticsMetrics,
+      confidence,
+      dataQuality,
+      genres,
+      topArtists,
+    })
+    return blendOrbProfile(baseProfile, resonance)
+  }, [
     personality,
     personalityMeta,
     mbti,
@@ -278,17 +296,7 @@ export default function MusicSoulOrb({
     dataQuality,
     genres,
     topArtists,
-  }), [
-    personality,
-    personalityMeta,
-    mbti,
-    mbtiMeta,
-    audioFeatures,
-    analyticsMetrics,
-    confidence,
-    dataQuality,
-    genres,
-    topArtists,
+    resonance,
   ])
 
   return (
@@ -338,7 +346,9 @@ export default function MusicSoulOrb({
             className="text-xs italic tracking-wide"
             style={{ color: orbProfile.colors.secondary, opacity: 0.92 }}
           >
-            {orbProfile.labels.title}
+            {orbProfile.resonance?.mode === 'live'
+              ? `${orbProfile.labels.title} · live resonance`
+              : orbProfile.labels.title}
           </motion.p>
 
           <div className="flex flex-wrap items-center justify-center gap-2">

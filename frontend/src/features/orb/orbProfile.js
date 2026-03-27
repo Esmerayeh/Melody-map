@@ -4,7 +4,7 @@ const clamp = (value, min = 0, max = 1) => {
 }
 
 const safeScore = (value) => {
-  if (value == null) return 0
+  if (value == null) return null
   return Math.max(0, Math.min(1, Number(value)))
 }
 
@@ -205,19 +205,25 @@ function deriveIdentityAxes(mbti) {
 }
 
 function deriveListeningStyle({ analyticsMetrics = {}, genres = [], topArtists = [] }) {
-  const diversity = safeScore((analyticsMetrics.diversityScore ?? 0) / 100)
-  const brightness = safeScore((analyticsMetrics.sonicBrightness ?? 0) / 100)
+  const diversityFromAnalytics = analyticsMetrics?.diversityScore != null
+    ? safeScore(Number(analyticsMetrics.diversityScore) / 100)
+    : null
+  const brightness = analyticsMetrics?.sonicBrightness != null
+    ? safeScore(Number(analyticsMetrics.sonicBrightness) / 100)
+    : null
   const avgPopularity = average((topArtists || []).map((artist) => {
     if (artist?.popularity == null) return null
     return Number(artist.popularity) / 100
   }))
+  const genreBreadth = Math.min((genres || []).length / 12, 1)
+  const diversity = diversityFromAnalytics ?? genreBreadth
 
   const rarity = avgPopularity == null ? 0.45 : 1 - avgPopularity
   return {
     diversity,
     rarity,
     brightness,
-    genreBreadth: Math.min((genres || []).length / 12, 1),
+    genreBreadth,
   }
 }
 
@@ -306,7 +312,8 @@ export function deriveOrbProfile({
   const rotationSpeed = (identityAxes.social === 'expressive' ? 0.32 : 0.18) + ((tempo ?? 0.25) * 0.18)
   const rotationWobble = (identityAxes.structure === 'fluid' ? 0.18 : 0.08) + (getTraitScore(personality, 'chaotic') * 0.18)
   const floatSpeed = 0.42 + ((valence ?? 0.4) * 0.28)
-  const glowIntensity = (0.55 + ((valence ?? 0.35) * 0.3) + ((analyticsMetrics?.sonicBrightness ?? 45) / 100) * 0.15) * formation.complexity
+  const brightnessInfluence = listeningStyle.brightness != null ? listeningStyle.brightness : 0.45
+  const glowIntensity = (0.55 + ((valence ?? 0.35) * 0.3) + (brightnessInfluence * 0.15)) * formation.complexity
   const ringWarp = (identityAxes.structure === 'fluid' ? 0.22 : 0.08) + (getTraitScore(personality, 'chaotic') * 0.12)
 
   const evidence = [

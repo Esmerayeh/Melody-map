@@ -24,9 +24,25 @@ _mongo = None
 def init_mongo(mongo_instance):
     global _mongo
     _mongo = mongo_instance
+    try:
+        _mongo.db.taste_profiles.create_index('user_id', unique=True)
+        _mongo.db.taste_profiles.create_index('public_slug', unique=True, sparse=True)
+    except Exception:
+        pass
 
 
 # ── Helpers ────────────────────────────────────────────────────────────────────
+
+PLACEHOLDER_SLUG_VALUES = {'you', 'me', 'your-public-slug', 'unknown', 'user'}
+
+
+def _clean_public_identity_value(value: str | None) -> str:
+    candidate = (value or '').strip()
+    lowered = candidate.lower()
+    if not candidate or lowered in PLACEHOLDER_SLUG_VALUES:
+        return ''
+    return candidate
+
 
 def _get_profile(user_id: str) -> dict | None:
     doc = _mongo.db.taste_profiles.find_one({'user_id': user_id})
@@ -47,15 +63,17 @@ def _profile_to_engine_format(doc: dict) -> dict:
 
 
 def _build_public_slug(username: str | None, user_id: str) -> str:
-    base = (username or '').strip().lower()
+    base = _clean_public_identity_value(username).lower()
     slug = re.sub(r'[^a-z0-9]+', '-', base).strip('-')
-    return slug or user_id
+    fallback = f'user-{str(user_id)[-6:]}'
+    return slug or fallback
 
 
 def _ensure_public_slug(username: str | None, user_id: str) -> str:
     existing_profile = _get_profile(user_id)
-    if existing_profile and existing_profile.get('public_slug'):
-        return existing_profile['public_slug']
+    existing_slug = _clean_public_identity_value((existing_profile or {}).get('public_slug'))
+    if existing_slug:
+        return _build_public_slug(existing_slug, user_id)
 
     base_slug = _build_public_slug(username, user_id)
     slug = base_slug
@@ -67,6 +85,29 @@ def _ensure_public_slug(username: str | None, user_id: str) -> str:
             return slug
         slug = f'{base_slug}-{suffix}'
         suffix += 1
+
+
+def _resolve_username(data: dict, user_id: str) -> str:
+    provided = _clean_public_identity_value(data.get('username'))
+    if provided:
+        return provided
+
+    user_doc = None
+    try:
+        user_doc = _mongo.db.users.find_one({'_id': ObjectId(user_id)})
+    except Exception:
+        user_doc = _mongo.db.users.find_one({'_id': user_id})
+
+    doc_username = _clean_public_identity_value((user_doc or {}).get('username'))
+    if doc_username:
+        return doc_username
+
+    for key in ('display_name', 'name', 'email'):
+        candidate = _clean_public_identity_value((user_doc or {}).get(key))
+        if candidate:
+            return candidate.split('@')[0]
+
+    return f'user-{str(user_id)[-6:]}'
 
 
 # ── Routes ─────────────────────────────────────────────────────────────────────
@@ -90,11 +131,7 @@ def upsert_profile():
     data = request.json or {}
     user_id = g.user_id
 
-    # Fetch username from users collection if not provided
-    username = data.get('username')
-    if not username:
-        user_doc = _mongo.db.users.find_one({'_id': ObjectId(user_id)})
-        username = user_doc.get('username', 'Unknown') if user_doc else 'Unknown'
+    username = _resolve_username(data, user_id)
 
     profile = {
         'user_id':        user_id,

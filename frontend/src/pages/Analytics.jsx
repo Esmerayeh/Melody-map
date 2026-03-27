@@ -9,8 +9,14 @@ import useMusicProfile from '../hooks/useMusicProfile'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import MusicSoulOrb from '../components/MusicSoulOrb'
 
-const clamp = (v) => Math.min(1, Math.max(0, Number(v) || 0))
-const pct = (v) => Math.round(clamp(v) * 100)
+const normalizeUnit = (value) => {
+  if (value == null || Number.isNaN(Number(value))) return null
+  return Math.min(1, Math.max(0, Number(value)))
+}
+const pct = (value) => {
+  const normalized = normalizeUnit(value)
+  return normalized == null ? null : Math.round(normalized * 100)
+}
 const fmt = (v) => (v != null ? Number(v).toFixed(0) : 'N/A')
 const GENRE_COLORS = ['#a78bfa','#f472b6','#34d399','#60a5fa','#fbbf24','#fb923c','#e879f9','#2dd4bf']
 const STAT_CARDS = [
@@ -21,6 +27,7 @@ const STAT_CARDS = [
 ]
 
 function StatCard({ label, icon: Icon, color, value, desc, delay }) {
+  const isAvailable = value != null
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay, type: 'spring', stiffness: 260, damping: 28 }}
@@ -31,14 +38,18 @@ function StatCard({ label, icon: Icon, color, value, desc, delay }) {
         <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${color}20`, border: `1px solid ${color}30` }}>
           <Icon className="w-4 h-4" style={{ color }} />
         </div>
-        <span className="text-2xl font-black" style={{ color }}>{value}%</span>
+        <span className="text-2xl font-black" style={{ color }}>{isAvailable ? `${value}%` : 'N/A'}</span>
       </div>
       <p className="text-sm font-semibold text-white relative z-10">{label}</p>
       <p className="text-xs text-gray-500 mt-0.5 relative z-10">{desc}</p>
       <div className="mt-3 h-1.5 rounded-full bg-white/5 overflow-hidden relative z-10">
-        <motion.div className="h-full rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}80` }}
-          initial={{ width: 0 }} animate={{ width: `${value}%` }}
-          transition={{ delay: delay + 0.15, duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
+        {isAvailable ? (
+          <motion.div className="h-full rounded-full" style={{ background: color, boxShadow: `0 0 8px ${color}80` }}
+            initial={{ width: 0 }} animate={{ width: `${value}%` }}
+            transition={{ delay: delay + 0.15, duration: 0.9, ease: [0.22, 1, 0.36, 1] }} />
+        ) : (
+          <div className="h-full rounded-full bg-white/5" />
+        )}
       </div>
     </motion.div>
   )
@@ -53,9 +64,13 @@ function AudioRadar({ af }) {
     { feature: 'Instrumentalness', value: pct(af.instrumentalness) },
     { feature: 'Speechiness',      value: pct(af.speechiness) },
   ]
+  const available = data.filter((item) => item.value != null)
+  if (available.length < 3) {
+    return <p className="text-sm text-gray-500 px-2 py-8">Insufficient audio feature coverage for a reliable radar.</p>
+  }
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <RadarChart data={data} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
+      <RadarChart data={available} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
         <PolarGrid stroke="rgba(255,255,255,0.08)" />
         <PolarAngleAxis dataKey="feature" tick={{ fill: '#94a3b8', fontSize: 11 }} />
         <Radar dataKey="value" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.18} strokeWidth={2} dot={{ fill: '#a78bfa', r: 3 }} />
@@ -88,7 +103,19 @@ function TempoBar({ tempo }) {
     { label: 'Upbeat', range: [120, 160], color: '#f472b6' },
     { label: 'Fast',   range: [160, 300], color: '#fb923c' },
   ]
-  const t = tempo || 120
+  if (tempo == null) {
+    return (
+      <div>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-sm text-gray-400">Average Tempo</span>
+          <span className="text-lg font-black text-gray-500">Unavailable</span>
+        </div>
+        <div className="relative h-3 rounded-full overflow-hidden bg-white/5" />
+        <p className="text-xs text-gray-500 mt-2">Not enough analyzable Spotify tracks to compute tempo yet.</p>
+      </div>
+    )
+  }
+  const t = tempo
   const active = zones.find((z) => t >= z.range[0] && t < z.range[1]) || zones[1]
   const pctPos = Math.min(100, Math.max(0, ((t - 60) / (200 - 60)) * 100))
   return (
@@ -133,9 +160,11 @@ function ArtistFrequency({ topArtists }) {
 function DiversityPie({ genres }) {
   const top = (genres || []).slice(0, 6)
   if (!top.length) return <p className="text-gray-500 text-sm">No data</p>
+  const weightedTotal = top.reduce((sum, genre) => sum + (typeof genre === 'string' ? 1 : Number(genre.count) || 0), 0) || top.length
   const data = top.map((g, i) => {
     const name = typeof g === 'string' ? g : g.genre
-    return { name, value: Math.round(100 / top.length), color: GENRE_COLORS[i % GENRE_COLORS.length] }
+    const weight = typeof g === 'string' ? 1 : Number(g.count) || 0
+    return { name, value: Math.round((weight / weightedTotal) * 100), color: GENRE_COLORS[i % GENRE_COLORS.length] }
   })
   return (
     <div className="flex items-center gap-4">
@@ -159,7 +188,7 @@ function DiversityPie({ genres }) {
 }
 
 export default function Analytics() {
-  const { profile, loading } = useMusicProfile()
+  const { profile, loading, canComputeAnalytics, dataQuality, confidence } = useMusicProfile()
   const af = useMemo(() => profile?.audioFeatures || {}, [profile])
 
   if (loading) return (
@@ -179,6 +208,17 @@ export default function Analytics() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-2xl font-black text-white">Analytics</h1>
         <p className="text-slate-400 text-sm mt-1">A deep look at your listening patterns and sonic identity.</p>
+        <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
+          <span>Top artists: {dataQuality?.topArtistsCount || 0}/50</span>
+          <span>Top tracks: {dataQuality?.topTracksCount || 0}/50</span>
+          <span>Audio coverage: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%</span>
+          <span>Analytics confidence: {confidence?.labels?.analytics || 'unavailable'}</span>
+        </div>
+        {!canComputeAnalytics && (
+          <p className="mt-2 text-xs text-amber-300/80">
+            This profile is rendering in a partial state. Missing Spotify audio features are shown as unavailable, not zero.
+          </p>
+        )}
       </motion.div>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {STAT_CARDS.map(({ key, label, icon, color, desc }, i) => (

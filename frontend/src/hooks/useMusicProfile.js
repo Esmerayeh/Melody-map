@@ -193,13 +193,18 @@ async function buildLastfmProfile(timeRange) {
 function normalizeProfile(raw, provider) {
   if (!raw) return null
 
+  const fallbackArtists = raw.topArtists || raw.artists || []
+  const fallbackGenres = Array.isArray(raw.genres) && raw.genres.length
+    ? raw.genres
+    : buildGenreList(fallbackArtists)
+
   const normalized = {
     ...raw,
-    topArtists: raw.topArtists || raw.artists || [],
+    topArtists: fallbackArtists,
     topTracks: raw.topTracks || raw.tracks || [],
     savedTracks: raw.savedTracks || [],
     recentlyPlayed: raw.recentlyPlayed || [],
-    genres: raw.genres || [],
+    genres: fallbackGenres,
     audioFeatures: raw.audioFeatures || {},
     analyticsMetrics: raw.analyticsMetrics || null,
     galaxyNodes: raw.galaxyNodes || [],
@@ -301,8 +306,14 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
   const fetchingRef = useRef(false)
 
   const doFetch = useCallback(async (force = false) => {
+    const truthProvider = spotifyConnected
+      ? 'spotify'
+      : (musicProvider || musicService.getTruthProvider())
+
     if (!spotifyConnected && !lastfmConnected) return
-    if (musicProfile && !force) return
+    const cachedProvider = musicProfile?.provider || null
+    const shouldRefetchForProvider = Boolean(truthProvider && cachedProvider && cachedProvider !== truthProvider)
+    if (musicProfile && !force && !shouldRefetchForProvider) return
     if (fetchingRef.current) return
 
     fetchingRef.current = true
@@ -311,7 +322,7 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
 
     try {
       let rawProfile
-      if (musicProvider === 'lastfm') {
+      if (truthProvider === 'lastfm') {
         rawProfile = await buildLastfmProfile(timeRange)
       } else {
         const res = await musicProfileAPI.get({ time_range: timeRange, limit: 50 })
@@ -323,7 +334,7 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
         throw new Error(validation.reason)
       }
 
-      const profile = normalizeProfile(rawProfile, musicProvider)
+      const profile = normalizeProfile(rawProfile, truthProvider)
       setMusicProfile(profile)
 
       const af = profile.audioFeatures || {}

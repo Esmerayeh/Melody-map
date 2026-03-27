@@ -74,7 +74,10 @@ export default function MusicIdentityPanel({ profile }) {
     return (
       <div className="rounded-2xl border border-white/8 bg-white/2 p-6 text-center">
         <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Music Identity</p>
-        <p className="text-sm text-gray-600">Not enough listening data yet to compute identity.</p>
+        <p className="text-sm text-gray-600">Identity is unavailable until we have enough genre or audio signal to support it honestly.</p>
+        <p className="text-xs text-gray-500 mt-2">
+          Genres: {dataQuality?.genresCount || 0} • Audio coverage: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%
+        </p>
       </div>
     )
   }
