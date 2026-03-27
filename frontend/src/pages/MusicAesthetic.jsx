@@ -11,6 +11,13 @@ import VibeEmitter from '../components/VibeEmitter'
 
 import toast from 'react-hot-toast'
 
+function confidenceTone(label) {
+  if (label === 'high') return { text: '#86efac', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.22)' }
+  if (label === 'medium') return { text: '#fcd34d', bg: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.22)' }
+  if (label === 'low') return { text: '#f9a8d4', bg: 'rgba(244,114,182,0.12)', border: 'rgba(244,114,182,0.22)' }
+  return { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.22)' }
+}
+
 // ── Parallax mouse tracker ─────────────────────────────────────────────────────
 function useParallax() {
   const mouseX = useMotionValue(0)
@@ -419,43 +426,64 @@ export default function MusicAesthetic() {
   // ── Build taste profile — prefer central profile, fallback to direct fetch ──
   const buildProfile = useCallback(async () => {
     // Use pre-computed data from /api/music-profile if available
-    if (profile?.audioFeatures && profile?.genres?.length) {
-      const af = profile.audioFeatures
-      const topArtists = (profile.topArtists || []).slice(0, 5).map((a) => a.name).filter(Boolean)
-      const personalityTraits = profile.personality
-        ? profile.personality.map((t) => t.label)
-        : []
+    if (profile?.topArtists?.length || profile?.topTracks?.length || profile?.genres?.length) {
       return {
-        genres:            profile.genres.slice(0, 8).map((g) => g.genre),
-        energy:            af.energy       ?? 0.5,
-        valence:           af.valence      ?? 0.5,
-        tempo:             af.tempo        ?? 120,
-        danceability:      af.danceability ?? 0.5,
-        top_artists:       topArtists,
-        personality_traits: personalityTraits,
+        profileSchemaVersion: profile.profileSchemaVersion,
+        provider: profile.provider,
+        topArtists: profile.topArtists || [],
+        topTracks: profile.topTracks || [],
+        genres: profile.genres || [],
+        audioFeatures: profile.audioFeatures || {},
+        audioFeaturesList: profile.audioFeaturesList || [],
+        analyticsMetrics: profile.analyticsMetrics || null,
+        dataQuality: profile.dataQuality || {},
+        confidence: profile.confidence || {},
       }
     }
 
     // Fallback: fetch directly
-    let genres = [], energy = 0.5, valence = 0.5, tempo = 120, danceability = 0.5
+    let genres = [], topArtists = [], topTracks = [], audioFeatures = {}
     try {
       if (spotifyConnected) {
         const [artistsRes, tracksRes] = await Promise.all([
-          spotifyAPI.getTopArtists({ limit: 20, time_range: 'medium_term' }),
-          spotifyAPI.getTopTracks({ limit: 20, time_range: 'medium_term' }),
+          spotifyAPI.getTopArtists({ limit: 50, time_range: 'medium_term' }),
+          spotifyAPI.getTopTracks({ limit: 50, time_range: 'medium_term' }),
         ])
-        genres = [...new Set((artistsRes.data?.items || []).flatMap((a) => a.genres || []))].slice(0, 8)
-        const trackIds = (tracksRes.data?.items || []).map((t) => t.id).filter(Boolean)
+        topArtists = (artistsRes.data?.items || []).map((artist) => ({
+          name: artist.name,
+          popularity: artist.popularity,
+          genres: artist.genres || [],
+        }))
+        topTracks = (tracksRes.data?.items || []).map((track) => ({
+          title: track.name,
+          artist: track.artists?.[0]?.name || '',
+          release_date: track.album?.release_date || '',
+          popularity: track.popularity,
+          id: track.id,
+        }))
+        genres = [...new Set(topArtists.flatMap((artist) => artist.genres || []))].slice(0, 12)
+        const trackIds = topTracks.map((track) => track.id).filter(Boolean)
         if (trackIds.length) {
           const feats = ((await spotifyAPI.getAudioFeatures(trackIds)).data?.audio_features || []).filter(Boolean)
           if (feats.length) {
-            const avg = (k) => feats.reduce((s, f) => s + (f[k] || 0), 0) / feats.length
-            energy = avg('energy'); valence = avg('valence')
-            tempo  = avg('tempo');  danceability = avg('danceability')
+            const avg = (key) => {
+              const values = feats.map((item) => item?.[key]).filter((value) => value != null)
+              return values.length ? values.reduce((sum, value) => sum + value, 0) / values.length : null
+            }
+            audioFeatures = {
+              energy: avg('energy'),
+              valence: avg('valence'),
+              tempo: avg('tempo'),
+              danceability: avg('danceability'),
+              acousticness: avg('acousticness'),
+              instrumentalness: avg('instrumentalness'),
+              speechiness: avg('speechiness'),
+            }
           }
         }
       } else if (lastfmConnected) {
         const artists = (await lastfmAPI.getTopArtists({ limit: 10 })).data?.topartists?.artist || []
+        topArtists = artists.map((artist) => ({ name: artist.name, popularity: null, genres: [] }))
         const tagResults = await Promise.all(
           artists.slice(0, 5).map((a) => lastfmAPI.getArtistTags(a.name).catch(() => null))
         )
@@ -463,8 +491,38 @@ export default function MusicAesthetic() {
           .flatMap((r) => r?.data?.toptags?.tag?.map((t) => t.name.toLowerCase()) || [])
           .filter((g, i, arr) => arr.indexOf(g) === i).slice(0, 8)
       }
-    } catch { /* fall through with defaults */ }
-    return { genres, energy, valence, tempo, danceability }
+    } catch { /* fall through with sparse fallback */ }
+    return {
+      topArtists,
+      topTracks,
+      genres: genres.map((genre) => ({ genre, count: 1 })),
+      audioFeatures,
+      audioFeaturesList: [],
+      analyticsMetrics: null,
+      dataQuality: {
+        provider: spotifyConnected ? 'spotify' : 'lastfm',
+        topArtistsCount: topArtists.length,
+        topTracksCount: topTracks.length,
+        genresCount: genres.length,
+        audioCoverage: 0,
+        hasAudioProfile: false,
+        degradedReasons: ['direct_fallback_profile_used'],
+      },
+      confidence: {
+        overall: 0,
+        analytics: 0,
+        identity: 0,
+        galaxy: 0,
+        soulmate: 0,
+        labels: {
+          overall: 'insufficient',
+          analytics: 'insufficient',
+          identity: 'low',
+          galaxy: 'low',
+          soulmate: 'low',
+        },
+      },
+    }
   }, [profile, spotifyConnected, lastfmConnected])
 
   // ── Generate ─────────────────────────────────────────────────────────────────
@@ -651,6 +709,64 @@ export default function MusicAesthetic() {
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.25 }}
               >
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.22 }}
+                    className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
+                  >
+                    <div className="flex items-center justify-between gap-3 mb-4">
+                      <div className="flex items-center gap-2">
+                        <Sparkles className="w-4 h-4 text-indigo-400" />
+                        <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Why This Fits</h3>
+                      </div>
+                      <span
+                        className="text-[11px] px-2.5 py-1 rounded-full border uppercase tracking-[0.15em]"
+                        style={(() => {
+                          const tone = confidenceTone(aesthetic?.confidence?.label)
+                          return { color: tone.text, background: tone.bg, borderColor: tone.border }
+                        })()}
+                      >
+                        {aesthetic?.confidence?.label || 'insufficient'}
+                      </span>
+                    </div>
+                    <p className="text-sm text-gray-300 leading-relaxed mb-4">{aesthetic.explanation}</p>
+                    {aesthetic.blendExplanation && (
+                      <p className="text-xs text-gray-500 leading-relaxed">{aesthetic.blendExplanation}</p>
+                    )}
+                  </motion.div>
+
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.24 }}
+                    className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
+                  >
+                    <div className="flex items-center gap-2 mb-4">
+                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Evidence</h3>
+                    </div>
+                    <div className="space-y-3 text-sm text-gray-300">
+                      {aesthetic.supportingSignals?.genreEvidence?.length > 0 && (
+                        <p><span className="text-gray-500">Genres:</span> {aesthetic.supportingSignals.genreEvidence.join(', ')}</p>
+                      )}
+                      {aesthetic.supportingSignals?.artistEvidence?.length > 0 && (
+                        <p><span className="text-gray-500">Artists:</span> {aesthetic.supportingSignals.artistEvidence.join(', ')}</p>
+                      )}
+                      {aesthetic.supportingSignals?.audioEvidence?.length > 0 && (
+                        <p><span className="text-gray-500">Audio:</span> {aesthetic.supportingSignals.audioEvidence.join(' · ')}</p>
+                      )}
+                      {aesthetic.eraInfluence?.dominant?.length > 0 && (
+                        <p><span className="text-gray-500">Era:</span> {aesthetic.eraInfluence.dominant.map((item) => item.era).join(', ')}</p>
+                      )}
+                      {aesthetic.supportingSignals?.discoveryEvidence?.length > 0 && (
+                        <p><span className="text-gray-500">Discovery:</span> {aesthetic.supportingSignals.discoveryEvidence.join(', ')}</p>
+                      )}
+                    </div>
+                  </motion.div>
+                </div>
+
                 {/* Tab switcher */}
                 <div className="flex items-center gap-1 mb-6 p-1 rounded-xl bg-white/4 border border-white/8 w-fit">
                   {[{ id: 'board', label: 'Visual Moodboard' }, { id: 'pinterest', label: 'Pinterest Board' }].map((tab) => (

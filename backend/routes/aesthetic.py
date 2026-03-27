@@ -7,10 +7,7 @@ Aesthetic routes:
 from flask import Blueprint, request, jsonify
 from middleware.rate_limit import rate_limit
 from ml.aesthetic_engine import (
-    generate_aesthetic_tags,
-    generate_aesthetic_name,
-    generate_palette,
-    generate_vibe_description,
+    build_aesthetic_report,
     generate_personality,
     generate_shared_aesthetic,
     classify_vibe,
@@ -101,32 +98,11 @@ def _parse_body():
 
 
 def _build_aesthetic(data: dict, seed_offset: int = 0) -> dict:
-    genres       = data.get('genres', [])
-    energy       = float(data.get('energy', 0.5))
-    valence      = float(data.get('valence', 0.5))
-    tempo        = float(data.get('tempo', 120))
-    danceability = float(data.get('danceability', 0.5))
-    top_artists  = data.get('top_artists', [])  # list of artist name strings
-    personality_traits = data.get('personality_traits', [])
-
-    tags        = generate_aesthetic_tags(genres, energy, valence, tempo, danceability,
-                                          top_artists=top_artists,
-                                          personality_traits=personality_traits)
-    name        = generate_aesthetic_name(genres, energy, valence, seed_offset)
-    palette     = generate_palette(genres, energy, valence)
-    vibe        = generate_vibe_description(genres, energy, valence)
-    personality = generate_personality(genres, energy, valence, tempo)
-
+    report = build_aesthetic_report(data, seed_offset=seed_offset)
+    tags = report.get('tags') or report.get('paletteHints') or [report.get('primaryAesthetic', {}).get('label', 'music aesthetic')]
     images = _fetch_unsplash_images(tags) if Config.UNSPLASH_ACCESS_KEY else _fallback_images(tags)
-
-    return {
-        'aesthetic_name':   name,
-        'palette':          palette,
-        'tags':             tags,
-        'vibe_description': vibe,
-        'personality':      personality,
-        'images':           images,
-    }
+    report['images'] = images
+    return report
 
 
 @aesthetic_bp.route('/api/aesthetic', methods=['GET', 'POST'])
@@ -148,9 +124,9 @@ def regenerate_aesthetic():
 def get_personality():
     data    = request.json or {}
     genres  = data.get('genres', [])
-    energy  = float(data.get('energy', 0.5))
-    valence = float(data.get('valence', 0.5))
-    tempo   = float(data.get('tempo', 120))
+    energy  = data.get('energy')
+    valence = data.get('valence')
+    tempo   = data.get('tempo')
     return jsonify(generate_personality(genres, energy, valence, tempo)), 200
 
 
@@ -178,9 +154,18 @@ def get_vibe():
     Body: { energy, valence, tempo, genres? }
     """
     data    = request.json or {}
-    energy  = float(data.get('energy',  0.5))
-    valence = float(data.get('valence', 0.5))
-    tempo   = float(data.get('tempo',   120))
+    if data.get('energy') is None or data.get('valence') is None or data.get('tempo') is None:
+        return jsonify({
+            'label': 'Insufficient Data',
+            'hex': '#7c6fff',
+            'description': 'Spotify audio-feature coverage is too limited to classify a vibe safely.',
+            'energy': None,
+            'valence': None,
+            'tempo': None,
+        }), 200
+    energy  = float(data.get('energy'))
+    valence = float(data.get('valence'))
+    tempo   = float(data.get('tempo'))
     genres  = data.get('genres', [])
     return jsonify(classify_vibe(energy, valence, tempo, genres)), 200
 
@@ -194,9 +179,25 @@ def get_identity():
     """
     data    = request.json or {}
     genres  = data.get('genres', [])
-    energy  = float(data.get('energy',  0.5))
-    valence = float(data.get('valence', 0.5))
-    tempo   = float(data.get('tempo',   120))
+    if data.get('energy') is None or data.get('valence') is None or data.get('tempo') is None:
+        return jsonify({
+            'name': 'Unresolved Identity',
+            'tagline': 'There is not enough analyzable audio data yet.',
+            'report': 'Melody Map needs stronger Spotify audio-feature coverage before it can confidently generate a poetic identity report.',
+            'keywords': ['insufficient data'],
+            'vibe': {
+                'label': 'Insufficient Data',
+                'hex': '#7c6fff',
+                'description': 'Spotify audio-feature coverage is too limited to classify a vibe safely.',
+                'energy': None,
+                'valence': None,
+                'tempo': None,
+                'genres': genres,
+            },
+        }), 200
+    energy  = float(data.get('energy'))
+    valence = float(data.get('valence'))
+    tempo   = float(data.get('tempo'))
     return jsonify(generate_poetic_persona(genres, energy, valence, tempo)), 200
 
 
@@ -209,8 +210,19 @@ def get_palette_from_features():
     Returns: { name, palette, unsplash_query, description, energy, valence, genre_override }
     """
     data    = request.json or {}
-    valence = float(data.get('average_valence', 0.5))
-    energy  = float(data.get('average_energy',  0.5))
+    if data.get('average_valence') is None or data.get('average_energy') is None:
+        return jsonify({
+            'name': 'Insufficient Data',
+            'palette': ['#1a1a2e', '#3a0ca3', '#7209b7', '#f72585', '#4361ee'],
+            'unsplash_query': 'abstract space nebula dark',
+            'description': 'Spotify audio-feature coverage is too limited to infer a palette safely.',
+            'energy': None,
+            'valence': None,
+            'genre_override': False,
+            'images': _fallback_images(['abstract space nebula dark']),
+        }), 200
+    valence = float(data.get('average_valence'))
+    energy  = float(data.get('average_energy'))
     genres  = data.get('genres', [])
     result  = extract_palette_from_features(valence, energy, genres)
 
