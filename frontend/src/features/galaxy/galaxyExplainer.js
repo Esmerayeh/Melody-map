@@ -60,6 +60,7 @@ export function getNebulaColors(model) {
 
 export function describeMoodRegion(region = {}) {
   if (!region?.label) return null
+  const title = region.title || region.label
   const coverage = region.coverage != null ? `${Math.round(region.coverage * 100)}%` : null
-  return `${region.label} region${coverage ? ` covers about ${coverage} of the visible galaxy` : ''} because your listening repeatedly lands in this emotional climate.`
+  return `${title}${coverage ? ` spans about ${coverage} of the visible galaxy` : ''} because your listening repeatedly lands in this emotional climate.`
 }

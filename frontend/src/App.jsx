@@ -8,6 +8,8 @@ import TopBar from './components/TopBar'
 import BottomNav from './components/BottomNav'
 import PageLoader from './components/PageLoader'
 import useStore from './store/useStore'
+import useExperienceStore from './store/useExperienceStore'
+import useMusicProfile from './hooks/useMusicProfile'
 import { applyVibeTheme, resetVibeTheme } from './services/vibeTheme'
 
 const MusicMap       = lazy(() => import('./pages/MusicMap'))
@@ -22,6 +24,7 @@ const MusicAesthetic = lazy(() => import('./pages/MusicAesthetic'))
 const Dashboard      = lazy(() => import('./pages/Dashboard'))
 const Profile        = lazy(() => import('./pages/Profile'))
 const Auralith       = lazy(() => import('./pages/Auralith'))
+const MusicIdentity  = lazy(() => import('./pages/MusicIdentity'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -65,9 +68,9 @@ function AppShell({ children }) {
     return <div className="h-screen overflow-hidden bg-surface">{children}</div>
   }
   return (
-    <div className="flex h-screen overflow-hidden bg-surface">
+    <div className="flex h-screen overflow-hidden app-shell-bg">
       <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden app-main-shell">
         <TopBar />
         <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
           {children}
@@ -78,12 +81,70 @@ function AppShell({ children }) {
   )
 }
 
+function resolveActiveMode(pathname) {
+  if (pathname === '/') return 'dashboard'
+  if (pathname.startsWith('/discover')) return 'discover'
+  if (pathname.startsWith('/galaxy')) return 'galaxy'
+  if (pathname.startsWith('/soulmate')) return 'soulmate'
+  if (pathname.startsWith('/aesthetic')) return 'aesthetic'
+  if (pathname.startsWith('/auralith')) return 'auralith'
+  if (pathname.startsWith('/analytics')) return 'analytics'
+  if (pathname.startsWith('/identity')) return 'identity'
+  if (pathname.startsWith('/profile')) return 'profile'
+  return 'dashboard'
+}
+
+function ExperienceBridge() {
+  const location = useLocation()
+  const isAuthenticated = useStore((state) => state.isAuthenticated)
+  const { profile, loading, error, confidence, dataQuality } = useMusicProfile({
+    autoFetch: isAuthenticated,
+  })
+  const setActiveMode = useExperienceStore((state) => state.setActiveMode)
+  const setRouteContext = useExperienceStore((state) => state.setRouteContext)
+  const setLoadingState = useExperienceStore((state) => state.setLoadingState)
+  const setDataConfidence = useExperienceStore((state) => state.setDataConfidence)
+
+  useEffect(() => {
+    setActiveMode(resolveActiveMode(location.pathname))
+    setRouteContext({
+      pathname: location.pathname,
+      search: location.search,
+    })
+  }, [location.pathname, location.search, setActiveMode, setRouteContext])
+
+  useEffect(() => {
+    setLoadingState({
+      profile: Boolean(loading),
+      route: false,
+      scene: location.pathname.startsWith('/galaxy') && Boolean(loading),
+    })
+  }, [loading, location.pathname, setLoadingState])
+
+  useEffect(() => {
+    setDataConfidence({
+      overall: confidence?.labels?.overall || (loading ? 'tuning into your signal...' : 'soft signal'),
+      analytics: confidence?.labels?.analytics || 'soft signal',
+      identity: confidence?.labels?.identity || 'soft signal',
+      galaxy: confidence?.labels?.galaxy || 'soft signal',
+      soulmate: confidence?.labels?.soulmate || 'soft signal',
+      degraded: Boolean(profile?.isDegraded || dataQuality?.degradedReasons?.length),
+      hasAudioProfile: Boolean(dataQuality?.hasAudioProfile),
+      profileReady: Boolean(profile),
+      error: error || null,
+    })
+  }, [confidence, dataQuality, error, loading, profile, setDataConfidence])
+
+  return null
+}
+
 // Inner router component so useLocation works inside Router
 function AnimatedRoutes() {
   const location = useLocation()
 
   return (
     <AnimatePresence mode="wait">
+      <ExperienceBridge />
       <Routes location={location} key={location.pathname}>
         <Route path="/login"           element={<PageWrapper><Login /></PageWrapper>} />
         <Route path="/spotify-success" element={<SpotifySuccess />} />
@@ -128,6 +189,11 @@ function AnimatedRoutes() {
         <Route path="/profile" element={
           <ProtectedRoute>
             <AppShell><PageWrapper><Profile /></PageWrapper></AppShell>
+          </ProtectedRoute>
+        } />
+        <Route path="/identity" element={
+          <ProtectedRoute>
+            <AppShell><PageWrapper><MusicIdentity /></PageWrapper></AppShell>
           </ProtectedRoute>
         } />
         <Route path="/auralith" element={
@@ -192,8 +258,14 @@ export default function App() {
         <Toaster
           position="bottom-right"
           toastOptions={{
-            style: { background: '#16161f', color: '#e2e8f0', border: '0.5px solid rgba(124,111,255,0.3)', backdropFilter: 'blur(16px)' },
-            success: { iconTheme: { primary: '#7C6FFF', secondary: '#fff' } },
+            style: {
+              background: 'linear-gradient(180deg, rgba(23,20,43,0.92), rgba(12,11,24,0.96))',
+              color: '#f3efff',
+              border: '1px solid rgba(143,117,255,0.28)',
+              backdropFilter: 'blur(24px)',
+              boxShadow: '0 16px 38px rgba(0,0,0,0.4)',
+            },
+            success: { iconTheme: { primary: '#8f75ff', secondary: '#fff' } },
           }}
         />
       </Router>

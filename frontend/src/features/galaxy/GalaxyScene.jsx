@@ -3,25 +3,26 @@ import { Billboard, Html, MeshDistortMaterial, OrbitControls, PerspectiveCamera 
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import * as THREE from 'three'
+import { motion } from 'framer-motion'
+import useGalaxyInteractionStore from './useGalaxyInteractionStore'
 import { getNebulaColors } from './galaxyExplainer'
+import { stableHash } from './galaxyScoring'
+import { slugifyInteraction } from './interactionModel.js'
+import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
 
-const VIEW_LABELS = {
-  identity: ['genre', 'cluster', 'artist'],
-  constellation: ['genre', 'cluster', 'artist', 'track'],
-  mood: ['cluster', 'artist', 'track'],
-  discovery: ['artist', 'track', 'genre'],
-  genre: ['genre', 'cluster', 'artist', 'track'],
-}
+const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
 
-function buildStarGeometry(count, radius, bias = 1) {
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
+
+const buildStarGeometry = (count, radius, bias = 1) => {
   const positions = new Float32Array(count * 3)
-  for (let i = 0; i < count; i += 1) {
+  for (let index = 0; index < count; index += 1) {
     const theta = Math.random() * Math.PI * 2
     const phi = Math.acos(2 * Math.random() - 1)
     const r = radius * (0.65 + Math.random() * 0.35) * bias
-    positions[i * 3] = r * Math.sin(phi) * Math.cos(theta)
-    positions[(i * 3) + 1] = r * Math.cos(phi)
-    positions[(i * 3) + 2] = r * Math.sin(phi) * Math.sin(theta)
+    positions[index * 3] = r * Math.sin(phi) * Math.cos(theta)
+    positions[(index * 3) + 1] = r * Math.cos(phi)
+    positions[(index * 3) + 2] = r * Math.sin(phi) * Math.sin(theta)
   }
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
@@ -32,65 +33,45 @@ function ParallaxStarfield({ density }) {
   const foregroundRef = useRef()
   const midgroundRef = useRef()
   const backgroundRef = useRef()
+  const dustRef = useRef()
+  const foregroundMaterialRef = useRef()
+  const dustMaterialRef = useRef()
 
-  const [foreground, midground, background] = useMemo(() => {
+  const [foreground, midground, background, dust] = useMemo(() => {
     const artistDensity = density?.artistStars || 30
     const trackDensity = density?.trackSatellites || 20
     return [
-      buildStarGeometry(1100 + artistDensity * 6, 34, 0.9),
-      buildStarGeometry(1800 + trackDensity * 14, 68, 1),
-      buildStarGeometry(2600 + (artistDensity + trackDensity) * 10, 110, 1.05),
+      buildStarGeometry(1400 + artistDensity * 8, 34, 0.9),
+      buildStarGeometry(2200 + trackDensity * 14, 68, 1),
+      buildStarGeometry(3000 + (artistDensity + trackDensity) * 12, 115, 1.08),
+      buildStarGeometry(900 + artistDensity * 5, 52, 0.96),
     ]
   }, [density])
 
   useFrame(({ camera, clock }) => {
     const drift = Math.sin(clock.getElapsedTime() * 0.06) * 0.05
     if (foregroundRef.current) foregroundRef.current.rotation.y = camera.rotation.y * -0.08 + drift
-    if (midgroundRef.current) midgroundRef.current.rotation.y = camera.rotation.y * -0.035 - drift * 0.6
-    if (backgroundRef.current) backgroundRef.current.rotation.y = camera.rotation.y * -0.015 + drift * 0.35
+    if (midgroundRef.current) midgroundRef.current.rotation.y = camera.rotation.y * -0.03 - drift * 0.6
+    if (backgroundRef.current) backgroundRef.current.rotation.y = camera.rotation.y * -0.014 + drift * 0.35
+    if (dustRef.current) dustRef.current.rotation.z = clock.getElapsedTime() * 0.01
+    if (foregroundMaterialRef.current) foregroundMaterialRef.current.opacity = 0.84 + Math.sin(clock.getElapsedTime() * 0.18) * 0.08
+    if (dustMaterialRef.current) dustMaterialRef.current.opacity = 0.06 + Math.sin(clock.getElapsedTime() * 0.22 + 1.5) * 0.025
   })
 
   return (
     <>
       <points ref={foregroundRef} geometry={foreground}>
-        <pointsMaterial size={0.14} color="#ffffff" transparent opacity={0.92} sizeAttenuation />
+        <pointsMaterial ref={foregroundMaterialRef} size={0.15} color="#ffffff" transparent opacity={0.92} sizeAttenuation />
       </points>
       <points ref={midgroundRef} geometry={midground}>
-        <pointsMaterial size={0.08} color="#c7d2fe" transparent opacity={0.45} sizeAttenuation />
+        <pointsMaterial size={0.08} color="#d9e2ff" transparent opacity={0.5} sizeAttenuation />
       </points>
       <points ref={backgroundRef} geometry={background}>
-        <pointsMaterial size={0.05} color="#818cf8" transparent opacity={0.24} sizeAttenuation />
+        <pointsMaterial size={0.05} color="#8ea0ff" transparent opacity={0.24} sizeAttenuation />
       </points>
-    </>
-  )
-}
-
-function NebulaClouds({ colors, regions = [], showMoodRegions }) {
-  const meshRef = useRef()
-  useFrame(({ clock }) => {
-    if (!meshRef.current) return
-    meshRef.current.rotation.z = clock.getElapsedTime() * 0.015
-    meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.008) * 0.08
-  })
-
-  return (
-    <>
-      <mesh ref={meshRef} position={[0, 0, -40]}>
-        <planeGeometry args={[160, 160, 1, 1]} />
-        <meshBasicMaterial transparent opacity={0.08} side={THREE.DoubleSide}>
-          <color attach="color" args={[colors[0]]} />
-        </meshBasicMaterial>
-      </mesh>
-      {showMoodRegions && regions.slice(0, 5).map((region) => (
-        <mesh
-          key={region.id}
-          position={[region.centroid.x, region.centroid.y, region.centroid.z]}
-          scale={[6 + region.coverage * 22, 4 + region.coverage * 16, 6 + region.coverage * 22]}
-        >
-          <sphereGeometry args={[1, 24, 24]} />
-          <meshBasicMaterial color={region.color} transparent opacity={0.035 + region.coverage * 0.06} />
-        </mesh>
-      ))}
+      <points ref={dustRef} geometry={dust}>
+        <pointsMaterial ref={dustMaterialRef} size={0.12} color="#f6c4ff" transparent opacity={0.07} sizeAttenuation />
+      </points>
     </>
   )
 }
@@ -102,129 +83,509 @@ function CameraTracker({ onDistance }) {
 
 function FocusController({ focusTarget, controlsRef }) {
   const { camera } = useThree()
+
   useEffect(() => {
     if (!focusTarget || !controlsRef.current) return
     const target = new THREE.Vector3(focusTarget.x, focusTarget.y, focusTarget.z)
     controlsRef.current.target.copy(target)
-    camera.position.set(target.x + 8, target.y + 5, target.z + 10)
+    camera.position.set(target.x + 10, target.y + 5.5, target.z + 12.5)
     controlsRef.current.update()
-  }, [focusTarget, camera, controlsRef])
+  }, [camera, controlsRef, focusTarget])
+
   return null
 }
 
-function getNodeVisibility(node, viewMode, showTracks) {
+function getNodeVisibility(node, galaxyMode, viewMode, showTracks) {
+  if (galaxyMode === 'genre') {
+    if (node.type === 'track') return { visible: false, opacity: 0 }
+    if (node.type === 'genre') return { visible: true, opacity: 0.94 }
+    if (node.type === 'cluster') return { visible: true, opacity: 0.82 }
+    if (node.type === 'artist') return { visible: true, opacity: node.metrics?.anchorScore > 0.52 ? 0.92 : 0.56 }
+  }
+
+  if (galaxyMode === 'artist') {
+    if (node.type !== 'artist') return { visible: false, opacity: 0 }
+    return { visible: true, opacity: node.metrics?.significance > 0.58 ? 0.96 : 0.54 }
+  }
+
+  if (galaxyMode === 'song') {
+    if (node.type !== 'track') return { visible: false, opacity: 0 }
+    return { visible: showTracks, opacity: node.metrics?.significance > 0.56 ? 0.92 : 0.48 }
+  }
+
   if (node.type === 'track' && !showTracks) return { visible: false, opacity: 0 }
-  if (!VIEW_LABELS[viewMode]?.includes(node.type)) return { visible: false, opacity: 0 }
 
   if (viewMode === 'identity') {
     if (node.type === 'track') return { visible: false, opacity: 0 }
-    if (node.type === 'artist') return { visible: true, opacity: node.metrics?.anchorScore > 0.5 ? 0.95 : 0.55 }
+    if (node.type === 'genre') return { visible: true, opacity: 0.68 }
+    if (node.type === 'cluster') return { visible: true, opacity: 0.82 }
+    return { visible: true, opacity: node.metrics?.anchorScore > 0.6 ? 0.98 : 0.62 }
   }
 
   if (viewMode === 'discovery') {
-    if (node.type === 'genre') return { visible: true, opacity: 0.28 }
-    if (node.metrics?.discoveryScore > 0.5) return { visible: true, opacity: 0.95 }
-    return { visible: true, opacity: 0.18 }
+    if (node.type === 'genre') return { visible: true, opacity: 0.2 }
+    if ((node.metrics?.discoveryScore || 0) > 0.42 || node.type === 'track') return { visible: true, opacity: 0.94 }
+    return { visible: true, opacity: 0.2 }
   }
 
   if (viewMode === 'mood') {
-    if (node.type === 'cluster') return { visible: true, opacity: 0.8 }
-    if (node.type === 'artist') return { visible: true, opacity: 0.7 }
-    if (node.type === 'track') return { visible: true, opacity: 0.35 }
+    if (node.type === 'track') return { visible: showTracks, opacity: 0.45 }
+    return { visible: true, opacity: node.type === 'cluster' ? 0.88 : 0.72 }
   }
 
   if (viewMode === 'genre') {
-    if (node.type === 'genre' || node.type === 'cluster') return { visible: true, opacity: 0.92 }
-    return { visible: true, opacity: 0.5 }
+    if (node.type === 'genre' || node.type === 'cluster') return { visible: true, opacity: 0.94 }
+    return { visible: true, opacity: node.type === 'track' ? 0.35 : 0.5 }
   }
 
-  return { visible: true, opacity: 1 }
+  return { visible: true, opacity: node.type === 'track' ? 0.5 : 0.95 }
 }
 
-function labelVisible(node, cameraDistance, isSelected, isHovered) {
-  if (isSelected || isHovered) return true
-  if (node.type === 'genre' || node.type === 'cluster') return cameraDistance < 22
-  if (node.role === 'anchor-star') return cameraDistance < 14
-  if (node.type === 'artist') return cameraDistance < 10 && (node.metrics?.significance || 0) > 0.62
-  return cameraDistance < 7 && node.type === 'track'
+function shouldShowNodeLabel(node, cameraDistance, selected, hovered) {
+  if (selected || hovered) return true
+  if (node.type === 'genre') return cameraDistance < 24
+  if (node.role === 'anchor-star') return cameraDistance < 18
+  if (node.type === 'artist') return cameraDistance < 12 && (node.metrics?.significance || 0) > 0.7
+  if (node.type === 'track') return cameraDistance < 8 && (node.metrics?.significance || 0) > 0.74
+  return false
 }
 
-function GalaxyNode({ node, selectedId, hoveredId, onSelect, onHover, cameraDistance, viewMode, showTracks }) {
+function labelPriority(node) {
+  if (node.type === 'genre') return 5 + (node.metrics?.significance || 0)
+  if (node.role === 'anchor-star') return 4 + (node.metrics?.anchorScore || 0)
+  if (node.type === 'artist') return 3 + (node.metrics?.significance || 0)
+  if (node.type === 'track') return 2 + (node.metrics?.significance || 0)
+  return 1
+}
+
+function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject) {
+  const candidates = nodes
+    .filter((node) => NODE_TYPES_WITH_LABELS.has(node.type))
+    .filter((node) => getNodeVisibility(node, galaxyMode, viewMode, showTracks).visible)
+    .filter((node) => {
+      const objectType = node.type === 'cluster' ? 'cluster' : node.type
+      const objectId = node.type === 'cluster' ? node.clusterId : node.id
+      const selected = focusedObject?.id === objectId && focusedObject?.type === objectType
+      const hovered = hoveredObject?.id === objectId && hoveredObject?.type === objectType
+      return shouldShowNodeLabel(node, cameraDistance, selected, hovered)
+    })
+    .sort((left, right) => labelPriority(right) - labelPriority(left))
+
+  const threshold = cameraDistance < 10 ? 1.45 : cameraDistance < 16 ? 1.9 : 2.5
+  const accepted = []
+  const layout = new Map()
+
+  candidates.forEach((node) => {
+    const position = node.position || { x: 0, y: 0, z: 0 }
+    const collides = accepted.some((acceptedNode) => {
+      const other = acceptedNode.position || { x: 0, y: 0, z: 0 }
+      const dx = position.x - other.x
+      const dy = position.y - other.y
+      const dz = position.z - other.z
+      return Math.sqrt((dx * dx) + (dy * dy) + (dz * dz)) < threshold
+    })
+    if (collides) return
+
+    accepted.push(node)
+    const hash = stableHash(node.id || node.label || 'label')
+    layout.set(node.id, {
+      y: (node.type === 'track' ? 0.34 : 0.55) + ((hash % 3) - 1) * 0.12,
+      x: (((hash >> 3) % 3) - 1) * 0.16,
+    })
+  })
+
+  return layout
+}
+
+function nodeLabelTone(type) {
+  if (type === 'genre') return 'border-purple-400/30 bg-[#0c0f25]/88 text-purple-100'
+  if (type === 'track') return 'border-cyan-400/25 bg-[#0a1020]/84 text-cyan-100'
+  return 'border-white/12 bg-[#0a0f23]/88 text-white'
+}
+
+function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset }) {
+  const groupRef = useRef()
   const meshRef = useRef()
+  const haloRef = useRef()
   const position = node.position || { x: 0, y: 0, z: 0 }
-  const isSelected = selectedId === node.id
-  const isHovered = hoveredId === node.id
-  const visibility = getNodeVisibility(node, viewMode, showTracks)
+  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const setHoveredObject = useGalaxyInteractionStore((state) => state.setHoveredObject)
+  const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
+  const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
+  const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
+  const setConstellationOrigin = useGalaxyInteractionStore((state) => state.setConstellationOrigin)
+  const constellationMode = useGalaxyInteractionStore((state) => state.constellationMode)
+  const motionState = useGalaxyInteractionStore((state) => state.motionState)
+
+  const isClusterNode = node.type === 'cluster'
+  const objectType = isClusterNode ? 'cluster' : node.type
+  const objectId = isClusterNode ? node.clusterId : node.id
+  const selected = focusedObject?.id === objectId && focusedObject?.type === objectType
+  const hovered = hoveredObject?.id === objectId && hoveredObject?.type === objectType
+  const visibility = getNodeVisibility(node, galaxyMode, viewMode, showTracks)
+  const renderedSize = clamp(node.size || 0.5, node.type === 'track' ? 0.13 : 0.24, node.type === 'cluster' ? 1.45 : node.type === 'genre' ? 1.34 : 0.92)
+  const hitRadius = Math.max(renderedSize * 2.2, node.type === 'track' ? 0.45 : 0.7)
+  const driftSeed = useMemo(() => stableHash(node.id || node.label || 'node'), [node.id, node.label])
+  const basePosition = useMemo(() => new THREE.Vector3(position.x, position.y, position.z), [position.x, position.y, position.z])
 
   useFrame(({ clock }) => {
-    if (!meshRef.current) return
-    meshRef.current.rotation.y += node.type === 'genre' ? 0.0025 : node.type === 'cluster' ? 0.002 : 0.004
-    meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * (node.type === 'track' ? 1.2 : 0.7) + position.x) * 0.08
-    const baseScale = node.type === 'track'
-      ? 0.85
-      : node.type === 'cluster'
-        ? 1.08
-        : node.role === 'anchor-star'
-          ? 1.12
-          : 1
-    if (isSelected) {
-      meshRef.current.scale.setScalar(baseScale * (1.2 + Math.sin(clock.getElapsedTime() * 2) * 0.05))
-    } else if (isHovered) {
-      meshRef.current.scale.setScalar(baseScale * 1.12)
-    } else {
-      meshRef.current.scale.setScalar(baseScale)
+    if (groupRef.current) {
+      const t = clock.getElapsedTime()
+      const motionScale = selected ? 0.25 : hovered ? 0.45 : 1
+      const amplitude = (node.type === 'track' ? 0.08 : node.type === 'genre' ? 0.12 : 0.1) * (motionState?.oscillationStrength || 0.28) * motionScale
+      groupRef.current.position.set(
+        basePosition.x + Math.sin(t * 0.08 + driftSeed * 0.001) * amplitude,
+        basePosition.y + Math.cos(t * 0.07 + driftSeed * 0.0017) * amplitude * 0.7,
+        basePosition.z + Math.sin(t * 0.06 + driftSeed * 0.0021) * amplitude,
+      )
+    }
+    if (meshRef.current) {
+      meshRef.current.rotation.y += node.type === 'genre' ? 0.0015 : node.type === 'cluster' ? 0.0012 : 0.0025
+      meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * (node.type === 'track' ? 1.18 : 0.54) + position.x) * 0.08
+      const emphasis = selected ? 1.16 : hovered ? 1.08 : 1
+      meshRef.current.scale.setScalar(emphasis)
+    }
+    if (groupRef.current) {
+      const t = clock.getElapsedTime()
+      const sculpturalTilt = (selected ? 1 : hovered ? 0.7 : 0.32) * MOTION_FLOAT.orb.tilt
+      groupRef.current.rotation.y = Math.cos(t * 0.09 + driftSeed * 0.0014) * sculpturalTilt
+      groupRef.current.rotation.x = Math.sin(t * 0.07 + driftSeed * 0.0019) * sculpturalTilt * 0.42
+    }
+    if (haloRef.current) {
+      haloRef.current.scale.setScalar(1 + Math.sin(clock.getElapsedTime() * 0.8 + position.y) * 0.03 + (selected ? 0.18 : hovered ? 0.08 : 0))
     }
   })
 
   if (!visibility.visible) return null
 
+  const handleSelect = (event) => {
+    event.stopPropagation()
+    if (selected) {
+      clearFocusedObject()
+      setFocusTarget(null)
+      if (constellationMode) setConstellationOrigin(null)
+      return
+    }
+    setFocusedObject({
+      id: objectId,
+      type: objectType,
+      label: node.label,
+      clusterId: node.clusterId || null,
+      regionId: node.regionLabel ? `region:${slugifyInteraction(node.regionLabel)}` : null,
+    })
+    setFocusTarget(node.position || null)
+    if (constellationMode && node.type === 'artist') setConstellationOrigin(node.id)
+  }
+
   return (
-    <mesh
-      ref={meshRef}
-      position={[position.x, position.y, position.z]}
-      onClick={(event) => { event.stopPropagation(); onSelect(node) }}
-      onPointerOver={(event) => { event.stopPropagation(); onHover(node.id) }}
-      onPointerOut={(event) => { event.stopPropagation(); onHover(null) }}
-    >
-      <sphereGeometry args={[node.size || 0.5, node.type === 'track' ? 14 : 26, node.type === 'track' ? 14 : 26]} />
-      <MeshDistortMaterial
-        color={node.color}
-        emissive={node.color}
-        emissiveIntensity={isSelected ? 1.8 : isHovered ? 1.25 : node.type === 'cluster' ? 0.75 : 0.5}
-        roughness={0.25}
-        metalness={0.7}
-        transparent
-        opacity={Math.max(0.12, Math.min(0.95, visibility.opacity * (node.type === 'track' ? 0.82 : 0.92)))}
-        distort={node.type === 'genre' ? 0.17 : node.type === 'cluster' ? 0.1 : node.type === 'track' ? 0.08 : 0.24}
-        speed={node.type === 'track' ? 0.8 : node.type === 'genre' ? 0.6 : 1.25}
-      />
-      {labelVisible(node, cameraDistance, isSelected, isHovered) && (
-        <Billboard>
+    <group ref={groupRef} position={[position.x, position.y, position.z]}>
+      <mesh ref={haloRef}>
+        <sphereGeometry args={[renderedSize * (node.type === 'track' ? 1.4 : 1.8), 16, 16]} />
+        <meshBasicMaterial color={node.color} transparent opacity={selected ? 0.1 : hovered ? 0.06 : 0.03} />
+      </mesh>
+
+      <mesh ref={meshRef}>
+        <sphereGeometry args={[renderedSize, node.type === 'track' ? 12 : 24, node.type === 'track' ? 12 : 24]} />
+        <MeshDistortMaterial
+          color={node.color}
+          emissive={node.color}
+          emissiveIntensity={selected ? 1.95 : hovered ? 1.35 : node.type === 'cluster' ? 0.9 : 0.65}
+          roughness={0.24}
+          metalness={0.62}
+          transparent
+          opacity={clamp(visibility.opacity * (node.type === 'track' ? 0.86 : 0.92), 0.18, 0.95)}
+          distort={node.type === 'genre' ? 0.11 : node.type === 'cluster' ? 0.07 : node.type === 'track' ? 0.04 : 0.13}
+          speed={node.type === 'track' ? 0.62 : node.type === 'genre' ? 0.44 : 0.9}
+        />
+      </mesh>
+
+      <mesh
+        onClick={handleSelect}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          setHoveredObject({
+            id: objectId,
+            type: objectType,
+            label: node.label,
+            clusterId: node.clusterId || null,
+            regionId: node.regionLabel ? `region:${slugifyInteraction(node.regionLabel)}` : null,
+          })
+        }}
+        onPointerOut={(event) => {
+          event.stopPropagation()
+          setHoveredObject(null)
+        }}
+      >
+        <sphereGeometry args={[hitRadius, 12, 12]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      {showLabel && (
+        <Billboard position={[labelOffset?.x || 0, renderedSize + (labelOffset?.y || 0.55), 0]}>
           <Html distanceFactor={8} center>
-            <div className="pointer-events-none rounded-lg border border-white/10 bg-[#0d1025]/90 px-2 py-1 text-xs text-white backdrop-blur-sm">
-              <p className="font-semibold">{node.label}</p>
-              <p className="text-[10px] capitalize text-gray-400">{node.type.replace(/-/g, ' ')}</p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 4, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              transition={MOTION_TOKENS.label}
+              className={`pointer-events-none rounded-xl border px-2.5 py-1 text-[11px] shadow-[0_10px_30px_rgba(4,6,20,0.45)] backdrop-blur-sm ${nodeLabelTone(node.type)}`}
+            >
+              <p className="font-semibold leading-tight">{node.label}</p>
+              {node.type !== 'genre' && <p className="text-[10px] capitalize text-gray-400">{node.role?.replace(/-/g, ' ') || node.type}</p>}
+            </motion.div>
           </Html>
         </Billboard>
       )}
-    </mesh>
+    </group>
   )
 }
 
-function GalaxyEdges({ model, hoveredEdgeId, onEdgeHover, viewMode }) {
-  const nodeMap = useMemo(
-    () => Object.fromEntries((model?.nodes || []).map((node) => [node.id, node])),
-    [model],
-  )
+function RegionParticles({ region, selected, hovered }) {
+  const pointsRef = useRef()
+  const geometry = useMemo(() => {
+    const count = clamp(22 + Math.round((region.coverage || 0) * 70), 18, 72)
+    const positions = new Float32Array(count * 3)
+    for (let index = 0; index < count; index += 1) {
+      const angle = (index / count) * Math.PI * 2
+      const radius = 0.65 + ((index % 7) / 7) * (2.3 + (region.coverage || 0) * 3.2)
+      const x = Math.cos(angle) * radius + Math.sin(index * 0.7) * 0.32
+      const y = (((index % 5) - 2) * 0.16) + Math.cos(index * 0.45) * 0.08
+      const z = Math.sin(angle) * radius + Math.cos(index * 0.6) * 0.35
+      positions[index * 3] = x
+      positions[(index * 3) + 1] = y
+      positions[(index * 3) + 2] = z
+    }
+    const nextGeometry = new THREE.BufferGeometry()
+    nextGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    return nextGeometry
+  }, [region.coverage])
 
+  useFrame(({ clock }) => {
+    if (!pointsRef.current) return
+    const t = clock.getElapsedTime()
+    pointsRef.current.rotation.y = t * (0.05 + (region.coverage || 0) * 0.08)
+    pointsRef.current.rotation.z = Math.sin(t * 0.1 + region.coverage) * 0.08
+  })
+
+  return (
+    <points ref={pointsRef} geometry={geometry}>
+      <pointsMaterial
+        size={selected ? 0.14 : hovered ? 0.11 : 0.09}
+        color={region.color}
+        transparent
+        opacity={selected ? 0.34 : hovered ? 0.24 : 0.15}
+        sizeAttenuation
+      />
+    </points>
+  )
+}
+
+function RegionNebula({ region, model, galaxyMode, viewMode }) {
+  const groupRef = useRef()
+  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const setHoveredObject = useGalaxyInteractionStore((state) => state.setHoveredObject)
+  const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
+  const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
+  const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
+  const motionState = useGalaxyInteractionStore((state) => state.motionState)
+  const selected = focusedObject?.type === 'region' && focusedObject?.id === region.id
+  const hovered = hoveredObject?.type === 'region' && hoveredObject?.id === region.id
+  const topArtists = (region.anchorArtistIds || [])
+    .map((artistId) => model?.nodes?.find((node) => node.id === artistId))
+    .filter(Boolean)
+    .slice(0, 3)
+  const baseScale = clamp(4.8 + (region.coverage || 0) * 11, 4.8, 9.8)
+  const visible = galaxyMode === 'universal' || galaxyMode === 'genre'
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const t = clock.getElapsedTime()
+    groupRef.current.rotation.z = t * 0.02 + region.coverage * 0.08
+    groupRef.current.rotation.x = Math.sin(t * 0.07 + region.coverage * 8) * 0.05
+    groupRef.current.position.set(
+      region.centroid.x + Math.sin(t * 0.03 + region.coverage * 10) * (motionState?.driftStrength || 0.18) * 0.35,
+      region.centroid.y + Math.cos(t * 0.028 + region.coverage * 13) * (motionState?.driftStrength || 0.18) * 0.22,
+      region.centroid.z - 1.2,
+    )
+  })
+
+  if (!visible && !hovered && !selected && viewMode !== 'mood') return null
+
+  return (
+    <group ref={groupRef} position={[region.centroid.x, region.centroid.y, region.centroid.z - 1.2]}>
+      <RegionParticles region={region} selected={selected} hovered={hovered} />
+      {[1, 0.74, 0.48].map((factor, index) => (
+        <mesh key={`${region.id}-${factor}`} scale={[baseScale * factor, baseScale * factor * (0.66 + index * 0.08), baseScale * factor]}>
+          <sphereGeometry args={[1, 26, 26]} />
+          <meshBasicMaterial color={region.color} transparent opacity={(selected ? 0.085 : hovered ? 0.065 : 0.045) - index * 0.01} />
+        </mesh>
+      ))}
+
+      <mesh
+        onClick={(event) => {
+          event.stopPropagation()
+          if (selected) {
+            clearFocusedObject()
+            setFocusTarget(null)
+            return
+          }
+          setFocusedObject({ id: region.id, type: 'region', label: region.title || region.label })
+          setFocusTarget(region.centroid || null)
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          setHoveredObject({ id: region.id, type: 'region', label: region.title || region.label })
+        }}
+        onPointerOut={(event) => {
+          event.stopPropagation()
+          setHoveredObject(null)
+        }}
+      >
+        <sphereGeometry args={[baseScale * 0.68, 18, 18]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      <Billboard position={[0, baseScale * 0.82, 0]}>
+        <Html center distanceFactor={7.5}>
+          <div className="pointer-events-none min-w-[180px] text-center">
+            <p className="text-[clamp(22px,2vw,38px)] font-semibold tracking-tight text-white/92 drop-shadow-[0_4px_18px_rgba(0,0,0,0.55)]">
+              {region.title || region.label}
+            </p>
+            {!!topArtists.length && (
+              <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
+                {topArtists.map((artist) => (
+                  <span key={artist.id} className="rounded-full border border-white/10 bg-black/35 px-2 py-1 text-[10px] text-white/80 backdrop-blur">
+                    {artist.label}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </Html>
+      </Billboard>
+    </group>
+  )
+}
+
+function TasteCore({ core, model, galaxyMode }) {
+  const groupRef = useRef()
+  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const setHoveredObject = useGalaxyInteractionStore((state) => state.setHoveredObject)
+  const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
+  const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
+  const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
+  const motionState = useGalaxyInteractionStore((state) => state.motionState)
+  const selected = focusedObject?.type === 'core'
+  const hovered = hoveredObject?.type === 'core'
+  const coreArtists = (core.supportingArtists || [])
+    .map((artistId) => model?.nodes?.find((node) => node.id === artistId))
+    .filter(Boolean)
+    .slice(0, 4)
+
+  useFrame(({ clock }) => {
+    if (!groupRef.current) return
+    const t = clock.getElapsedTime()
+    groupRef.current.rotation.y = t * 0.12
+    groupRef.current.rotation.z = Math.sin(t * 0.08) * 0.06
+    groupRef.current.position.set(
+      core.position.x + Math.sin(t * 0.04) * (motionState?.driftStrength || 0.18) * 0.18,
+      core.position.y + Math.cos(t * 0.05) * (motionState?.driftStrength || 0.18) * 0.12,
+      core.position.z,
+    )
+    groupRef.current.scale.setScalar(
+      1
+      + Math.sin(t * (galaxyMode === 'song' ? 1.45 : 1.1)) * 0.04
+      + (selected ? 0.12 : hovered ? 0.05 : 0),
+    )
+  })
+
+  if (!core?.position) return null
+
+  return (
+    <group ref={groupRef} position={[core.position.x, core.position.y, core.position.z]}>
+      {[1.7, 1.28, 0.94].map((factor, index) => (
+        <mesh key={`${factor}`}>
+          <sphereGeometry args={[factor, 28, 28]} />
+          <meshBasicMaterial color={index === 0 ? '#9df6c9' : index === 1 ? core.color : '#f0fff8'} transparent opacity={index === 0 ? 0.12 : index === 1 ? 0.18 : 0.24} />
+        </mesh>
+      ))}
+      <mesh>
+        <sphereGeometry args={[0.85, 28, 28]} />
+        <MeshDistortMaterial
+          color={core.color}
+          emissive={core.color}
+          emissiveIntensity={selected ? 2.25 : hovered ? 1.75 : 1.5}
+          roughness={0.14}
+          metalness={0.58}
+          transparent
+          opacity={0.94}
+          distort={0.18}
+          speed={0.8}
+        />
+      </mesh>
+      <mesh
+        onClick={(event) => {
+          event.stopPropagation()
+          if (selected) {
+            clearFocusedObject()
+            setFocusTarget(null)
+            return
+          }
+          setFocusedObject({ id: 'taste-core', type: 'core', label: core.label })
+          setFocusTarget(core.position)
+        }}
+        onPointerOver={(event) => {
+          event.stopPropagation()
+          setHoveredObject({ id: 'taste-core', type: 'core', label: core.label })
+        }}
+        onPointerOut={(event) => {
+          event.stopPropagation()
+          setHoveredObject(null)
+        }}
+      >
+        <sphereGeometry args={[2.6, 18, 18]} />
+        <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+      </mesh>
+
+      <Billboard position={[0, 2.6, 0]}>
+        <Html center distanceFactor={7.5}>
+          <motion.div
+            initial={{ opacity: 0, y: 4, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={MOTION_TOKENS.label}
+            className="pointer-events-none text-center"
+          >
+            <p className="text-sm uppercase tracking-[0.35em] text-emerald-100/78">Taste Core</p>
+            {!!coreArtists.length && (
+              <p className="mt-1 text-[11px] text-emerald-50/72">{coreArtists.map((artist) => artist.label).join(' / ')}</p>
+            )}
+          </motion.div>
+        </Html>
+      </Billboard>
+    </group>
+  )
+}
+
+function GalaxyEdges({ model, galaxyMode, viewMode }) {
+  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const setHoveredObject = useGalaxyInteractionStore((state) => state.setHoveredObject)
+  const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
+  const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
+
+  const nodeMap = useMemo(() => Object.fromEntries((model?.nodes || []).map((node) => [node.id, node])), [model])
   const visibleEdges = useMemo(() => {
     const allEdges = model?.edges || []
+    if (galaxyMode === 'song') return allEdges.filter((edge) => edge.type.startsWith('song_')).slice(0, 180)
+    if (galaxyMode === 'artist') return allEdges.filter((edge) => edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || edge.type === 'shared_genre').slice(0, 220)
+    if (galaxyMode === 'genre') return allEdges.filter((edge) => edge.type === 'artist_genre' || edge.type === 'genre_affinity' || edge.type === 'cluster_membership' || edge.type === 'bridge_lane').slice(0, 220)
     if (viewMode === 'identity') return allEdges.filter((edge) => edge.type !== 'track_artist' && edge.type !== 'track_genre').slice(0, 220)
-    if (viewMode === 'constellation') return allEdges.slice(0, 320)
+    if (viewMode === 'constellation') return allEdges.slice(0, 340)
     if (viewMode === 'discovery') return allEdges.filter((edge) => edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || edge.type === 'track_artist').slice(0, 260)
     if (viewMode === 'genre') return allEdges.filter((edge) => edge.type === 'artist_genre' || edge.type === 'genre_affinity' || edge.type === 'cluster_membership').slice(0, 260)
-    return allEdges.slice(0, 280)
+    return allEdges.slice(0, 260)
   }, [model, viewMode])
 
   return (
@@ -243,34 +604,65 @@ function GalaxyEdges({ model, hoveredEdgeId, onEdgeHover, viewMode }) {
           y: (source.position.y + target.position.y) / 2,
           z: (source.position.z + target.position.z) / 2,
         }
-        const isHovered = hoveredEdgeId === edge.id
+        const hovered = hoveredObject?.type === 'edge' && hoveredObject?.id === edge.id
+        const focused = focusedObject?.type === 'edge' && focusedObject?.id === edge.id
         const baseOpacity = edge.type === 'bridge_lane'
-          ? 0.26 + (edge.weight || 0.2) * 0.35
-          : Math.max(0.06, Math.min(0.45, edge.weight || 0.18))
+          ? 0.2 + (edge.weight || 0.2) * 0.32
+          : Math.max(0.04, Math.min(0.28, edge.weight || 0.16))
+        const shouldShowBridgeMote = edge.type === 'bridge_lane' || edge.type === 'audio_similarity'
+
         return (
           <group key={edge.id}>
             <line geometry={geometry}>
               <lineBasicMaterial
-                color={isHovered ? '#c084fc' : source.color}
+                color={hovered || focused ? '#f0abfc' : source.color}
                 transparent
-                opacity={isHovered ? Math.min(0.88, baseOpacity + 0.2) : baseOpacity}
+                opacity={focused ? Math.min(0.9, baseOpacity + 0.28) : hovered ? Math.min(0.72, baseOpacity + 0.16) : baseOpacity}
               />
             </line>
+
+            {shouldShowBridgeMote && (
+              <mesh position={[midpoint.x, midpoint.y, midpoint.z]}>
+                <sphereGeometry args={[edge.type === 'bridge_lane' ? 0.2 : 0.12, 12, 12]} />
+                <meshBasicMaterial color={edge.type === 'bridge_lane' ? '#f0abfc' : '#dbeafe'} transparent opacity={hovered || focused ? 0.42 : 0.2} />
+              </mesh>
+            )}
+
             <mesh
               position={[midpoint.x, midpoint.y, midpoint.z]}
-              onPointerOver={(event) => { event.stopPropagation(); onEdgeHover(edge) }}
-              onPointerOut={(event) => { event.stopPropagation(); onEdgeHover(null) }}
+              onClick={(event) => {
+                event.stopPropagation()
+                if (focused) {
+                  clearFocusedObject()
+                  return
+                }
+                setFocusedObject({ id: edge.id, type: 'edge', label: edge.type })
+              }}
+              onPointerOver={(event) => {
+                event.stopPropagation()
+                setHoveredObject({ id: edge.id, type: 'edge', label: edge.type })
+              }}
+              onPointerOut={(event) => {
+                event.stopPropagation()
+                setHoveredObject(null)
+              }}
             >
-              <sphereGeometry args={[0.22, 8, 8]} />
-              <meshBasicMaterial transparent opacity={0} />
+              <sphereGeometry args={[0.55, 10, 10]} />
+              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
             </mesh>
-            {isHovered && (
-              <Billboard position={[midpoint.x, midpoint.y, midpoint.z]}>
-                <Html distanceFactor={8} center>
-                  <div className="pointer-events-none max-w-[220px] rounded-lg border border-purple-500/40 bg-[#0d1025]/95 px-2 py-1.5 text-xs text-white backdrop-blur-sm">
-                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-purple-300">{edge.type.replace(/_/g, ' ')}</p>
+
+            {(hovered || focused) && (
+              <Billboard position={[midpoint.x, midpoint.y + 0.55, midpoint.z]}>
+                <Html center distanceFactor={8}>
+                  <motion.div
+                    initial={{ opacity: 0, y: 6, scale: 0.985 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    transition={MOTION_TOKENS.tooltip}
+                    className="pointer-events-none max-w-[240px] rounded-xl border border-fuchsia-400/30 bg-[#0c1024]/94 px-2.5 py-1.5 text-xs text-white shadow-[0_12px_34px_rgba(4,6,20,0.45)] backdrop-blur-sm"
+                  >
+                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-200">{edge.type.replace(/_/g, ' ')}</p>
                     <p>{edge.explanation}</p>
-                  </div>
+                  </motion.div>
                 </Html>
               </Billboard>
             )}
@@ -287,7 +679,7 @@ function ConstellationLines({ model, originId }) {
 
   const related = (model?.edges || [])
     .filter((edge) => edge.source === originId || edge.target === originId)
-    .slice(0, 10)
+    .slice(0, 12)
 
   return (
     <>
@@ -302,7 +694,7 @@ function ConstellationLines({ model, originId }) {
         const geometry = new THREE.BufferGeometry().setFromPoints(points)
         return (
           <line key={edge.id} geometry={geometry}>
-            <lineBasicMaterial color={origin.color} transparent opacity={0.2 + (edge.weight || 0) * 0.5} />
+            <lineBasicMaterial color={origin.color} transparent opacity={0.28 + (edge.weight || 0) * 0.36} />
           </line>
         )
       })}
@@ -310,69 +702,119 @@ function ConstellationLines({ model, originId }) {
   )
 }
 
-function SceneContents({
-  model,
-  selectedNode,
-  hoveredNodeId,
-  onSelectNode,
-  onHoverNode,
-  hoveredEdge,
-  onHoverEdge,
-  constellationOrigin,
-  viewMode,
-  showTracks,
-  showMoodRegions,
-  focusTarget,
-}) {
-  const [cameraDistance, setCameraDistance] = useState(24)
-  const nebulaColors = getNebulaColors(model)
-  const controlsRef = useRef()
+function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMoodRegions }) {
+  const meshRef = useRef()
+
+  useFrame(({ clock }) => {
+    if (!meshRef.current) return
+    meshRef.current.rotation.z = clock.getElapsedTime() * 0.008
+    meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.005) * 0.08
+  })
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 0, 24]} fov={58} />
-      <ambientLight intensity={0.28} />
-      <pointLight position={[10, 10, 10]} intensity={1.55} />
-      <pointLight position={[-10, -10, -10]} intensity={0.52} color="#6366f1" />
-      <pointLight position={[0, 15, 0]} intensity={0.35} color="#ec4899" />
+      <mesh ref={meshRef} position={[0, 0, -42]}>
+        <planeGeometry args={[168, 168, 1, 1]} />
+        <meshBasicMaterial transparent opacity={0.1} side={THREE.DoubleSide}>
+          <color attach="color" args={[colors[0]]} />
+        </meshBasicMaterial>
+      </mesh>
+      {(showMoodRegions || viewMode === 'mood' || viewMode === 'identity' || galaxyMode === 'genre') && regions.slice(0, 6).map((region) => (
+        <RegionNebula key={region.id} region={region} model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
+      ))}
+    </>
+  )
+}
+
+function SceneContents({ model }) {
+  const [cameraDistance, setCameraDistance] = useState(24)
+  const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
+  const viewMode = useGalaxyInteractionStore((state) => state.constellationMode ? 'constellation' : state.viewMode)
+  const showTracks = useGalaxyInteractionStore((state) => state.showTracks)
+  const showMoodRegions = useGalaxyInteractionStore((state) => state.showMoodRegions)
+  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const focusTarget = useGalaxyInteractionStore((state) => state.focusTarget)
+  const constellationOrigin = useGalaxyInteractionStore((state) => state.constellationOrigin)
+  const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
+  const clearHoveredObject = useGalaxyInteractionStore((state) => state.clearHoveredObject)
+  const nebulaColors = getNebulaColors(model)
+  const controlsRef = useRef()
+  const labelLayout = useMemo(
+    () => buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject),
+    [cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode],
+  )
+
+  return (
+    <>
+      <PerspectiveCamera makeDefault position={[0, 0, 26]} fov={54} />
+      <fog attach="fog" args={['#03050f', 28, 98]} />
+      <ambientLight intensity={0.35} />
+      <pointLight position={[0, 0, 7]} intensity={1.35} color="#b8f5d2" />
+      <pointLight position={[10, 8, 10]} intensity={0.82} color="#f5b8ff" />
+      <pointLight position={[-9, -6, -10]} intensity={0.54} color="#7ea8ff" />
+      <pointLight position={[16, 12, 6]} intensity={0.45} color="#ffcf9b" />
 
       <ParallaxStarfield density={model?.metadata?.density} />
-      <NebulaClouds colors={nebulaColors} regions={model?.regions || []} showMoodRegions={showMoodRegions || viewMode === 'mood'} />
-
-      <GalaxyEdges model={model} hoveredEdgeId={hoveredEdge?.id} onEdgeHover={onHoverEdge} viewMode={viewMode} />
+      <NebulaBackdrop colors={nebulaColors} regions={model?.regions || []} model={model} galaxyMode={galaxyMode} viewMode={viewMode} showMoodRegions={showMoodRegions} />
+      <TasteCore core={model?.metadata?.core} model={model} galaxyMode={galaxyMode} />
+      <GalaxyEdges model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
       <ConstellationLines model={model} originId={constellationOrigin} />
 
       {(model?.nodes || []).map((node) => (
         <GalaxyNode
           key={node.id}
           node={node}
-          selectedId={selectedNode?.id}
-          hoveredId={hoveredNodeId}
-          onSelect={onSelectNode}
-          onHover={onHoverNode}
           cameraDistance={cameraDistance}
+          galaxyMode={galaxyMode}
           viewMode={viewMode}
           showTracks={showTracks}
+          showLabel={labelLayout.has(node.id)}
+          labelOffset={labelLayout.get(node.id)}
         />
       ))}
 
       <CameraTracker onDistance={setCameraDistance} />
       <FocusController focusTarget={focusTarget} controlsRef={controlsRef} />
-      <OrbitControls ref={controlsRef} enablePan enableZoom enableRotate autoRotate autoRotateSpeed={0.22} />
+      <OrbitControls
+        ref={controlsRef}
+        enablePan
+        enableZoom
+        enableRotate
+        autoRotate
+        autoRotateSpeed={0.18}
+        minDistance={8}
+        maxDistance={42}
+      />
 
       <EffectComposer>
-        <Bloom intensity={1.15} luminanceThreshold={0.16} luminanceSmoothing={0.9} mipmapBlur />
+        <Bloom intensity={1.25} luminanceThreshold={0.14} luminanceSmoothing={0.92} mipmapBlur />
       </EffectComposer>
+
+      <mesh
+        position={[0, 0, -60]}
+        onClick={() => {
+          clearFocusedObject()
+          clearHoveredObject()
+        }}
+      >
+        <planeGeometry args={[400, 400, 1, 1]} />
+        <meshBasicMaterial transparent opacity={0} />
+      </mesh>
     </>
   )
 }
 
-export default function GalaxyScene(props) {
+export default function GalaxyScene({ model }) {
   return (
     <div className="h-full w-full">
-      <Canvas gl={{ antialias: true, toneMapping: THREE.ACESFilmicToneMapping }} onPointerMissed={() => props.onSelectNode(null)}>
+      <Canvas
+        gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}
+        dpr={[1, 1.6]}
+        onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
+      >
         <Suspense fallback={null}>
-          <SceneContents {...props} />
+          <SceneContents model={model} />
         </Suspense>
       </Canvas>
     </div>

@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Sparkles, Wand2, AudioLines, Brain, FileSearch, Compass, HeartHandshake,
   ArrowRight, Loader2, RotateCcw, Disc3, Waves, Radio,
@@ -133,12 +134,12 @@ function ContextBanner({ profilePayload, playlistCount }) {
         <HeartHandshake className="w-4 h-4 text-brand-pink mt-0.5 shrink-0" />
         <div className="min-w-0">
           <p className="text-sm font-medium text-white">
-            {connected ? 'Listening context is active' : 'Prompt-first mode'}
+            {connected ? 'Your listening context is present' : 'Prompt-first drift'}
           </p>
           <p className="text-xs text-slate-500 leading-relaxed mt-2">
             {hasDeepContext
-              ? `Auralith is reading your top artists, tracks, recent listening, genre profile, and ${playlistCount} saved playlists to personalize every module.`
-              : 'Auralith can still work beautifully from prompts alone, and it will fold in Melody Map data wherever your profile is available.'}
+              ? `Auralith is holding your top artists, songs, recent listening, atmospheres, and ${playlistCount} saved playlists while it answers.`
+              : 'Auralith can still begin from a feeling alone, and it will fold in Melody Map context the moment your profile is ready.'}
           </p>
         </div>
       </div>
@@ -181,7 +182,7 @@ function Composer({ module, value, onChange, onExample, onSubmit, loading }) {
         <div className="mt-6 rounded-[26px] border border-white/8 bg-white/[0.03] overflow-hidden">
           <div className="flex items-center justify-between px-5 py-4 border-b border-white/6 text-[11px] uppercase tracking-[0.22em] text-slate-500">
             <span>Composer</span>
-            <span>Melody Map context aware</span>
+            <span>listening-aware</span>
           </div>
           <textarea
             value={value}
@@ -200,7 +201,7 @@ function Composer({ module, value, onChange, onExample, onSubmit, loading }) {
               style={{ background: 'linear-gradient(135deg, #7C6FFF, #FF5DA2)' }}
             >
               {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {loading ? 'Shaping the response...' : 'Open Auralith'}
+              {loading ? 'Listening closely...' : 'Send into Auralith'}
             </button>
           </div>
         </div>
@@ -282,7 +283,7 @@ function LoadingPanel() {
           </div>
           <div>
             <p className="text-white font-semibold">Auralith is listening</p>
-            <p className="text-sm text-slate-500">Reading the prompt, profile, and emotional pacing inside Melody Map.</p>
+            <p className="text-sm text-slate-500">Holding the prompt, your profile, and the emotional pacing between them.</p>
           </div>
         </div>
         <div className="skeleton h-7 w-2/5" />
@@ -306,11 +307,11 @@ function EmptyPanel({ module, profilePayload }) {
     <section className="glass-card rounded-[32px] p-6 min-h-[560px] flex flex-col justify-center">
       <p className="section-label mb-3">Melody Map Intelligence</p>
       <h3 className="text-3xl font-black text-white mb-3">
-        {module.id === 'playlist' ? 'Auralith is ready to score a listening moment.' : `${module.label} is ready.`}
+        {module.id === 'playlist' ? 'Auralith is ready to score a listening moment.' : `${module.label} is ready to open.`}
       </h3>
       <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
         {profilePayload
-          ? 'Your Melody Map profile is available, so the response will bend toward your actual listening habits instead of treating this like a cold prompt.'
+          ? 'Your Melody Map profile is present, so the response can bend toward your real habits instead of staying at surface level.'
           : 'Auralith can begin from the prompt alone and fold in Melody Map context the moment your listening profile becomes available.'}
       </p>
       <div className="mt-6 rounded-[24px] border border-white/6 bg-white/[0.03] p-4">
@@ -331,7 +332,7 @@ function ErrorPanel({ error, onRetry }) {
   return (
     <section className="glass-card rounded-[32px] p-6 min-h-[560px] flex flex-col justify-center">
       <p className="section-label mb-3 text-brand-pink">Auralith paused</p>
-      <h3 className="text-2xl font-black text-white mb-3">Something interrupted the listening flow</h3>
+      <h3 className="text-2xl font-black text-white mb-3">something slipped through the static</h3>
       <p className="text-sm text-slate-400 max-w-xl">{error}</p>
       <div className="mt-5">
         <button
@@ -373,14 +374,14 @@ function ResultPanel({ module, result, loading, error, onRetry, profilePayload }
 
       {result.why_this_fits_your_taste ? (
         <div className="mt-5 p-4 rounded-[24px] border border-white/6 bg-white/[0.04]">
-          <p className="section-label mb-2" style={{ color: '#FBBF24' }}>Why this fits your taste</p>
+          <p className="section-label mb-2" style={{ color: '#FBBF24' }}>Why it feels true</p>
           <p className="text-sm text-slate-300 leading-relaxed">{result.why_this_fits_your_taste}</p>
         </div>
       ) : null}
 
       {result.listener_alignment ? (
         <div className="mt-5 p-4 rounded-[24px] border border-white/6 bg-white/[0.03]">
-          <p className="section-label mb-2" style={{ color: '#A78BFA' }}>Listener alignment</p>
+          <p className="section-label mb-2" style={{ color: '#A78BFA' }}>Where it meets you</p>
           <p className="text-sm text-slate-400 leading-relaxed">{result.listener_alignment}</p>
         </div>
       ) : null}
@@ -438,9 +439,9 @@ function ResultPanel({ module, result, loading, error, onRetry, profilePayload }
 
       {!profilePayload ? (
         <div className="mt-6 rounded-[24px] border border-white/6 bg-white/[0.03] p-4">
-          <p className="section-label mb-2" style={{ color: '#00D1FF' }}>Prompt-first fallback</p>
+          <p className="section-label mb-2" style={{ color: '#00D1FF' }}>Prompt-led reading</p>
           <p className="text-sm text-slate-400 leading-relaxed">
-            Melody Map listening data is limited right now, so Auralith leaned more heavily on the prompt and local music intelligence rather than deep profile personalization.
+            Melody Map listening data is limited right now, so Auralith leaned more heavily on your words than on the deeper profile signal.
           </p>
         </div>
       ) : null}
@@ -449,6 +450,7 @@ function ResultPanel({ module, result, loading, error, onRetry, profilePayload }
 }
 
 export default function Auralith() {
+  const [searchParams] = useSearchParams()
   const { profile } = useMusicProfile()
   const { data: playlistsData } = usePlaylists()
   const activeProfile = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || 'your listening world')
@@ -464,6 +466,24 @@ export default function Auralith() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    const requestedModule = searchParams.get('mode')
+    const requestedPrompt = searchParams.get('prompt')
+    const normalizedModule = requestedModule && MODULES.some((module) => module.id === requestedModule)
+      ? requestedModule
+      : activeModuleId
+
+    if (requestedModule && MODULES.some((module) => module.id === requestedModule) && requestedModule !== activeModuleId) {
+      setActiveModuleId(requestedModule)
+    }
+    if (requestedPrompt && inputs[normalizedModule] !== requestedPrompt) {
+      setInputs((current) => ({
+        ...current,
+        [normalizedModule]: requestedPrompt,
+      }))
+    }
+  }, [activeModuleId, inputs, searchParams])
 
   const activeModule = MODULES.find((module) => module.id === activeModuleId) || MODULES[0]
   const ActiveIcon = activeModule.icon
@@ -491,14 +511,13 @@ export default function Auralith() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="cosmic-page space-y-6">
       <motion.section
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
-        className="rounded-[32px] overflow-hidden relative"
+        className="rounded-[32px] overflow-hidden relative noire-panel"
         style={{
-          background: 'linear-gradient(135deg, rgba(124,111,255,0.10), rgba(255,93,162,0.06) 45%, rgba(0,209,255,0.05) 100%)',
-          border: '1px solid rgba(255,255,255,0.08)',
+          background: 'linear-gradient(135deg, rgba(143,117,255,0.12), rgba(242,141,223,0.06) 45%, rgba(159,208,255,0.05) 100%)',
         }}
       >
         <div
@@ -515,22 +534,52 @@ export default function Auralith() {
                 Auralith reads the emotional meaning inside <span className="text-gradient-aurora">{activeProfile}</span>.
               </h1>
               <p className="text-slate-400 text-sm lg:text-base mt-4 max-w-2xl leading-relaxed">
-                Built into Melody Map as its listening intelligence layer: prompt-aware, profile-aware, and designed to turn musical context into curated, explainable responses.
+                Built into Melody Map as its quiet interpreter: prompt-aware, profile-aware, and shaped to turn musical context into responses that still feel human.
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-[420px]">
               <HeroMeter label="Active mode" value={activeModule.label} color="#c4b5fd" />
-              <HeroMeter label="Tone" value="Measured / cinematic" color="#f9a8d4" />
-              <HeroMeter label="Context" value={profilePayload ? 'Deep profile-linked' : 'Prompt-first'} color="#67e8f9" />
+              <HeroMeter label="Tone" value="soft / cinematic" color="#f9a8d4" />
+              <HeroMeter label="Context" value={profilePayload ? 'Profile-held' : 'Prompt-first'} color="#67e8f9" />
             </div>
           </div>
         </div>
       </motion.section>
 
+      <section className="grid gap-4 lg:grid-cols-3">
+        <Link
+          to="/discover"
+          className="rounded-[24px] p-4 glass-hover"
+          style={{ background: 'rgba(0,209,255,0.08)', border: '1px solid rgba(0,209,255,0.16)' }}
+        >
+          <p className="section-label mb-2" style={{ color: '#00D1FF' }}>Need a fresh signal?</p>
+          <p className="text-sm font-semibold text-white">Drift through Discover first</p>
+          <p className="mt-1 text-xs text-slate-500">Let a few new sequences arrive before you ask for a deeper reading.</p>
+        </Link>
+        <Link
+          to="/galaxy?mode=artist"
+          className="rounded-[24px] p-4 glass-hover"
+          style={{ background: 'rgba(124,111,255,0.08)', border: '1px solid rgba(124,111,255,0.16)' }}
+        >
+          <p className="section-label mb-2">Coming from the galaxy</p>
+          <p className="text-sm font-semibold text-white">Bring a star back with you</p>
+          <p className="mt-1 text-xs text-slate-500">Touch a region or artist in the field, then return here and let Auralith translate it.</p>
+        </Link>
+        <Link
+          to="/identity"
+          className="rounded-[24px] p-4 glass-hover"
+          style={{ background: 'rgba(242,141,223,0.08)', border: '1px solid rgba(242,141,223,0.16)' }}
+        >
+          <p className="section-label mb-2" style={{ color: '#F28DDF' }}>Inner reading</p>
+          <p className="text-sm font-semibold text-white">Hold your music self nearby</p>
+          <p className="mt-1 text-xs text-slate-500">The stronger your identity reading becomes, the more nuanced these responses can feel.</p>
+        </Link>
+      </section>
+
       <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-6">
         <aside className="glass-card rounded-[32px] p-4 h-fit">
-          <p className="section-label mb-4">Listening Modes</p>
+          <p className="section-label mb-4">Ways of listening</p>
           <div className="space-y-2">
             {MODULES.map((module) => {
               const Icon = module.icon
@@ -573,9 +622,9 @@ export default function Auralith() {
               <div className="flex items-start gap-3">
                 <Waves className="w-4 h-4 text-brand-blue mt-0.5 shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-white">Response design</p>
+              <p className="text-sm font-medium text-white">Response shape</p>
                   <p className="text-xs text-slate-500 leading-relaxed mt-2">
-                    Every module returns structured, scan-friendly output so the intelligence feels product-grade inside Melody Map rather than like a raw assistant transcript.
+                Every module returns something shaped for reading, so the intelligence feels like part of the product rather than a pasted transcript.
                   </p>
                 </div>
               </div>

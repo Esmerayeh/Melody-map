@@ -138,7 +138,9 @@ export function mapGalaxySelectionToResonance({ node, cluster, region, edge, mod
         node.metrics?.discoveryScore > 0.55 ? 'Discovery frontier pull' : null,
         node.genres?.[0] ? `${node.genres[0]} influence` : null,
       ].filter(Boolean),
-      explanation: node.metrics?.bridgeScore > 0.48
+      explanation: node.type === 'core'
+        ? 'The Soul Orb is returning to your full listening center, where your strongest recurring artists and moods collapse into one resting identity.'
+        : node.metrics?.bridgeScore > 0.48
         ? `${node.label} bends the orb into a layered state because it bridges more than one part of your listening universe.`
         : `${node.label} reshapes the orb through its local emotional signature and role inside your galaxy.`,
     })
@@ -177,8 +179,8 @@ export function mapGalaxySelectionToResonance({ node, cluster, region, edge, mod
     const features = averageFeatures(members)
     return buildBasePayload({
       kind: 'region',
-      label: region.label,
-      subtitle: `Touching your ${region.label} core`,
+      label: region.title || region.label,
+      subtitle: `Touching your ${(region.title || region.label)} core`,
       color: region.color,
       accent: mixHex(region.color, '#f59e0b', 0.4),
       features,
@@ -194,7 +196,7 @@ export function mapGalaxySelectionToResonance({ node, cluster, region, edge, mod
         `${Math.round((region.coverage || 0) * 100)}% local coverage`,
         `${region.members?.length || 0} nearby bodies`,
       ],
-      explanation: `This ${region.label} field ${moodDescriptor(region.label)}`,
+      explanation: `This ${(region.title || region.label)} field ${moodDescriptor(region.label)}`,
     })
   }
 
@@ -229,6 +231,77 @@ export function mapGalaxySelectionToResonance({ node, cluster, region, edge, mod
   }
 
   return null
+}
+
+export function mapGalaxyModeToResonance({ galaxyMode = 'universal', model, profile }) {
+  if (!model || !profile) return null
+
+  const primaryRegion = (model.regions || [])[0] || null
+  const primaryCluster = (model.clusters || [])[0] || null
+  const primaryTrack = (model.nodes || []).find((node) => node.type === 'track') || null
+  const primaryArtist = (model.nodes || []).find((node) => node.type === 'artist') || null
+
+  if (galaxyMode === 'genre' && (primaryCluster || primaryRegion)) {
+    return mapGalaxySelectionToResonance({
+      cluster: primaryCluster,
+      region: primaryRegion,
+      model,
+      mode: 'ambient',
+    })
+  }
+
+  if (galaxyMode === 'artist' && primaryArtist) {
+    return buildBasePayload({
+      kind: 'mode',
+      label: 'artist galaxy',
+      subtitle: 'reading artist-to-artist gravity',
+      color: primaryArtist.color,
+      accent: '#93c5fd',
+      features: primaryArtist.audioFeatures || profile.audioFeatures || {},
+      metrics: primaryArtist.metrics || {},
+      confidence: primaryArtist.confidence ?? 0.68,
+      strength: 0.52,
+      mode: 'ambient',
+      evidence: ['artist-only field', primaryArtist.label ? `lead influence: ${primaryArtist.label}` : null].filter(Boolean),
+      explanation: 'The orb narrows into artist gravity here, reading influence, similarity, and emotional adjacency more precisely.',
+    })
+  }
+
+  if (galaxyMode === 'song' && primaryTrack) {
+    return buildBasePayload({
+      kind: 'mode',
+      label: 'song galaxy',
+      subtitle: 'tracking micro-moods and song memory',
+      color: primaryTrack.color,
+      accent: '#f9a8d4',
+      features: primaryTrack.audioFeatures || profile.audioFeatures || {},
+      metrics: primaryTrack.metrics || {},
+      confidence: primaryTrack.confidence ?? 0.62,
+      strength: 0.58,
+      mode: 'ambient',
+      evidence: ['track-level field', primaryTrack.label ? `surface signal: ${primaryTrack.label}` : null].filter(Boolean),
+      explanation: 'The orb becomes more kinetic in song mode, because it is reading track-level mood, pacing, and memory fragments instead of larger neighborhoods.',
+    })
+  }
+
+  return buildBasePayload({
+    kind: 'mode',
+    label: 'universal galaxy',
+    subtitle: 'holding the full listening universe',
+    color: model.metadata?.core?.color || '#7c6fff',
+    accent: '#c084fc',
+    features: profile.audioFeatures || {},
+    metrics: {
+      centrality: model.metadata?.core?.strength || 0.5,
+      bridgeScore: 0.22,
+      discoveryScore: 0.22,
+    },
+    confidence: profile.confidence?.overall?.score ?? 0.64,
+    strength: 0.48,
+    mode: 'ambient',
+    evidence: ['combined genre, artist, and song field'],
+    explanation: 'The orb stays balanced in universal mode, holding the whole map at once instead of leaning into one dimension.',
+  })
 }
 
 export function blendOrbProfile(baseProfile, resonance) {

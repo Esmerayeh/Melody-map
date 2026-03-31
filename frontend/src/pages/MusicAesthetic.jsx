@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
 import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion'
+import { Link } from 'react-router-dom'
 import {
   Sparkles, RefreshCw, Download, Share2, ExternalLink,
   Palette, Wand2, User, ChevronDown, ZoomIn,
@@ -210,7 +211,7 @@ function CosmicMoodboard({ images, palette }) {
       <div>
         <p className="text-xs text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block" />
-          Core Aesthetic
+          inner atmosphere
         </p>
         <div className="grid grid-cols-3 gap-4">
           {center.map((img, i) => (
@@ -232,7 +233,7 @@ function CosmicMoodboard({ images, palette }) {
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
             <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" />
-            Outer Orbit
+            outer drift
           </p>
           <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">
             {orbit.map((img, i) => (
@@ -260,7 +261,7 @@ function CosmicMoodboard({ images, palette }) {
             className="flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/25 text-indigo-300 text-sm font-medium transition-all"
           >
             <ChevronDown className="w-4 h-4" />
-            Show all {images.length} images
+            Bring in all {images.length} frames
           </motion.button>
         </div>
       )}
@@ -285,7 +286,7 @@ function ColorPalette({ palette }) {
     const a     = document.createElement('a')
     a.href = url; a.download = 'melody-map-palette.txt'; a.click()
     URL.revokeObjectURL(url)
-    toast.success('Palette downloaded')
+    toast.success('Palette held close')
   }
 
   return (
@@ -307,7 +308,7 @@ function ColorPalette({ palette }) {
               style={{ backgroundColor: color, boxShadow: `0 0 24px ${color}66, 0 0 8px ${color}44` }}
             />
             <span className="text-xs text-gray-500 font-mono group-hover:text-white transition-colors">
-              {copied === color ? '✓ copied' : color}
+              {copied === color ? 'held close' : color}
             </span>
           </motion.button>
         ))}
@@ -316,7 +317,7 @@ function ColorPalette({ palette }) {
         onClick={downloadPalette}
         className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors mt-1"
       >
-        <Download className="w-3.5 h-3.5" /> Download palette
+        <Download className="w-3.5 h-3.5" /> Keep this palette
       </button>
     </div>
   )
@@ -357,9 +358,9 @@ function PersonalityCard({ personality }) {
     >
       <div className="flex items-center gap-2 mb-3">
         <User className="w-4 h-4 text-purple-400" />
-        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Music Personality</span>
+        <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Sonic identity</span>
       </div>
-      <p className="text-xs text-purple-400 font-medium uppercase tracking-widest mb-1">You are a</p>
+      <p className="text-xs text-purple-400 font-medium uppercase tracking-widest mb-1">what gathers here</p>
       <h3 className="text-2xl font-bold text-white mb-2">{personality.name}</h3>
       <p className="text-gray-300 text-sm leading-relaxed">{personality.description}</p>
       {personality.traits?.length > 0 && (
@@ -386,9 +387,9 @@ function EmptyState({ onGenerate, loading }) {
       >
         <Wand2 className="w-10 h-10 text-indigo-400" />
       </motion.div>
-      <h2 className="text-2xl font-bold text-white mb-2">Discover Your Music Aesthetic</h2>
+      <h2 className="text-2xl font-bold text-white mb-2">Find the atmosphere you live in</h2>
       <p className="text-gray-400 max-w-md mb-8 text-sm leading-relaxed">
-        Connect Spotify or Last.fm, then generate your personal visual vibe board — a cosmic gallery built from your music taste.
+        Connect Spotify or Last.fm, then let the visual weather of your listening come into focus.
       </p>
       <motion.button
         onClick={onGenerate}
@@ -398,8 +399,8 @@ function EmptyState({ onGenerate, loading }) {
         className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-lg shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading
-          ? <><RefreshCw className="w-5 h-5 animate-spin" /> Generating...</>
-          : <><Sparkles className="w-5 h-5" /> Generate My Aesthetic</>
+          ? <><RefreshCw className="w-5 h-5 animate-spin" /> shaping the atmosphere...</>
+          : <><Sparkles className="w-5 h-5" /> Reveal the atmosphere</>
         }
       </motion.button>
     </div>
@@ -541,7 +542,7 @@ export default function MusicAesthetic() {
         setAestheticState({ palette: res.data.palette, name: res.data.aesthetic_name })
       }
     } catch {
-      toast.error('Failed to generate aesthetic. Try again.')
+      toast.error('something slipped through the static. try again.')
     } finally {
       setLoading(false)
     }
@@ -554,7 +555,7 @@ export default function MusicAesthetic() {
       navigator.share({ title: aesthetic.aesthetic_name, text: aesthetic.vibe_description, url: window.location.href })
     } else {
       navigator.clipboard.writeText(window.location.href)
-      toast.success('Link copied!')
+      toast.success('Link held close')
     }
   }
 
@@ -568,7 +569,7 @@ export default function MusicAesthetic() {
       const res = await pinterestAPI.getAesthetic({ genres, archetypes })
       setPinterestPins(res.data?.pins || [])
     } catch {
-      toast.error('Could not load Pinterest board')
+      toast.error('the reference board drifted out of reach')
       setPinterestPins([])
     } finally {
       setPinterestLoading(false)
@@ -591,10 +592,9 @@ export default function MusicAesthetic() {
         {/* Page header */}
         <div className="flex items-center justify-between mb-8">
           <div>
-            <h1 className="text-3xl font-bold bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
-              Music Aesthetic Board
-            </h1>
-            <p className="text-gray-500 text-sm mt-1">Your music taste, visualized as a cosmic gallery</p>
+            <p className="page-header-kicker mb-2">The Mood Shrine</p>
+            <h1 className="page-header-title text-gradient-aurora">Atmosphere</h1>
+            <p className="page-header-copy mt-3">Your listening, translated into color, texture, and late-night light.</p>
           </div>
           {aesthetic && (
             <div className="flex items-center gap-2">
@@ -605,14 +605,14 @@ export default function MusicAesthetic() {
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-gray-300 transition-all disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Regenerate
+                Shape again
               </motion.button>
               <motion.button
                 onClick={handleShare}
                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-gray-300 transition-all"
               >
-                <Share2 className="w-4 h-4" /> Share
+                <Share2 className="w-4 h-4" /> Share this mood
               </motion.button>
             </div>
           )}
@@ -623,7 +623,7 @@ export default function MusicAesthetic() {
 
         {loading && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-            <VibeEmitter bpm={120} size={72} label="Crafting your aesthetic universe…" />
+            <VibeEmitter bpm={120} size={72} label="shaping your atmosphere..." />
           </div>
         )}
 
@@ -647,7 +647,7 @@ export default function MusicAesthetic() {
                   style={{ backgroundColor: aesthetic.palette[2] || '#7209b7' }}
                 />
                 <p className="text-indigo-400 text-xs font-semibold uppercase tracking-[0.3em] mb-3 relative z-10">
-                  Your Music Aesthetic
+                  your atmosphere
                 </p>
                 <motion.h2
                   initial={{ scale: 0.9, opacity: 0 }}
@@ -680,7 +680,7 @@ export default function MusicAesthetic() {
                 >
                   <div className="flex items-center gap-2 mb-4">
                     <Palette className="w-4 h-4 text-indigo-400" />
-                    <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Color Palette</h3>
+                    <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Color weather</h3>
                   </div>
                   <ColorPalette palette={aesthetic.palette} />
                 </motion.div>
@@ -696,12 +696,39 @@ export default function MusicAesthetic() {
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
                     <Sparkles className="w-4 h-4 text-purple-400" />
-                    <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Aesthetic Tags</h3>
+                    <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Atmosphere markers</h3>
                   </div>
-                  <span className="text-xs text-gray-600">Click any tag to explore on Pinterest</span>
+                  <span className="text-xs text-gray-600">Touch a marker to drift outward</span>
                 </div>
                 <TagPills tags={aesthetic.tags} />
               </motion.div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <Link
+                  to={`/discover${aesthetic.tags?.[0] ? `?q=${encodeURIComponent(aesthetic.tags[0])}` : ''}`}
+                  className="rounded-2xl border border-white/8 bg-white/3 p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
+                >
+                  <p className="section-label mb-2">Drift from here</p>
+                  <p className="text-sm font-semibold text-white">Let this atmosphere pull in new signals</p>
+                  <p className="mt-2 text-xs text-slate-500">Carry its strongest marker into Discover and see what wanders back.</p>
+                </Link>
+                <Link
+                  to={`/galaxy?mode=genre${aesthetic.tags?.[0] ? `&q=${encodeURIComponent(aesthetic.tags[0])}` : ''}`}
+                  className="rounded-2xl border border-white/8 bg-white/3 p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
+                >
+                  <p className="section-label mb-2">See where it lives</p>
+                  <p className="text-sm font-semibold text-white">Open this mood inside the galaxy</p>
+                  <p className="mt-2 text-xs text-slate-500">Move from palette and texture into the regions and voices holding them.</p>
+                </Link>
+                <Link
+                  to={`/auralith?mode=concept&prompt=${encodeURIComponent(aesthetic?.vibe_description || aesthetic?.aesthetic_name || 'soft-focus memory')}`}
+                  className="rounded-2xl border border-white/8 bg-white/3 p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
+                >
+                  <p className="section-label mb-2">Send it to Auralith</p>
+                  <p className="text-sm font-semibold text-white">Turn this atmosphere into language or sequence</p>
+                  <p className="mt-2 text-xs text-slate-500">Let the mood become a prompt while it still feels close.</p>
+                </Link>
+              </div>
 
               {/* ── Cosmic moodboard ── */}
               <motion.div
@@ -719,7 +746,7 @@ export default function MusicAesthetic() {
                     <div className="flex items-center justify-between gap-3 mb-4">
                       <div className="flex items-center gap-2">
                         <Sparkles className="w-4 h-4 text-indigo-400" />
-                        <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Why This Fits</h3>
+                        <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Why it feels true</h3>
                       </div>
                       <span
                         className="text-[11px] px-2.5 py-1 rounded-full border uppercase tracking-[0.15em]"
@@ -728,7 +755,7 @@ export default function MusicAesthetic() {
                           return { color: tone.text, background: tone.bg, borderColor: tone.border }
                         })()}
                       >
-                        {aesthetic?.confidence?.label || 'insufficient'}
+                        {aesthetic?.confidence?.label || 'soft signal'}
                       </span>
                     </div>
                     <p className="text-sm text-gray-300 leading-relaxed mb-4">{aesthetic.explanation}</p>
@@ -745,23 +772,23 @@ export default function MusicAesthetic() {
                   >
                     <div className="flex items-center gap-2 mb-4">
                       <Sparkles className="w-4 h-4 text-purple-400" />
-                      <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Evidence</h3>
+                      <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">What shaped it</h3>
                     </div>
                     <div className="space-y-3 text-sm text-gray-300">
                       {aesthetic.supportingSignals?.genreEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Genres:</span> {aesthetic.supportingSignals.genreEvidence.join(', ')}</p>
+                        <p><span className="text-gray-500">Atmospheres:</span> {aesthetic.supportingSignals.genreEvidence.join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.artistEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Artists:</span> {aesthetic.supportingSignals.artistEvidence.join(', ')}</p>
+                        <p><span className="text-gray-500">Voices:</span> {aesthetic.supportingSignals.artistEvidence.join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.audioEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Audio:</span> {aesthetic.supportingSignals.audioEvidence.join(' · ')}</p>
+                        <p><span className="text-gray-500">Signal:</span> {aesthetic.supportingSignals.audioEvidence.join(' · ')}</p>
                       )}
                       {aesthetic.eraInfluence?.dominant?.length > 0 && (
-                        <p><span className="text-gray-500">Era:</span> {aesthetic.eraInfluence.dominant.map((item) => item.era).join(', ')}</p>
+                        <p><span className="text-gray-500">Era pull:</span> {aesthetic.eraInfluence.dominant.map((item) => item.era).join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.discoveryEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Discovery:</span> {aesthetic.supportingSignals.discoveryEvidence.join(', ')}</p>
+                        <p><span className="text-gray-500">Discovery drift:</span> {aesthetic.supportingSignals.discoveryEvidence.join(', ')}</p>
                       )}
                     </div>
                   </motion.div>
@@ -769,7 +796,7 @@ export default function MusicAesthetic() {
 
                 {/* Tab switcher */}
                 <div className="flex items-center gap-1 mb-6 p-1 rounded-xl bg-white/4 border border-white/8 w-fit">
-                  {[{ id: 'board', label: 'Visual Moodboard' }, { id: 'pinterest', label: 'Pinterest Board' }].map((tab) => (
+                  {[{ id: 'board', label: 'Visual field' }, { id: 'pinterest', label: 'Reference drift' }].map((tab) => (
                     <button key={tab.id} onClick={() => handleTabChange(tab.id)}
                       className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
                       style={{
@@ -784,7 +811,7 @@ export default function MusicAesthetic() {
 
                 {activeTab === 'board' && (
                   <>
-                    <p className="text-xs text-gray-600 mb-4">{aesthetic.images?.length || 0} images · move mouse for parallax</p>
+                    <p className="text-xs text-gray-600 mb-4">{aesthetic.images?.length || 0} frames · move gently for parallax</p>
                     <CosmicMoodboard images={aesthetic.images || []} palette={aesthetic.palette} />
                   </>
                 )}
@@ -793,11 +820,11 @@ export default function MusicAesthetic() {
                   <div>
                     {pinterestLoading && (
                       <div className="flex items-center justify-center py-16">
-                        <VibeEmitter bpm={120} size={56} label="Fetching Pinterest pins…" />
+                        <VibeEmitter bpm={120} size={56} label="pulling in distant references..." />
                       </div>
                     )}
                     {!pinterestLoading && pinterestPins?.length === 0 && (
-                      <p className="text-gray-500 text-sm text-center py-12">No pins found. Try regenerating your aesthetic.</p>
+                      <p className="text-gray-500 text-sm text-center py-12">nothing surfaced there yet — try shaping the atmosphere again.</p>
                     )}
                     {!pinterestLoading && pinterestPins?.length > 0 && (
                       <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">

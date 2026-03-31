@@ -73,10 +73,10 @@ export default function MusicIdentityPanel({ profile }) {
   if (!mbti && !personality?.length) {
     return (
       <div className="rounded-2xl border border-white/8 bg-white/2 p-6 text-center">
-        <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Music Identity</p>
-        <p className="text-sm text-gray-600">Identity is unavailable until we have enough genre or audio signal to support it honestly.</p>
+        <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Inner music self</p>
+        <p className="text-sm text-gray-600">the signal is still too thin for a full inner reading.</p>
         <p className="text-xs text-gray-500 mt-2">
-          Genres: {dataQuality?.genresCount || 0} • Audio coverage: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%
+          atmospheres: {dataQuality?.genresCount || 0} · deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%
         </p>
       </div>
     )
@@ -112,19 +112,19 @@ export default function MusicIdentityPanel({ profile }) {
             >
               <Sparkles className="w-3.5 h-3.5" style={{ color: topTrait.color }} />
             </div>
-            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Music Personality</p>
+            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Sonic identity</p>
           </div>
 
           {personality?.length ? (
             <>
               <div className="flex flex-wrap gap-2 mb-3 text-[11px] text-gray-500">
-                <span>Confidence: {confidence?.labels?.identity || 'unavailable'}</span>
+                <span>clarity: {confidence?.labels?.identity || 'soft signal'}</span>
                 <span>•</span>
-                <span>Genres: {dataQuality?.genresCount || 0}</span>
+                <span>atmospheres: {dataQuality?.genresCount || 0}</span>
                 <span>•</span>
                 <span>Audio tracks: {dataQuality?.audioFeaturesCount || 0}</span>
               </div>
-              <p className="text-xs text-gray-500 mb-1">You are:</p>
+              <p className="text-xs text-gray-500 mb-1">what returns most often:</p>
               <div className="space-y-3 mb-4">
                 {personality.map((trait, i) => (
                   <TraitBar
@@ -148,7 +148,7 @@ export default function MusicIdentityPanel({ profile }) {
             </>
           ) : (
             <p className="text-xs text-gray-500 leading-relaxed">
-              We need a little more listening variety before your personality traits become reliable.
+              a little more listening variety will help the pattern settle into focus.
             </p>
           )}
         </div>
@@ -161,7 +161,7 @@ export default function MusicIdentityPanel({ profile }) {
             >
               <Brain className="w-3.5 h-3.5 text-purple-400" />
             </div>
-            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Music Identity</p>
+            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Inner music self</p>
           </div>
 
           {mbti ? (
@@ -195,10 +195,10 @@ export default function MusicIdentityPanel({ profile }) {
             </>
           ) : (
             <div className="rounded-xl border border-white/8 bg-white/3 p-4">
-              <p className="text-sm text-gray-300 mb-2">MBTI-style identity needs stronger signal coverage.</p>
+              <p className="text-sm text-gray-300 mb-2">the four-letter reading needs a steadier signal first.</p>
               <p className="text-xs text-gray-500 leading-relaxed">
-                Audio coverage: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%.
-                We can still show your personality traits, but the four-letter type stays hidden until the profile is more complete.
+                Deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%.
+                We can still show the softer contours, but the full type stays quiet until the profile is more complete.
               </p>
               {mbtiMeta?.missingInputs?.length > 0 && (
                 <p className="text-[11px] text-gray-600 mt-2">

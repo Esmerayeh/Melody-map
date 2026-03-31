@@ -7,7 +7,7 @@ import {
 } from 'recharts'
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
-import MusicSoulOrb from '../components/MusicSoulOrb'
+import DeferredSoulOrb from '../components/DeferredSoulOrb'
 
 const normalizeUnit = (value) => {
   if (value == null || Number.isNaN(Number(value))) return null
@@ -17,13 +17,13 @@ const pct = (value) => {
   const normalized = normalizeUnit(value)
   return normalized == null ? null : Math.round(normalized * 100)
 }
-const fmt = (v) => (v != null ? Number(v).toFixed(0) : 'N/A')
+const fmt = (v) => (v != null ? Number(v).toFixed(0) : 'soft signal')
 const GENRE_COLORS = ['#a78bfa','#f472b6','#34d399','#60a5fa','#fbbf24','#fb923c','#e879f9','#2dd4bf']
 const STAT_CARDS = [
-  { key: 'energy',       label: 'Energy',       icon: Zap,      color: '#f472b6', desc: 'Intensity & activity' },
-  { key: 'valence',      label: 'Positivity',   icon: Heart,    color: '#a78bfa', desc: 'Musical happiness' },
-  { key: 'danceability', label: 'Danceability', icon: Activity, color: '#34d399', desc: 'Rhythm & groove' },
-  { key: 'acousticness', label: 'Acousticness', icon: Music2,   color: '#60a5fa', desc: 'Acoustic vs electronic' },
+  { key: 'energy',       label: 'Intensity',       icon: Zap,      color: '#f472b6', desc: 'heat and forward pull' },
+  { key: 'valence',      label: 'Light',   icon: Heart,    color: '#a78bfa', desc: 'brightness inside the feeling' },
+  { key: 'danceability', label: 'Movement', icon: Activity, color: '#34d399', desc: 'how much the body wants in' },
+  { key: 'acousticness', label: 'Texture', icon: Music2,   color: '#60a5fa', desc: 'wood, wire, or circuitry' },
 ]
 
 function StatCard({ label, icon: Icon, color, value, desc, delay }) {
@@ -31,14 +31,14 @@ function StatCard({ label, icon: Icon, color, value, desc, delay }) {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay, type: 'spring', stiffness: 260, damping: 28 }}
-      className="rounded-2xl p-5 border relative overflow-hidden"
+      className="noire-info-card rounded-2xl p-5 border relative overflow-hidden"
       style={{ background: `${color}0d`, borderColor: `${color}25` }}>
       <div className="absolute top-0 right-0 w-24 h-24 rounded-full blur-2xl pointer-events-none" style={{ background: `${color}18` }} />
       <div className="flex items-center justify-between mb-3 relative z-10">
         <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${color}20`, border: `1px solid ${color}30` }}>
           <Icon className="w-4 h-4" style={{ color }} />
         </div>
-        <span className="text-2xl font-black" style={{ color }}>{isAvailable ? `${value}%` : 'N/A'}</span>
+        <span className="text-2xl font-black" style={{ color }}>{isAvailable ? `${value}%` : 'soft signal'}</span>
       </div>
       <p className="text-sm font-semibold text-white relative z-10">{label}</p>
       <p className="text-xs text-gray-500 mt-0.5 relative z-10">{desc}</p>
@@ -66,7 +66,7 @@ function AudioRadar({ af }) {
   ]
   const available = data.filter((item) => item.value != null)
   if (available.length < 3) {
-    return <p className="text-sm text-gray-500 px-2 py-8">Insufficient audio feature coverage for a reliable radar.</p>
+    return <p className="text-sm text-gray-500 px-2 py-8">the pattern is still forming — not enough deep signal for a full shape yet.</p>
   }
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -80,7 +80,7 @@ function AudioRadar({ af }) {
 }
 
 function GenrePills({ genres }) {
-  if (!genres?.length) return <p className="text-gray-500 text-sm">No genre data</p>
+  if (!genres?.length) return <p className="text-gray-500 text-sm">the atmosphere is still coming into focus</p>
   const items = genres.slice(0, 16).map((g) => (typeof g === 'string' ? g : g.genre))
   return (
     <div className="flex flex-wrap gap-2">
@@ -107,11 +107,11 @@ function TempoBar({ tempo }) {
     return (
       <div>
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm text-gray-400">Average Tempo</span>
-          <span className="text-lg font-black text-gray-500">Unavailable</span>
+          <span className="text-sm text-gray-400">Average tempo</span>
+          <span className="text-lg font-black text-gray-500">soft signal</span>
         </div>
         <div className="relative h-3 rounded-full overflow-hidden bg-white/5" />
-        <p className="text-xs text-gray-500 mt-2">Not enough analyzable Spotify tracks to compute tempo yet.</p>
+        <p className="text-xs text-gray-500 mt-2">there is not enough track-level signal yet to hear the pace clearly.</p>
       </div>
     )
   }
@@ -141,7 +141,7 @@ function TempoBar({ tempo }) {
 
 function ArtistFrequency({ topArtists }) {
   const data = (topArtists || []).slice(0, 8).map((a) => ({ name: (a.name || '').slice(0, 14), popularity: a.popularity || 0 }))
-  if (!data.length) return <p className="text-gray-500 text-sm">No artist data</p>
+  if (!data.length) return <p className="text-gray-500 text-sm">no strong artist pull yet</p>
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} layout="vertical" margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
@@ -159,7 +159,7 @@ function ArtistFrequency({ topArtists }) {
 
 function DiversityPie({ genres }) {
   const top = (genres || []).slice(0, 6)
-  if (!top.length) return <p className="text-gray-500 text-sm">No data</p>
+  if (!top.length) return <p className="text-gray-500 text-sm">not enough signal yet</p>
   const weightedTotal = top.reduce((sum, genre) => sum + (typeof genre === 'string' ? 1 : Number(genre.count) || 0), 0) || top.length
   const data = top.map((g, i) => {
     const name = typeof g === 'string' ? g : g.genre
@@ -193,30 +193,34 @@ export default function Analytics() {
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <Loader2 className="w-8 h-8 text-brand-purple animate-spin" />
+      <div className="flex flex-col items-center gap-3 text-sm text-gray-400">
+        <Loader2 className="w-8 h-8 text-brand-purple animate-spin" />
+        <p>tuning into your signal...</p>
+      </div>
     </div>
   )
 
   if (!profile) return (
     <div className="p-6 max-w-7xl mx-auto">
-      <p className="text-gray-400 text-sm">Connect a music source to see your analytics.</p>
+      <p className="text-gray-400 text-sm">Connect a music source and the deeper read will appear.</p>
     </div>
   )
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-8">
+    <div className="cosmic-page space-y-8">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-2xl font-black text-white">Analytics</h1>
-        <p className="text-slate-400 text-sm mt-1">A deep look at your listening patterns and sonic identity.</p>
+        <p className="page-header-kicker mb-2">Deep Read</p>
+        <h1 className="page-header-title">Signal Reading</h1>
+        <p className="page-header-copy mt-3">A quieter look at movement, light, texture, and the shape your listening takes.</p>
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
-          <span>Top artists: {dataQuality?.topArtistsCount || 0}/50</span>
-          <span>Top tracks: {dataQuality?.topTracksCount || 0}/50</span>
-          <span>Audio coverage: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%</span>
-          <span>Analytics confidence: {confidence?.labels?.analytics || 'unavailable'}</span>
+          <span>voices in view: {dataQuality?.topArtistsCount || 0}/50</span>
+          <span>songs in view: {dataQuality?.topTracksCount || 0}/50</span>
+          <span>deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%</span>
+          <span>signal reading: {confidence?.labels?.analytics || 'soft signal'}</span>
         </div>
         {!canComputeAnalytics && (
           <p className="mt-2 text-xs text-amber-300/80">
-            This profile is rendering in a partial state. Missing Spotify audio features are shown as unavailable, not zero.
+            this is a partial reading. when the deeper Spotify signal is missing, the page stays quiet instead of pretending.
           </p>
         )}
       </motion.div>
@@ -227,20 +231,20 @@ export default function Analytics() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="rounded-2xl border border-white/8 bg-white/2 p-5">
+          className="noire-info-card p-5 rounded-[28px]">
           <div className="flex items-center gap-2 mb-4">
             <BarChart2 className="w-4 h-4 text-purple-400" />
-            <p className="text-sm font-semibold text-white">Audio Feature Radar</p>
+            <p className="text-sm font-semibold text-white">Sonic shape</p>
           </div>
           <AudioRadar af={af} />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-          className="rounded-2xl border border-white/8 bg-white/2 p-5 flex flex-col items-center justify-center">
+          className="noire-orb-panel p-5 rounded-[32px] flex flex-col items-center justify-center">
           <div className="flex items-center gap-2 mb-4 self-start">
             <Disc3 className="w-4 h-4 text-pink-400" />
-            <p className="text-sm font-semibold text-white">Soul Orb</p>
+            <p className="text-sm font-semibold text-white">The listening entity</p>
           </div>
-          <MusicSoulOrb
+          <DeferredSoulOrb
             personality={profile?.personality}
             personalityMeta={profile?.personalityMeta}
             mbti={profile?.mbti}
@@ -258,35 +262,35 @@ export default function Analytics() {
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
-          className="rounded-2xl border border-white/8 bg-white/2 p-5">
+          className="noire-info-card p-5 rounded-[28px]">
           <div className="flex items-center gap-2 mb-4">
             <Activity className="w-4 h-4 text-green-400" />
-            <p className="text-sm font-semibold text-white">Tempo Profile</p>
+            <p className="text-sm font-semibold text-white">Pulse and pace</p>
           </div>
           <TempoBar tempo={af.tempo} />
         </motion.div>
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
-          className="rounded-2xl border border-white/8 bg-white/2 p-5">
+          className="noire-info-card p-5 rounded-[28px]">
           <div className="flex items-center gap-2 mb-4">
             <Music2 className="w-4 h-4 text-blue-400" />
-            <p className="text-sm font-semibold text-white">Genre Diversity</p>
+            <p className="text-sm font-semibold text-white">Atmospheric spread</p>
           </div>
           <DiversityPie genres={profile.genres} />
         </motion.div>
       </div>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
-        className="rounded-2xl border border-white/8 bg-white/2 p-5">
+        className="noire-info-card p-5 rounded-[28px]">
         <div className="flex items-center gap-2 mb-4">
           <Mic2 className="w-4 h-4 text-amber-400" />
-          <p className="text-sm font-semibold text-white">Top Artists by Popularity</p>
+          <p className="text-sm font-semibold text-white">The loudest pull</p>
         </div>
         <ArtistFrequency topArtists={profile.topArtists} />
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
-        className="rounded-2xl border border-white/8 bg-white/2 p-5">
+        className="noire-info-card p-5 rounded-[28px]">
         <div className="flex items-center gap-2 mb-4">
           <Zap className="w-4 h-4 text-fuchsia-400" />
-          <p className="text-sm font-semibold text-white">Your Genres</p>
+          <p className="text-sm font-semibold text-white">The atmospheres you return to</p>
         </div>
         <GenrePills genres={profile.genres} />
       </motion.div>

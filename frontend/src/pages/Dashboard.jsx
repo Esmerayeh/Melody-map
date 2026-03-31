@@ -6,11 +6,18 @@ import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicSourceCard from '../components/MusicSourceCard'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
-import MusicSoulOrb from '../components/MusicSoulOrb'
+import DeferredSoulOrb from '../components/DeferredSoulOrb'
 import HeroScene from '../components/HeroScene'
 import { getVibeName, extractPastelPalette } from '../services/vibeTheme'
 import VibeEmitter from '../components/VibeEmitter'
 import IdentityReveal from '../components/IdentityReveal'
+import { MOTION_FLOAT, MOTION_TOKENS } from '../features/motion/motionTokens'
+
+const cleanCopy = (value = '') => value
+  .replace(/â€”/g, '—')
+  .replace(/â€¢/g, '•')
+  .replace(/Â·/g, '·')
+  .replace(/â†—/g, '↗')
 
 // ── Animated SVG Radar ─────────────────────────────────────────────────────────
 function AudioRadar({ features }) {
@@ -70,8 +77,8 @@ function TiltCard({ children, className = '' }) {
   const ref = useRef(null)
   const x = useMotionValue(0)
   const y = useMotionValue(0)
-  const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [6, -6]), { stiffness: 300, damping: 30 })
-  const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-6, 6]), { stiffness: 300, damping: 30 })
+  const rotateX = useSpring(useTransform(y, [-0.5, 0.5], [MOTION_FLOAT.hero.tilt, -MOTION_FLOAT.hero.tilt]), { stiffness: 140, damping: 24, mass: 0.8 })
+  const rotateY = useSpring(useTransform(x, [-0.5, 0.5], [-MOTION_FLOAT.hero.tilt, MOTION_FLOAT.hero.tilt]), { stiffness: 140, damping: 24, mass: 0.8 })
 
   const handleMouse = (e) => {
     const rect = ref.current?.getBoundingClientRect()
@@ -82,9 +89,13 @@ function TiltCard({ children, className = '' }) {
   const reset = () => { x.set(0); y.set(0) }
 
   return (
-    <motion.div ref={ref} style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
+    <motion.div
+      ref={ref}
+      style={{ rotateX, rotateY, transformStyle: 'preserve-3d' }}
+      animate={{ y: [0, -MOTION_FLOAT.hero.amplitude * 0.28, 0] }}
+      transition={MOTION_TOKENS.heroFloat}
       onMouseMove={handleMouse} onMouseLeave={reset}
-      className={className}>
+      className={`dimensional-surface ${className}`}>
       {children}
     </motion.div>
   )
@@ -92,14 +103,14 @@ function TiltCard({ children, className = '' }) {
 
 // ── Stat orb ──────────────────────────────────────────────────────────────────
 function StatOrb({ icon: Icon, label, value, color, delay = 0 }) {
+  const displayValue = value === 'â€”' || value === '—' ? 'soft signal' : value
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
-      transition={{ delay, type: 'spring', stiffness: 260, damping: 24 }}
-      whileHover={{ y: -4, scale: 1.02 }}
-      className="relative overflow-hidden rounded-2xl p-5 flex items-center gap-4 cursor-default"
-      style={{ background: 'linear-gradient(135deg, rgba(255,255,255,0.04), rgba(255,255,255,0.01))', border: '0.5px solid rgba(255,255,255,0.08)' }}
+      transition={{ ...MOTION_TOKENS.focusSettle, delay }}
+      whileHover={{ y: -3, scale: 1.015, rotateX: 1.2, rotateY: -1 }}
+      className="dimensional-surface relative overflow-hidden rounded-[24px] p-5 flex items-center gap-4 cursor-default glass-card"
     >
       <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-500"
         style={{ background: `radial-gradient(ellipse at 30% 50%, ${color}15 0%, transparent 70%)` }} />
@@ -108,7 +119,7 @@ function StatOrb({ icon: Icon, label, value, color, delay = 0 }) {
         <Icon className="w-5 h-5" style={{ color }} />
       </div>
       <div className="relative z-10">
-        <p className="text-2xl font-black text-white">{value}</p>
+        <p className="text-2xl font-black text-white">{displayValue}</p>
         <p className="text-xs text-gray-500 mt-0.5">{label}</p>
       </div>
     </motion.div>
@@ -207,7 +218,7 @@ function IdentityCard({ metrics, genres }) {
     <TiltCard className="h-full">
       <motion.div
         initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}
-        className="p-6 rounded-2xl h-full relative overflow-hidden"
+        className="noire-panel p-6 rounded-[28px] h-full relative overflow-hidden"
         style={{ background: `linear-gradient(135deg, ${accentColor}10, rgba(0,0,0,0.3))`, border: `1px solid ${accentColor}25` }}
       >
         <div className="absolute top-0 right-0 w-40 h-40 rounded-full blur-3xl pointer-events-none"
@@ -218,7 +229,7 @@ function IdentityCard({ metrics, genres }) {
           style={{ color: accentColor }}>Your Music Identity</p>
         <h2 className="text-3xl font-black text-white mb-3 relative z-10"
           style={{ textShadow: `0 0 40px ${accentColor}40` }}>{personality}</h2>
-        <p className="text-gray-300 text-sm leading-relaxed mb-5 relative z-10">{description}</p>
+        <p className="text-gray-300 text-sm leading-relaxed mb-5 relative z-10">{cleanCopy(description)}</p>
         <div className="flex flex-wrap gap-2 relative z-10">
           {traits.map((t) => (
             <span key={t} className="text-xs px-3 py-1 rounded-full font-medium"
@@ -233,9 +244,10 @@ function IdentityCard({ metrics, genres }) {
 // ── Feature nav cards ──────────────────────────────────────────────────────────
 const NAV_CARDS = [
   { to: '/galaxy',    icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#8b5cf6' },
-  { to: '/discover',  icon: Radio,    label: 'Sonic Echoes',    desc: 'AI recommendations',        from: '#ec4899', to2: '#f43f5e' },
-  { to: '/soulmate',  icon: Heart,    label: 'Music Soulmate',  desc: 'Find your sonic twin',      from: '#a855f7', to2: '#7c3aed' },
-  { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'Visual moodboard',          from: '#f59e0b', to2: '#ef4444' },
+  { to: '/discover',  icon: Radio,    label: 'Sonic Echoes',    desc: 'signals drifting your way', from: '#ec4899', to2: '#f43f5e' },
+  { to: '/soulmate',  icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#a855f7', to2: '#7c3aed' },
+  { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', from: '#f59e0b', to2: '#ef4444' },
+  { to: '/identity',  icon: Sparkles, label: 'Inner Music Self', desc: 'Follow the full reading',  from: '#38bdf8', to2: '#6366f1' },
 ]
 
 const TIME_RANGES = [
@@ -260,7 +272,7 @@ export default function Dashboard() {
   const tracks   = profile?.topTracks     || []
   const genres   = profile?.genres        || []
   const metrics  = profile?.analyticsMetrics || null
-  const analyticsConfidence = confidence?.labels?.analytics || metrics?.metricConfidence?.energyScore?.label || 'unavailable'
+  const analyticsConfidence = confidence?.labels?.analytics || metrics?.metricConfidence?.energyScore?.label || 'soft signal'
   const identityConfidence = profile?.personalityMeta?.confidence != null
     ? profile.personalityMeta.confidence >= 0.8
       ? 'high'
@@ -268,8 +280,8 @@ export default function Dashboard() {
         ? 'medium'
         : profile.personalityMeta.confidence > 0
           ? 'low'
-          : 'unavailable'
-    : confidence?.labels?.identity || 'unavailable'
+          : 'soft signal'
+    : confidence?.labels?.identity || 'soft signal'
 
   // Extract pastel palette from album art and apply as CSS custom properties
   const [pastelPalette, setPastelPalette] = useState([])
@@ -284,33 +296,32 @@ export default function Dashboard() {
   }, [tracks])
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="cosmic-page">
       {/* Hero greeting */}
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 28 }} className="mb-8">
-        <div className="relative rounded-3xl overflow-hidden mb-2"
-          style={{ background: 'linear-gradient(135deg, rgba(124,111,255,0.08), rgba(236,72,153,0.05))', border: '0.5px solid rgba(255,255,255,0.06)', minHeight: 160 }}>
+        transition={MOTION_TOKENS.focusSettle} className="mb-8">
+        <div className="dimensional-surface relative noire-panel rounded-[32px] overflow-hidden mb-3 min-h-[210px]">
           {/* 3D floating objects */}
           {features.energy != null && (
             <HeroScene energy={features.energy} valence={features.valence ?? 0.5} height={160} />
           )}
           <div className="relative z-10 p-6 flex items-center justify-between gap-4 flex-wrap">
             <div>
-              <p className="text-xs text-gray-600 uppercase tracking-[0.25em] mb-1">Welcome back</p>
-              <h1 className="text-4xl font-black text-white leading-tight">
+              <p className="page-header-kicker mb-2">The Observatory</p>
+              <h1 className="page-header-title">
                 Hey, <span className="text-gradient-aurora">{username}</span>
               </h1>
-              <p className="text-gray-400 text-sm mt-2">
+              <p className="page-header-copy mt-3">
                 {features.energy != null
-                  ? <>Your frequency is tuned to <span className="text-neon-purple font-medium">{getVibeName(features.energy, features.valence)}</span> right now.</>
-                  : "Here's your music universe at a glance."
+                  ? <>Right now you lean toward <span className="text-neon-purple font-medium">{getVibeName(features.energy, features.valence)}</span>.</>
+                  : 'Your music, breathing softly in one place.'
                 }
               </p>
             </div>
             {/* Soul Orb */}
             {features.energy != null && (
               <div className="shrink-0">
-                <MusicSoulOrb
+                <DeferredSoulOrb
                   personality={profile?.personality}
                   personalityMeta={profile?.personalityMeta}
                   mbti={profile?.mbti}
@@ -330,16 +341,20 @@ export default function Dashboard() {
         </div>
         {/* Time range selector */}
         {isConnected && (
-          <div className="flex items-center gap-1 p-1 rounded-xl w-fit"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)' }}>
+          <div className="flex items-center gap-1 p-1 rounded-2xl w-fit noire-panel-soft">
             {TIME_RANGES.map(({ value, label }) => (
-              <button key={value} onClick={() => setTimeRange(value)}
-                className="px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200"
+              <motion.button
+                key={value}
+                onClick={() => setTimeRange(value)}
+                whileHover={{ y: -1, scale: 1.01 }}
+                whileTap={{ scale: 0.985 }}
+                transition={timeRange === value ? MOTION_TOKENS.focusSettle : MOTION_TOKENS.chip}
+                className="dimensional-chip px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200"
                 style={timeRange === value
-                  ? { background: 'rgba(124,111,255,0.2)', color: '#a5b4fc', border: '0.5px solid rgba(124,111,255,0.3)' }
-                  : { color: 'rgba(100,116,139,0.7)' }}>
+                  ? { background: 'rgba(143,117,255,0.2)', color: '#e3dbff', border: '1px solid rgba(143,117,255,0.26)', boxShadow: '0 0 18px rgba(143,117,255,0.12)' }
+                  : { color: 'rgba(196,185,226,0.58)' }}>
                 {label}
-              </button>
+              </motion.button>
             ))}
           </div>
         )}
@@ -347,7 +362,7 @@ export default function Dashboard() {
 
       {!isConnected && (
         <div className="max-w-lg">
-          <p className="text-gray-400 text-sm mb-4">Connect a music source to unlock your full dashboard.</p>
+          <p className="text-gray-400 text-sm mb-4">Connect a music source and the room begins to fill in.</p>
           <MusicSourceCard />
         </div>
       )}
@@ -355,13 +370,13 @@ export default function Dashboard() {
       {isConnected && loading && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center py-20 gap-4">
-          <VibeEmitter bpm={120} size={72} label="Tuning into your frequency…" />
+          <VibeEmitter bpm={120} size={72} label="tuning into your signal..." />
         </motion.div>
       )}
 
       {isConnected && error && (
         <div className="text-center py-12 text-gray-400">
-          <p className="mb-3">Could not load your music profile.</p>
+          <p className="mb-3">something slipped through the static.</p>
           <button onClick={refetch} className="text-sm text-indigo-400 hover:text-indigo-300">Try again</button>
         </div>
       )}
@@ -370,31 +385,31 @@ export default function Dashboard() {
         <div className="space-y-6">
           {profile?.isDegraded && (
             <div className="flex flex-wrap gap-2 text-[11px] text-amber-300/80">
-              <span>Degraded mode</span>
+              <span>partial signal</span>
               <span>•</span>
               <span>
                 {dataQuality?.degradedReasons?.[0] === 'spotify_audio_features_unavailable'
-                  ? 'Spotify audio features are unavailable, so analytics stay hidden instead of guessed.'
-                  : 'Some Spotify analysis inputs are incomplete, so confidence is reduced.'}
+                  ? 'Spotify audio features are unavailable, so the deeper read stays quiet instead of pretending.'
+                  : 'Some listening inputs are still thin, so this reading stays gentle with certainty.'}
               </span>
             </div>
           )}
           <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
-            <span>Based on {dataQuality?.topTracksCount || tracks.length || 0} top tracks</span>
+            <span>{dataQuality?.topTracksCount || tracks.length || 0} tracks in reach</span>
             <span>•</span>
-            <span>{dataQuality?.audioFeaturesCount || 0}/{dataQuality?.audioFeaturesRequested || 0} tracks had audio features</span>
+            <span>{dataQuality?.audioFeaturesCount || 0}/{dataQuality?.audioFeaturesRequested || 0} tracks carried a deep signal</span>
             <span>•</span>
-            <span>Analytics confidence: {analyticsConfidence}</span>
+            <span>signal reading: {analyticsConfidence}</span>
             <span>•</span>
-            <span>Identity confidence: {identityConfidence}</span>
+            <span>inner reading: {identityConfidence}</span>
           </div>
 
           {/* Stat orbs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatOrb icon={Users}      label="Top Artists"  value={artists.length || '—'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
-            <StatOrb icon={Music2}     label="Top Tracks"   value={tracks.length  || '—'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
-            <StatOrb icon={TrendingUp} label="Genres Found" value={genres.length  || '—'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
-            <StatOrb icon={Zap}        label="Energy Avg"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : '—'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
+            <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '—'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
+            <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '—'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
+            <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '—'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
+            <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : 'soft signal'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
           </div>
 
           {/* Identity + radar */}
@@ -405,10 +420,10 @@ export default function Dashboard() {
             {Object.keys(features).length > 0 && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }}
-                transition={{ delay: 0.2, type: 'spring', stiffness: 260, damping: 28 }}
-                className="glass-card p-5 rounded-2xl flex flex-col items-center justify-center"
+                transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.2 }}
+                className="dimensional-surface noire-panel p-5 rounded-[28px] flex flex-col items-center justify-center"
               >
-                <p className="text-xs text-gray-500 uppercase tracking-[0.2em] mb-3">Audio Profile</p>
+                <p className="text-xs text-gray-500 uppercase tracking-[0.2em] mb-3">Sonic shape</p>
                 <AudioRadar features={features} />
               </motion.div>
             )}
@@ -417,12 +432,12 @@ export default function Dashboard() {
           {/* DNA report */}
           {metrics && profile?.canComputeAnalytics && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
-              className="p-6 rounded-2xl relative overflow-hidden"
+              className="noire-panel p-6 rounded-[28px] relative overflow-hidden"
               style={{ background: 'linear-gradient(135deg, rgba(0,209,255,0.04), rgba(224,64,251,0.04))', border: '1px solid rgba(0,209,255,0.1)' }}
             >
               <div className="absolute inset-0 opacity-30"
                 style={{ background: 'radial-gradient(ellipse at 80% 50%, rgba(224,64,251,0.08) 0%, transparent 60%)' }} />
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neon-cyan mb-4 relative z-10">Auditory DNA Report</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neon-cyan mb-4 relative z-10">Signal reading</p>
               <div className="flex flex-wrap gap-2 relative z-10">
                 {[
                   metrics?.energyScore != null ? { label: `${metrics.energyScore}% Energy`, color: '#FBBF24' } : null,
@@ -442,13 +457,13 @@ export default function Dashboard() {
                 ))}
               </div>
               <p className="text-gray-400 text-sm mt-4 relative z-10">
-                Mood: <span className="text-white font-medium capitalize">{metrics.mood || 'insufficient data'}</span>
-                {metrics.sonicBrightness != null && <> · Brightness: <span className="text-white font-medium">{metrics.sonicBrightness}%</span></>}
+                Mood: <span className="text-white font-medium capitalize">{metrics.mood || 'soft signal'}</span>
+                {metrics.sonicBrightness != null && <> / Brightness: <span className="text-white font-medium">{metrics.sonicBrightness}%</span></>}
               </p>
               <p className="text-[11px] text-gray-500 mt-2 relative z-10">
-                {metrics.sampleSizes?.energyScore != null && <>Energy based on {metrics.sampleSizes.energyScore} tracks</>}
-                {metrics.sampleSizes?.sonicBrightness != null && <> · Brightness based on {metrics.sampleSizes.sonicBrightness} tracks</>}
-                {metrics.sampleSizes?.nostalgiaIndex != null && <> · Nostalgia based on {metrics.sampleSizes.nostalgiaIndex} release dates</>}
+                {metrics.sampleSizes?.energyScore != null && <>Intensity drawn from {metrics.sampleSizes.energyScore} tracks</>}
+                {metrics.sampleSizes?.sonicBrightness != null && <> / brightness drawn from {metrics.sampleSizes.sonicBrightness} tracks</>}
+                {metrics.sampleSizes?.nostalgiaIndex != null && <> / nostalgia traced through {metrics.sampleSizes.nostalgiaIndex} release dates</>}
               </p>
             </motion.div>
           )}
@@ -456,34 +471,45 @@ export default function Dashboard() {
           {/* Music Identity panel */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <p className="text-xs text-gray-600 uppercase tracking-[0.2em]">Music Identity</p>
-              {profile?.mbti && profile?.personality?.length > 0 && (
-                <motion.button
-                  onClick={() => setShowReveal(true)}
-                  whileHover={{ scale: 1.04 }}
-                  whileTap={{ scale: 0.96 }}
-                  className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold text-white transition-all"
-                  style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25))', border: '1px solid rgba(99,102,241,0.35)', boxShadow: '0 0 16px rgba(99,102,241,0.15)' }}
+              <p className="text-xs text-gray-600 uppercase tracking-[0.2em]">Inner music self</p>
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/identity"
+                  className="dimensional-chip flex items-center gap-1.5 rounded-xl border px-4 py-1.5 text-xs font-semibold text-white transition-all"
+                  style={{ background: 'rgba(96,165,250,0.12)', borderColor: 'rgba(96,165,250,0.28)', boxShadow: '0 0 16px rgba(96,165,250,0.08)' }}
                 >
-                  <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
-                  Reveal My Music Identity
-                </motion.button>
-              )}
+                  <Sparkles className="w-3.5 h-3.5 text-sky-300" />
+                  Enter the full reading
+                </Link>
+                {profile?.mbti && profile?.personality?.length > 0 && (
+                  <motion.button
+                    onClick={() => setShowReveal(true)}
+                    whileHover={{ scale: 1.02, y: -1 }}
+                    whileTap={{ scale: 0.96 }}
+                    transition={MOTION_TOKENS.chip}
+                    className="dimensional-chip flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold text-white transition-all"
+                    style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25))', border: '1px solid rgba(99,102,241,0.35)', boxShadow: '0 0 16px rgba(99,102,241,0.15)' }}
+                  >
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    Let it flare open
+                  </motion.button>
+                )}
+              </div>
             </div>
             <MusicIdentityPanel profile={profile} />
           </div>
 
           {/* Genre pills */}
-          {genres.length > 0 && (            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              className="glass-card p-5 rounded-2xl">
-              <p className="text-xs text-gray-500 uppercase tracking-[0.2em] mb-3">Top Genres</p>
+            {genres.length > 0 && (            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
+              className="noire-panel p-5 rounded-[28px]">
+              <p className="text-xs text-gray-500 uppercase tracking-[0.2em] mb-3">The atmospheres you return to</p>
               <div className="flex flex-wrap gap-2">
                 {genres.slice(0, 12).map((g, i) => (
                   <motion.span key={g.genre}
                     initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
                     transition={{ delay: i * 0.03 }}
-                    whileHover={{ scale: 1.05, y: -1 }}
-                    className="px-3 py-1.5 rounded-full text-sm cursor-default"
+                    whileHover={{ scale: 1.03, y: -1 }}
+                    className="dimensional-chip px-3 py-1.5 rounded-full text-sm cursor-default"
                     style={{ background: 'rgba(124,111,255,0.1)', color: '#a5b4fc', border: '1px solid rgba(124,111,255,0.2)' }}
                   >{g.genre}</motion.span>
                 ))}
@@ -496,11 +522,11 @@ export default function Dashboard() {
             {artists.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.35, type: 'spring', stiffness: 260, damping: 28 }}
-                className="glass-card p-5 rounded-2xl">
+                className="noire-panel p-5 rounded-[28px]">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-semibold text-gray-200">Top Artists</p>
+                  <p className="text-sm font-semibold text-gray-200">The voices you orbit</p>
                   <Link to="/analytics" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
-                    See all <ChevronRight className="w-3 h-3" />
+                    Drift deeper <ChevronRight className="w-3 h-3" />
                   </Link>
                 </div>
                 <div className="space-y-1">
@@ -512,11 +538,11 @@ export default function Dashboard() {
             {tracks.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.4, type: 'spring', stiffness: 260, damping: 28 }}
-                className="glass-card p-5 rounded-2xl">
+                className="noire-panel p-5 rounded-[28px]">
                 <div className="flex items-center justify-between mb-4">
-                  <p className="text-sm font-semibold text-gray-200">Top Tracks</p>
+                  <p className="text-sm font-semibold text-gray-200">Songs closest to hand</p>
                   <Link to="/discover" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
-                    Discover more <ChevronRight className="w-3 h-3" />
+                    Keep drifting <ChevronRight className="w-3 h-3" />
                   </Link>
                 </div>
                 <div>
@@ -528,13 +554,13 @@ export default function Dashboard() {
 
           {/* Feature nav */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
-            <p className="text-xs text-gray-600 uppercase tracking-[0.2em] mb-3">Explore</p>
+            <p className="text-xs text-gray-600 uppercase tracking-[0.2em] mb-3">Ways in</p>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
               {NAV_CARDS.map(({ to, icon: Icon, label, desc, from, to2 }, i) => (
                 <motion.div key={to} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.5 + i * 0.06 }}>
+                  transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.5 + i * 0.06 }}>
                   <TiltCard>
-                    <Link to={to} className="block p-4 rounded-2xl relative overflow-hidden group"
+                    <Link to={to} className="dimensional-surface block p-4 rounded-[24px] relative overflow-hidden group"
                       style={{ background: `linear-gradient(135deg, ${from}15, ${to2}08)`, border: `1px solid ${from}25` }}>
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                         style={{ background: `linear-gradient(135deg, ${from}20, ${to2}12)` }} />
@@ -543,7 +569,7 @@ export default function Dashboard() {
                         <Icon className="w-4.5 h-4.5" style={{ color: from }} />
                       </div>
                       <p className="font-semibold text-sm text-white relative z-10">{label}</p>
-                      <p className="text-xs text-gray-500 mt-0.5 relative z-10">{desc}</p>
+                      <p className="text-xs text-gray-500 mt-0.5 relative z-10">{cleanCopy(desc)}</p>
                     </Link>
                   </TiltCard>
                 </motion.div>
@@ -555,7 +581,7 @@ export default function Dashboard() {
             <button onClick={refetch} disabled={loading}
               className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors">
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
-              Refresh data
+              Tune again
             </button>
           </div>
         </div>

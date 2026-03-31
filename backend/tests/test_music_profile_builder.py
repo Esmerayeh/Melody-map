@@ -4,6 +4,7 @@ from services.music_profile_builder import (
     _build_analytics,
     _build_aesthetic_tags,
     _build_domain_confidence,
+    _fetch_audio_features,
     _build_metric_metadata,
     _compute_mbti,
     _confidence_from_ratio,
@@ -113,3 +114,37 @@ def test_domain_confidence_uses_audio_coverage_and_catalog_size():
     assert confidence['analytics']['label'] in {'medium', 'high'}
     assert confidence['identity']['score'] > 0.5
     assert confidence['soulmate']['score'] > 0.5
+
+
+def test_fetch_audio_features_falls_back_to_single_track_endpoint(monkeypatch):
+    class FakeResponse:
+        def __init__(self, ok, payload, status_code=200, text=''):
+            self.ok = ok
+            self._payload = payload
+            self.status_code = status_code
+            self.text = text
+
+        def json(self):
+            return self._payload
+
+    calls = []
+
+    def fake_get(url, headers=None, params=None, timeout=10):
+        calls.append((url, params))
+        if url.endswith('/audio-features'):
+            return FakeResponse(True, {'audio_features': [None, None]})
+        if url.endswith('/audio-features/track-1'):
+            return FakeResponse(True, {'id': 'track-1', 'energy': 0.8, 'valence': 0.6, 'danceability': 0.7, 'acousticness': 0.2, 'instrumentalness': 0.0, 'speechiness': 0.05, 'tempo': 123, 'loudness': -6})
+        if url.endswith('/audio-features/track-2'):
+            return FakeResponse(True, {'id': 'track-2', 'energy': 0.5, 'valence': 0.4, 'danceability': 0.6, 'acousticness': 0.3, 'instrumentalness': 0.1, 'speechiness': 0.04, 'tempo': 118, 'loudness': -8})
+        return FakeResponse(False, {}, status_code=404, text='not found')
+
+    monkeypatch.setattr('services.music_profile_builder.req.get', fake_get)
+    monkeypatch.setattr('services.music_profile_builder._get_spotify_service', lambda: None)
+
+    rows, diagnostics = _fetch_audio_features(['track-1', 'track-2'], 'https://api.spotify.com/v1', {'Authorization': 'Bearer token'})
+
+    assert len(rows) == 2
+    assert diagnostics['fallbackUsed'] is True
+    assert diagnostics['source'] == 'spotify_single_user_token'
+    assert any('/audio-features/track-1' in call[0] for call in calls)

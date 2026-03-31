@@ -1,4 +1,13 @@
 import { Compass, GitBranch, Maximize2, Minimize2, Radar, RotateCcw, Search, Sparkles, Waves } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { MOTION_TOKENS } from '../motion/motionTokens'
+
+const GALAXY_MODE_META = {
+  universal: { label: 'Universal' },
+  genre: { label: 'Genre' },
+  artist: { label: 'Artist' },
+  song: { label: 'Song' },
+}
 
 const MODE_META = {
   identity: { label: 'Identity', icon: Sparkles },
@@ -14,6 +23,8 @@ export default function GalaxyControls({
   cinemaMode,
   onToggleCinema,
   onRefresh,
+  galaxyMode,
+  onChangeGalaxyMode,
   viewMode,
   onChangeViewMode,
   showTracks,
@@ -25,82 +36,120 @@ export default function GalaxyControls({
   onSearchChange,
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-end gap-2">
-      {isDemo && <span className="rounded-md border border-amber-500/30 bg-amber-500/20 px-2 py-1 text-xs text-amber-400">Demo</span>}
+    <motion.div
+      layout
+      transition={MOTION_TOKENS.focus}
+      className="flex flex-wrap items-center justify-end gap-2"
+    >
+      {isDemo && <span className="rounded-full border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-xs text-amber-300">Demo</span>}
 
-      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 px-2 py-1.5">
+      <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex items-center gap-2 px-3 py-2">
         <Search className="h-3.5 w-3.5 text-gray-500" />
         <input
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
-          placeholder="Find artist or region"
-          className="w-32 bg-transparent text-xs text-gray-300 outline-none placeholder:text-gray-600"
+          placeholder="Search artists, moods, regions..."
+          className="w-40 bg-transparent text-xs text-gray-200 outline-none placeholder:text-gray-600"
         />
-      </div>
+      </motion.div>
 
-      <button onClick={onRefresh} disabled={loading} className="rounded-xl border border-white/10 bg-white/5 p-2 transition-all hover:bg-white/10" title="Refresh">
-        <RotateCcw className="h-3.5 w-3.5 text-gray-400" />
-      </button>
+      <motion.button whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.985 }} transition={MOTION_TOKENS.hoverIn} onClick={onRefresh} disabled={loading} className="noire-toolbar rounded-2xl p-2 transition-all hover:bg-white/10" title="Refresh">
+        <RotateCcw className="h-3.5 w-3.5 text-gray-300" />
+      </motion.button>
 
-      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
+      <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex items-center gap-1 p-1">
+        {Object.entries(GALAXY_MODE_META).map(([mode, meta]) => {
+          const active = galaxyMode === mode
+          return (
+            <motion.button
+              key={mode}
+              onClick={() => onChangeGalaxyMode(mode)}
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.985 }}
+              transition={MOTION_TOKENS.hoverIn}
+              className={`rounded-xl px-3 py-1.5 text-[11px] font-medium transition-all ${
+                active
+                  ? 'bg-indigo-500/22 text-indigo-50 shadow-[0_0_24px_rgba(129,140,248,0.18)]'
+                  : 'text-gray-400 hover:bg-white/5'
+              }`}
+            >
+              {meta.label}
+            </motion.button>
+          )
+        })}
+      </motion.div>
+
+      <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex items-center gap-1 p-1">
         {Object.entries(MODE_META).map(([mode, meta]) => {
           const Icon = meta.icon
           const active = viewMode === mode
           return (
-            <button
+            <motion.button
               key={mode}
               onClick={() => onChangeViewMode(mode)}
-              className={`flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+              whileHover={{ y: -1 }}
+              whileTap={{ scale: 0.985 }}
+              transition={MOTION_TOKENS.hoverIn}
+              className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                 active
-                  ? 'bg-purple-500/20 text-purple-300'
+                  ? 'bg-purple-500/22 text-purple-100 shadow-[0_0_24px_rgba(168,85,247,0.18)]'
                   : 'text-gray-400 hover:bg-white/5'
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
               {meta.label}
-            </button>
+            </motion.button>
           )
         })}
-      </div>
+      </motion.div>
 
-      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
-        <button
+      <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex items-center gap-1 p-1">
+        <motion.button
           onClick={onToggleTracks}
-          className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
-            showTracks ? 'bg-indigo-500/20 text-indigo-300' : 'text-gray-400 hover:bg-white/5'
+          whileHover={{ y: -1 }}
+          whileTap={{ scale: 0.985 }}
+          transition={MOTION_TOKENS.hoverIn}
+          className={`rounded-xl px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+            showTracks ? 'bg-indigo-500/20 text-indigo-100' : 'text-gray-400 hover:bg-white/5'
           }`}
         >
           Satellites
-        </button>
-        <button
+        </motion.button>
+        <motion.button
           onClick={onToggleMoodRegions}
-          className={`rounded-lg px-2.5 py-1.5 text-[11px] font-medium transition-all ${
-            showMoodRegions ? 'bg-pink-500/20 text-pink-300' : 'text-gray-400 hover:bg-white/5'
+          whileHover={{ y: -1 }}
+          whileTap={{ scale: 0.985 }}
+          transition={MOTION_TOKENS.hoverIn}
+          className={`rounded-xl px-2.5 py-1.5 text-[11px] font-medium transition-all ${
+            showMoodRegions ? 'bg-pink-500/18 text-pink-100' : 'text-gray-400 hover:bg-white/5'
           }`}
         >
           Nebulae
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
-      <div className="flex items-center gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
-        <button onClick={() => onFocusPreset('coreTaste')} className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-gray-300 transition-all hover:bg-white/5">
+      <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex items-center gap-1 p-1">
+        <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.985 }} transition={MOTION_TOKENS.hoverIn} onClick={() => onFocusPreset('coreTaste')} className="rounded-xl px-2.5 py-1.5 text-[11px] font-medium text-gray-200 transition-all hover:bg-white/5">
           Core
-        </button>
-        <button onClick={() => onFocusPreset('bridgeArtists')} className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-gray-300 transition-all hover:bg-white/5">
+        </motion.button>
+        <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.985 }} transition={MOTION_TOKENS.hoverIn} onClick={() => onFocusPreset('bridgeArtists')} className="rounded-xl px-2.5 py-1.5 text-[11px] font-medium text-gray-200 transition-all hover:bg-white/5">
           Bridges
-        </button>
-        <button onClick={() => onFocusPreset('discoveryFrontier')} className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-gray-300 transition-all hover:bg-white/5">
+        </motion.button>
+        <motion.button whileHover={{ y: -1 }} whileTap={{ scale: 0.985 }} transition={MOTION_TOKENS.hoverIn} onClick={() => onFocusPreset('discoveryFrontier')} className="rounded-xl px-2.5 py-1.5 text-[11px] font-medium text-gray-200 transition-all hover:bg-white/5">
           Frontier
-        </button>
-      </div>
+        </motion.button>
+      </motion.div>
 
-      <button
+      <motion.button
+        whileHover={{ y: -1 }}
+        whileTap={{ scale: 0.985 }}
+        transition={MOTION_TOKENS.hoverIn}
         onClick={onToggleCinema}
-        className="flex items-center gap-1.5 rounded-xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs font-medium text-indigo-400 transition-all hover:bg-indigo-500/20"
+        className="flex items-center gap-1.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs font-medium text-indigo-100 transition-all hover:bg-indigo-500/20"
       >
         {cinemaMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         {cinemaMode ? 'Windowed' : 'Cinema'}
-      </button>
-    </div>
+      </motion.button>
+    </motion.div>
   )
 }

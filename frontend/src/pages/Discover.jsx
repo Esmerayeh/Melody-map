@@ -1,5 +1,6 @@
-import { useState, useCallback, useRef } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { Link, useSearchParams } from 'react-router-dom'
 import {
   Search, Heart, Play, Loader2, RefreshCw, Music2,
   Sparkles, ChevronRight, ExternalLink, Wand2, Radio,
@@ -33,11 +34,11 @@ function applyTimeNudge(energy, valence) {
 
 function TabBar({ active, onChange }) {
   const tabs = [
-    { id: 'forYou', label: 'For You', icon: Sparkles },
-    { id: 'browse', label: 'Browse',  icon: Radio },
+    { id: 'forYou', label: 'Found for you', icon: Sparkles },
+    { id: 'browse', label: 'Wander',  icon: Radio },
   ]
   return (
-    <div className="flex gap-1 p-1 bg-white/3 border border-white/8 rounded-xl w-fit mb-8">
+    <div className="flex gap-1 p-1 rounded-2xl w-fit mb-8 noire-panel-soft">
       {tabs.map(({ id, label, icon: Icon }) => (
         <button key={id} onClick={() => onChange(id)}
           className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
@@ -155,7 +156,7 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
         </div>
         {playlist.harmonic_mood_vector?.name && (
           <div className="mb-4 px-3 py-2 rounded-lg bg-white/3 border border-white/6 flex items-center gap-2">
-            <span className="text-xs text-gray-500">Mood Vector:</span>
+          <span className="text-xs text-gray-500">Mood current:</span>
             <span className="text-xs font-medium text-indigo-300">{playlist.harmonic_mood_vector.name}</span>
           </div>
         )}
@@ -165,7 +166,7 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
           ))}
         </div>
         <button onClick={handleExpand} className="flex items-center gap-2 text-sm font-medium transition-all" style={{ color: playlist.color }}>
-          {expanded ? 'Hide tracks' : spotifyConnected ? 'Load tracks' : 'View seeds'}
+          {expanded ? 'Let it fade' : spotifyConnected ? 'Bring in the songs' : 'Follow the seeds'}
           <ChevronRight className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`} />
         </button>
       </div>
@@ -290,7 +291,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
 
   if (!isConnected) return (
     <div className="max-w-lg">
-      <p className="text-gray-400 text-sm mb-4">Connect a music source to generate personalized playlists.</p>
+      <p className="text-gray-400 text-sm mb-4">Connect a music source and something found its way to you.</p>
       <MusicSourceCard />
     </div>
   )
@@ -302,13 +303,13 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
         className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-purple/25 to-pink-500/25 border border-brand-purple/20 flex items-center justify-center mb-6">
         <Wand2 className="w-9 h-9 text-brand-purple" />
       </motion.div>
-      <h2 className="text-xl font-bold text-white mb-2">Generate Your Playlists</h2>
+      <h2 className="text-xl font-bold text-white mb-2">Shape a new sequence</h2>
       <p className="text-gray-400 text-sm max-w-sm mb-8 leading-relaxed">
-        We will analyze your music taste and craft personalized playlists with poetic descriptions and curated tracks.
+        Tell Melody Map the mood you want to live in, and it will shape a sequence around your listening world.
       </p>
       <motion.button onClick={() => generate(0, serendipity)} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
         className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-brand-purple to-pink-500 text-white font-semibold shadow-lg shadow-brand-purple/30">
-        <Sparkles className="w-4 h-4" /> Generate My Playlists
+        <Sparkles className="w-4 h-4" /> Shape the sequence
       </motion.button>
     </div>
   )
@@ -318,7 +319,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
       <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
         className="w-12 h-12 rounded-full border-2 border-brand-purple/30 border-t-brand-purple" />
       <p className="text-gray-400 text-sm animate-pulse">
-        {serendipity ? 'Venturing beyond your comfort zone...' : 'Crafting your playlists...'}
+        {serendipity ? 'drifting past your usual orbit...' : 'shaping a sequence for this mood...'}
       </p>
     </div>
   )
@@ -340,7 +341,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
             Serendipity {serendipity ? 'ON' : 'OFF'}
           </button>
           <button onClick={handleRegenerate} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors">
-            <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+            <RefreshCw className="w-3.5 h-3.5" /> Shape again
           </button>
         </div>
       </div>
@@ -348,7 +349,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           className="mb-5 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
           <Shuffle className="w-3.5 h-3.5 shrink-0" />
-          Serendipity mode — these playlists explore the outer edges of your taste space.
+          Serendipity mode — these sequences drift toward the farther edge of your taste.
         </motion.div>
       )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -398,8 +399,8 @@ function BrowseSkeleton() {
   )
 }
 
-function BrowseTab({ spotifyConnected, lastfmConnected }) {
-  const [query, setQuery] = useState('')
+function BrowseTab({ spotifyConnected, lastfmConnected, initialQuery = '' }) {
+  const [query, setQuery] = useState(initialQuery)
   const [liked, setLiked] = useState(new Set())
   const debouncedQuery    = useDebounce(query, 400)
   const isConnected       = spotifyConnected || lastfmConnected
@@ -426,14 +427,20 @@ function BrowseTab({ spotifyConnected, lastfmConnected }) {
 
   const toggleLike = (item) => setLiked((prev) => {
     const next = new Set(prev)
-    if (next.has(item.id)) { next.delete(item.id); toast('Removed') }
-    else { next.add(item.id); toast.success('Added to likes') }
+    if (next.has(item.id)) { next.delete(item.id); toast('Drift released') }
+    else { next.add(item.id); toast.success('Held close') }
     return next
   })
 
+  useEffect(() => {
+    if (initialQuery && initialQuery !== query) {
+      setQuery(initialQuery)
+    }
+  }, [initialQuery, query])
+
   if (!isConnected) return (
     <div className="max-w-lg">
-      <p className="text-gray-400 text-sm mb-4">Connect a music source to browse your tracks.</p>
+      <p className="text-gray-400 text-sm mb-4">Connect a music source and the shelves begin to glow.</p>
       <MusicSourceCard />
     </div>
   )
@@ -444,14 +451,14 @@ function BrowseTab({ spotifyConnected, lastfmConnected }) {
     <div>
       <div className="relative mb-8 max-w-lg">
         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-        <input type="text" placeholder="Filter tracks and artists..." value={query}
+        <input type="text" placeholder="Search tracks, artists, moods..." value={query}
           onChange={(e) => setQuery(e.target.value)}
           className="w-full pl-10 pr-4 py-2.5 rounded-xl text-sm glass border-white/8 text-white placeholder-slate-500 focus:outline-none focus:border-brand-purple/50 transition-all" />
       </div>
       <div className="space-y-10">
         {filteredTracks.length > 0 && (
           <section>
-            <p className="section-label mb-4">Top Tracks</p>
+            <p className="section-label mb-4">Songs closest to hand</p>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
               {filteredTracks.map((t, i) => <AlbumCard key={t.id || i} item={t} index={i} onLike={toggleLike} liked={liked.has(t.id)} />)}
             </div>
@@ -459,14 +466,14 @@ function BrowseTab({ spotifyConnected, lastfmConnected }) {
         )}
         {filteredArtists.length > 0 && (
           <section>
-            <p className="section-label mb-4">Top Artists</p>
+            <p className="section-label mb-4">The voices you orbit</p>
             <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
               {filteredArtists.map((a, i) => <ArtistCard key={a.id || i} artist={a} index={i} />)}
             </div>
           </section>
         )}
         {filteredTracks.length === 0 && filteredArtists.length === 0 && debouncedQuery && (
-          <div className="text-center py-16 text-slate-500"><p>No results for "{debouncedQuery}"</p></div>
+          <div className="text-center py-16 text-slate-500"><p>nothing surfaced for "{debouncedQuery}" just yet</p></div>
         )}
       </div>
     </div>
@@ -474,19 +481,57 @@ function BrowseTab({ spotifyConnected, lastfmConnected }) {
 }
 
 export default function Discover() {
+  const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('forYou')
   const spotifyConnected = useStore((s) => s.spotifyConnected)
   const lastfmConnected  = useStore((s) => s.lastfmConnected)
+  const seededQuery = searchParams.get('q') || ''
+
+  useEffect(() => {
+    if (seededQuery) {
+      setActiveTab('browse')
+    }
+  }, [seededQuery])
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="cosmic-page">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <h1 className="text-2xl font-black text-white">Discover</h1>
-        <p className="text-slate-400 text-sm mt-1">Personalized playlists and your top music, shaped by your taste.</p>
+        <p className="page-header-kicker mb-2">The Signal Stream</p>
+        <h1 className="page-header-title">Drift</h1>
+        <p className="page-header-copy mt-3">Signals, sequences, and quiet detours shaped by your listening gravity.</p>
       </motion.div>
+      <div className="mb-6 grid gap-4 lg:grid-cols-3">
+        <Link
+          to="/galaxy?mode=song"
+          className="rounded-[24px] p-4 glass-hover"
+          style={{ background: 'rgba(124,111,255,0.08)', border: '1px solid rgba(124,111,255,0.16)' }}
+        >
+          <p className="section-label mb-2">See it in space</p>
+          <p className="text-sm font-semibold text-white">Open these sequences inside the galaxy</p>
+          <p className="mt-1 text-xs text-slate-500">Move from songs and shelves into a denser field of relationships.</p>
+        </Link>
+        <Link
+          to="/auralith?mode=playlist&prompt=shape%20a%20sequence%20from%20what%20just%20drifted%20toward%20me"
+          className="rounded-[24px] p-4 glass-hover"
+          style={{ background: 'rgba(192,132,252,0.08)', border: '1px solid rgba(192,132,252,0.16)' }}
+        >
+          <p className="section-label mb-2">Ask Auralith to continue</p>
+          <p className="text-sm font-semibold text-white">Turn a drift into a sequence</p>
+          <p className="mt-1 text-xs text-slate-500">Carry what surfaced here into a more deliberate listening shape.</p>
+        </Link>
+        <Link
+          to="/identity"
+          className="rounded-[24px] p-4 glass-hover"
+          style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.16)' }}
+        >
+          <p className="section-label mb-2">Inner reading</p>
+          <p className="text-sm font-semibold text-white">See why these signals fit</p>
+          <p className="mt-1 text-xs text-slate-500">Hold your steadier listening self nearby while you wander.</p>
+        </Link>
+      </div>
       <TabBar active={activeTab} onChange={setActiveTab} />
       {activeTab === 'forYou' && <ForYouTab spotifyConnected={spotifyConnected} lastfmConnected={lastfmConnected} />}
-      {activeTab === 'browse' && <BrowseTab spotifyConnected={spotifyConnected} lastfmConnected={lastfmConnected} />}
+      {activeTab === 'browse' && <BrowseTab spotifyConnected={spotifyConnected} lastfmConnected={lastfmConnected} initialQuery={seededQuery} />}
     </div>
   )
 }

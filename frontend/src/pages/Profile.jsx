@@ -40,20 +40,21 @@ export default function Profile() {
     { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'Your visual moodboard',      color: '#FBBF24' },
     { to: '/soulmate',  icon: Heart,    label: 'Soulmates',       desc: 'Find your sonic twin',       color: '#FF5DA2' },
     { to: '/analytics', icon: BarChart3,label: 'Analytics',       desc: 'Deep listening stats',       color: '#34D399' },
+    { to: '/identity',  icon: Brain,    label: 'Music Identity',  desc: 'A steadier inner reading',   color: '#60A5FA' },
   ]
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="cosmic-page max-w-5xl">
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
         transition={{ type: 'spring', stiffness: 260, damping: 28 }} className="mb-8">
-        <p className="text-xs text-gray-600 uppercase tracking-[0.25em] mb-1">Your account</p>
-        <h1 className="text-4xl font-black text-white">Profile</h1>
+        <p className="page-header-kicker mb-2">Your Constellation</p>
+        <h1 className="page-header-title">Profile</h1>
       </motion.div>
 
       {/* Hero card */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05, type: 'spring', stiffness: 260, damping: 28 }}
-        className="rounded-3xl p-8 mb-5 relative overflow-hidden"
+        className="noire-panel rounded-[32px] p-8 mb-5 relative overflow-hidden"
         style={{ background: 'linear-gradient(135deg, rgba(124,111,255,0.1), rgba(255,93,162,0.05), rgba(0,0,0,0.4))', border: '1px solid rgba(124,111,255,0.2)' }}
       >
         {/* Ambient orbs */}
@@ -163,7 +164,7 @@ export default function Profile() {
 
       {/* Music sources */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.1 }} className="glass-card rounded-2xl p-6 mb-5">
+        transition={{ delay: 0.1 }} className="noire-panel rounded-[28px] p-6 mb-5">
         <div className="flex items-center gap-2 mb-4">
           <Music2 className="w-4 h-4 text-indigo-400" />
           <h3 className="font-semibold text-sm text-gray-200">Music Sources</h3>
@@ -173,7 +174,7 @@ export default function Profile() {
 
       {/* Quick links */}
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }} className="glass-card rounded-2xl p-6 mb-5">
+        transition={{ delay: 0.15 }} className="noire-panel rounded-[28px] p-6 mb-5">
         <div className="flex items-center gap-2 mb-4">
           <Shield className="w-4 h-4 text-indigo-400" />
           <h3 className="font-semibold text-sm text-gray-200">Quick Links</h3>

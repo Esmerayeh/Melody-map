@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 import math
 
 import requests as req
+from services.spotify_service import SpotifyService
 
 PROFILE_SCHEMA_VERSION = '2026-03-profile-v2'
 CANONICAL_TOP_LIMIT = 50
@@ -119,6 +120,175 @@ MBTI_TYPES = {
     'ESTP': {'name': 'The Adrenaline Chaser', 'desc': 'Fast, loud, and alive. You need music that matches your pace.'},
     'ESTJ': {'name': 'The Playlist Director', 'desc': 'Organized and purposeful. Every track has its place and time.'},
 }
+
+_spotify_service: SpotifyService | None = None
+
+
+def _get_spotify_service() -> SpotifyService | None:
+    global _spotify_service
+    if _spotify_service is None:
+        try:
+            _spotify_service = SpotifyService()
+        except Exception:
+            _spotify_service = None
+    return _spotify_service if getattr(_spotify_service, 'sp', None) else None
+
+
+def _safe_get_json(url: str, headers: dict, params: dict | None = None) -> tuple[dict, int | None, str | None]:
+    try:
+        response = req.get(url, headers=headers, params=params, timeout=10)
+        status = response.status_code
+        if not response.ok:
+            return {}, status, response.text[:240]
+        return response.json(), status, None
+    except Exception as exc:
+        return {}, None, str(exc)
+
+
+def _normalize_audio_feature_row(feature_row: dict) -> dict | None:
+    if not feature_row:
+        return None
+    return {
+        'id': feature_row.get('id'),
+        'energy': feature_row.get('energy'),
+        'valence': feature_row.get('valence'),
+        'danceability': feature_row.get('danceability'),
+        'acousticness': feature_row.get('acousticness'),
+        'instrumentalness': feature_row.get('instrumentalness'),
+        'speechiness': feature_row.get('speechiness'),
+        'tempo': feature_row.get('tempo'),
+        'loudness': feature_row.get('loudness'),
+    }
+
+
+def _fetch_audio_features(track_ids: list[str], spotify_root: str, headers: dict) -> tuple[list[dict], dict]:
+    diagnostics = {
+        'requested': len(track_ids),
+        'source': None,
+        'batchStatus': None,
+        'batchError': None,
+        'fallbackUsed': False,
+        'fallbackStatus': None,
+        'fallbackError': None,
+    }
+    if not track_ids:
+        diagnostics['source'] = 'none'
+        return [], diagnostics
+
+    batch_data, batch_status, batch_error = _safe_get_json(
+        f'{spotify_root}/audio-features',
+        headers=headers,
+        params={'ids': ','.join(track_ids[:100])},
+    )
+    diagnostics['batchStatus'] = batch_status
+    diagnostics['batchError'] = batch_error
+
+    batch_rows = []
+    for feature_row in (batch_data.get('audio_features') or []):
+        normalized = _normalize_audio_feature_row(feature_row)
+        if normalized:
+            batch_rows.append(normalized)
+
+    if batch_rows:
+        diagnostics['source'] = 'spotify_batch_user_token'
+        return batch_rows, diagnostics
+
+    diagnostics['fallbackUsed'] = True
+    fallback_rows = []
+    fallback_errors = 0
+    for track_id in track_ids[:50]:
+        row_data, row_status, row_error = _safe_get_json(f'{spotify_root}/audio-features/{track_id}', headers=headers)
+        if row_status is not None and diagnostics['fallbackStatus'] is None:
+            diagnostics['fallbackStatus'] = row_status
+        if row_error:
+            fallback_errors += 1
+            diagnostics['fallbackError'] = row_error
+            continue
+        normalized = _normalize_audio_feature_row(row_data)
+        if normalized:
+            fallback_rows.append(normalized)
+
+    if fallback_rows:
+        diagnostics['source'] = 'spotify_single_user_token'
+        if fallback_errors:
+            diagnostics['fallbackError'] = f'partial_single_track_failures:{fallback_errors}'
+        return fallback_rows, diagnostics
+
+    spotify_service = _get_spotify_service()
+    if spotify_service:
+        try:
+            service_rows = spotify_service.get_audio_features_batch(track_ids[:100]) or []
+            normalized_rows = []
+            for row in service_rows:
+                normalized = _normalize_audio_feature_row({
+                    'id': row.get('spotify_id'),
+                    'energy': row.get('energy'),
+                    'valence': row.get('valence'),
+                    'danceability': row.get('danceability'),
+                    'acousticness': row.get('acousticness'),
+                    'instrumentalness': row.get('instrumentalness'),
+                    'speechiness': row.get('speechiness'),
+                    'tempo': row.get('tempo'),
+                    'loudness': row.get('loudness'),
+                })
+                if normalized:
+                    normalized_rows.append(normalized)
+            if normalized_rows:
+                diagnostics['source'] = 'spotify_service_client_credentials'
+                return normalized_rows, diagnostics
+        except Exception as exc:
+            diagnostics['fallbackError'] = str(exc)
+
+    diagnostics['source'] = 'unavailable'
+    return [], diagnostics
+
+
+def _enrich_artist_genres(artists: list[dict], spotify_root: str, headers: dict) -> tuple[list[dict], dict]:
+    diagnostics = {
+        'attempted': 0,
+        'resolved': 0,
+        'source': None,
+        'error': None,
+    }
+    if not artists or any(artist.get('genres') for artist in artists):
+        diagnostics['source'] = 'top_artists_payload'
+        return artists, diagnostics
+
+    enriched = []
+    spotify_service = _get_spotify_service()
+    for artist in artists:
+        artist_id = artist.get('id')
+        if not artist_id:
+            enriched.append(artist)
+            continue
+
+        diagnostics['attempted'] += 1
+        updated = dict(artist)
+        row_data, row_status, row_error = _safe_get_json(f'{spotify_root}/artists/{artist_id}', headers=headers)
+        if row_data:
+            updated['genres'] = row_data.get('genres') or updated.get('genres') or []
+            updated['popularity'] = row_data.get('popularity', updated.get('popularity'))
+            if row_data.get('images') and not updated.get('image'):
+                updated['image'] = row_data['images'][0]['url']
+        elif spotify_service:
+            try:
+                info = spotify_service.get_artist_info(artist_id)
+                if info:
+                    updated['genres'] = info.get('genres') or updated.get('genres') or []
+                    updated['popularity'] = info.get('popularity', updated.get('popularity'))
+                    if info.get('image_url') and not updated.get('image'):
+                        updated['image'] = info['image_url']
+            except Exception as exc:
+                diagnostics['error'] = str(exc)
+        elif row_error:
+            diagnostics['error'] = row_error
+
+        if updated.get('genres'):
+            diagnostics['resolved'] += 1
+        enriched.append(updated)
+
+    diagnostics['source'] = 'artist_endpoint_fallback'
+    return enriched, diagnostics
 
 
 def _avg(items: list[dict], key: str) -> float | None:
@@ -691,6 +861,7 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
 
     top_artists = [_normalize_artist(item) for item in (top_artists_raw.get('items') or []) if item]
     top_tracks = [_normalize_track(item) for item in (top_tracks_raw.get('items') or []) if item]
+    top_artists, genre_enrichment = _enrich_artist_genres(top_artists, spotify_root, headers)
 
     recent_tracks = []
     seen_ids: set[str] = {track['id'] for track in top_tracks if track.get('id')}
@@ -723,32 +894,7 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         })
 
     canonical_track_ids = [track['id'] for track in top_tracks if track.get('id')][:CANONICAL_TOP_LIMIT]
-    audio_features_list: list[dict] = []
-    if canonical_track_ids:
-        try:
-            response = req.get(
-                f'{spotify_root}/audio-features',
-                headers=headers,
-                params={'ids': ','.join(canonical_track_ids)},
-                timeout=10,
-            )
-            if response.ok:
-                for feature_row in (response.json().get('audio_features') or []):
-                    if not feature_row:
-                        continue
-                    audio_features_list.append({
-                        'id': feature_row.get('id'),
-                        'energy': feature_row.get('energy'),
-                        'valence': feature_row.get('valence'),
-                        'danceability': feature_row.get('danceability'),
-                        'acousticness': feature_row.get('acousticness'),
-                        'instrumentalness': feature_row.get('instrumentalness'),
-                        'speechiness': feature_row.get('speechiness'),
-                        'tempo': feature_row.get('tempo'),
-                        'loudness': feature_row.get('loudness'),
-                    })
-        except Exception:
-            pass
+    audio_features_list, audio_feature_diagnostics = _fetch_audio_features(canonical_track_ids, spotify_root, headers)
 
     average_audio_features = {}
     for key in AUDIO_FEATURE_KEYS:
@@ -828,6 +974,8 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'audioFeaturesCount': len(audio_features_list),
         'audioCoverage': audio_coverage,
         'hasAudioProfile': len(audio_features_list) > 0,
+        'audioFeatureDiagnostics': audio_feature_diagnostics,
+        'genreEnrichmentDiagnostics': genre_enrichment,
         'degradedReasons': degraded_reasons,
         'sampleSizes': analytics.get('sampleSizes', {}),
         'featureCoverageByMetric': feature_coverage_by_metric,

@@ -72,7 +72,7 @@ function Bar({ label, value, color, icon: Icon, delay = 0 }) {
         />
       </div>
       <span className="text-xs font-semibold w-8 text-right" style={{ color }}>
-        {isUnavailable ? 'N/A' : `${numericValue}%`}
+        {isUnavailable ? 'soft' : `${numericValue}%`}
       </span>
     </motion.div>
   )
@@ -80,7 +80,7 @@ function Bar({ label, value, color, icon: Icon, delay = 0 }) {
 
 // ── Pill list ──────────────────────────────────────────────────────────────────
 function PillList({ items, color }) {
-  if (!items?.length) return <p className="text-xs text-gray-600">None found</p>
+  if (!items?.length) return <p className="text-xs text-gray-600">still forming</p>
   return (
     <div className="flex flex-wrap gap-1.5">
       {items.map((item) => (
@@ -98,6 +98,11 @@ export default function CompatibilityCard({ result, userAName = 'You', userBName
   if (!result) return null
   const { score, sharedGenres, sharedArtists, breakdown, confidence, note } = result
   const accentColor = score >= 75 ? '#a78bfa' : score >= 50 ? '#60a5fa' : '#f472b6'
+  const refinedTagline =
+    score >= 80 ? 'cosmic twins — your listening nearly moves as one'
+    : score >= 60 ? 'strong overlap — your sonic DNA keeps finding the same light'
+    : score >= 40 ? 'good overlap — there is enough shared pull for real exchange'
+    : 'different orbits — the surprise lives in what you do not share yet'
 
   const tagline =
     score >= 80 ? '🌟 Cosmic twins — your taste is almost identical!'
@@ -109,7 +114,7 @@ export default function CompatibilityCard({ result, userAName = 'You', userBName
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      className="p-6 rounded-2xl relative overflow-hidden"
+      className="noire-info-card p-6 rounded-2xl relative overflow-hidden"
       style={{
         background: `linear-gradient(135deg, ${accentColor}0a, rgba(0,0,0,0.4))`,
         border: `1px solid ${accentColor}25`,
@@ -123,7 +128,7 @@ export default function CompatibilityCard({ result, userAName = 'You', userBName
         <ScoreRing score={score} size={128} />
         <div className="flex-1 w-full">
           <p className="font-black text-white text-lg mb-1">{userAName} &amp; {userBName}</p>
-          <p className="text-gray-400 text-sm mb-4">{tagline}</p>
+          <p className="text-gray-400 text-sm mb-4">{refinedTagline}</p>
           {confidence?.label && (
             <p className="text-[11px] text-gray-500 mb-3 uppercase tracking-[0.18em]">
               Match confidence: {confidence.label}

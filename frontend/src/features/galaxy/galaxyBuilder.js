@@ -1,4 +1,4 @@
-import { describeCluster, describeEdge, describeMoodRegion, describeNode } from './galaxyExplainer'
+import { describeCluster, describeEdge, describeMoodRegion, describeNode } from './galaxyExplainer.js'
 import {
   buildArtistMetrics,
   buildClusterMetrics,
@@ -10,12 +10,17 @@ import {
   similarityScore,
   sonicColor,
   stableHash,
-} from './galaxyScoring'
+} from './galaxyScoring.js'
 
 export const GALAXY_LAYOUT_VERSION = 'canonical-galaxy-v2'
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value ?? 0))
 const slugify = (value = '') => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+const average = (values = []) => {
+  const valid = values.filter((value) => value != null && !Number.isNaN(Number(value)))
+  if (!valid.length) return null
+  return valid.reduce((sum, value) => sum + Number(value), 0) / valid.length
+}
 
 function averagePosition(points = []) {
   if (!points.length) return { x: 0, y: 0, z: 0 }
@@ -304,6 +309,18 @@ function buildClusterBodies(genreNodes = [], artistNodes = []) {
 }
 
 function buildMoodRegions(nodes = []) {
+  const regionTitle = (label) => {
+    const normalized = String(label || '').toLowerCase()
+    if (normalized === 'dreamy') return 'Dream-pop Fog'
+    if (normalized === 'haunted') return 'Mournful Indie River'
+    if (normalized === 'romantic') return 'Indie Folk Meadow'
+    if (normalized === 'electric') return 'Velvet Static Belt'
+    if (normalized === 'euphoric') return 'Luminous Indie Arc'
+    if (normalized === 'nostalgic') return 'Silver Echo Field'
+    if (normalized === 'nocturnal') return 'Nocturne Bloom'
+    return 'Cosmic Drift'
+  }
+
   const moods = new Map()
   nodes
     .filter((node) => node.type === 'artist' || node.type === 'track')
@@ -318,10 +335,20 @@ function buildMoodRegions(nodes = []) {
     .map(([label, members]) => ({
       id: `region:${slugify(label)}`,
       label,
+      title: regionTitle(label),
       color: members[0]?.color || '#7c6fff',
       centroid: averagePosition(members.map((member) => member.position)),
       coverage: Number((members.length / total).toFixed(3)),
       members: members.map((member) => member.id),
+      anchorArtistIds: members
+        .filter((member) => member.type === 'artist')
+        .sort((a, b) => (b.metrics?.anchorScore || 0) - (a.metrics?.anchorScore || 0))
+        .slice(0, 4)
+        .map((member) => member.id),
+      bridgeArtistIds: members
+        .filter((member) => member.type === 'artist' && (member.metrics?.bridgeScore || 0) > 0.45)
+        .slice(0, 3)
+        .map((member) => member.id),
       explanation: `${label} mood field created from ${members.length} nearby bodies.`,
     }))
     .sort((a, b) => b.coverage - a.coverage)
@@ -457,6 +484,17 @@ export function buildGalaxyModel(profile = null) {
   const nodes = [...genreNodes, ...clusterBodies, ...artistNodes, ...trackNodes]
   const edges = buildEdges({ genreNodes, clusterBodies, artistNodes, trackNodes, profileFeatures })
   const moodRegions = buildMoodRegions(nodes)
+  const coreArtists = artistNodes
+    .filter((node) => node.metrics.anchorScore > 0.68)
+    .slice(0, 8)
+  const corePosition = averagePosition(coreArtists.map((node) => node.position))
+  const profileTier = !artistNodes.length
+    ? 'partial'
+    : (profile.dataQuality?.audioCoverage || 0) > 0.55 && genres.length >= 4
+      ? 'rich'
+      : artistNodes.length >= 12
+        ? 'medium'
+        : 'partial'
 
   const clusters = clusterBodies
     .map((clusterNode) => {
@@ -502,6 +540,14 @@ export function buildGalaxyModel(profile = null) {
         edges: edges.length,
         regions: moodRegions.length,
       },
+      profileTier,
+      core: {
+        label: 'Taste Core',
+        position: corePosition,
+        color: coreArtists[0]?.color || '#8b5cf6',
+        supportingArtists: coreArtists.slice(0, 5).map((artist) => artist.id),
+        strength: Number((average(coreArtists.map((artist) => artist.metrics?.anchorScore)) || 0.52).toFixed(3)),
+      },
       focusPresets: {
         coreTaste: artistNodes.filter((node) => node.metrics.anchorScore > 0.72).slice(0, 6).map((node) => node.id),
         bridgeArtists: artistNodes.filter((node) => node.metrics.bridgeScore > 0.48).slice(0, 8).map((node) => node.id),
@@ -509,6 +555,114 @@ export function buildGalaxyModel(profile = null) {
         strangeEdge: trackNodes.filter((node) => node.metrics.discoveryScore > 0.62).slice(0, 10).map((node) => node.id),
       },
       viewModes: ['identity', 'constellation', 'mood', 'discovery', 'genre'],
+    },
+  }
+}
+
+function buildSongSimilarityEdges(nodes = []) {
+  const tracks = nodes.filter((node) => node.type === 'track').slice(0, 28)
+  const edges = []
+  const seen = new Set()
+
+  for (let i = 0; i < tracks.length; i += 1) {
+    for (let j = i + 1; j < tracks.length; j += 1) {
+      const left = tracks[i]
+      const right = tracks[j]
+      const sameArtist = left.parentArtistId && left.parentArtistId === right.parentArtistId
+      const sameRegion = left.regionLabel && left.regionLabel === right.regionLabel
+      const sameCluster = left.clusterId && left.clusterId === right.clusterId
+      if (!sameArtist && !sameRegion && !sameCluster) continue
+      const key = `${left.id}--${right.id}--song`
+      if (seen.has(key)) continue
+      seen.add(key)
+      edges.push({
+        id: key,
+        source: left.id,
+        target: right.id,
+        type: sameArtist ? 'song_artist_affinity' : sameRegion ? 'song_mood_affinity' : 'song_cluster_affinity',
+        weight: sameArtist ? 0.82 : sameRegion ? 0.64 : 0.54,
+        confidence: average([left.confidence, right.confidence]) ?? 0.58,
+        explanation: sameArtist
+          ? `${left.label} and ${right.label} share the same artist gravity.`
+          : sameRegion
+            ? `${left.label} and ${right.label} drift in the same emotional weather.`
+            : `${left.label} and ${right.label} sit in the same listening neighborhood.`,
+      })
+    }
+  }
+
+  return edges.slice(0, 120)
+}
+
+export function buildGalaxyModeModel(model, galaxyMode = 'universal') {
+  if (!model) return null
+
+  const allNodes = model.nodes || []
+  const allEdges = model.edges || []
+  const allRegions = model.regions || []
+  const allClusters = model.clusters || []
+
+  const keepIds = new Set()
+  let nodes = allNodes
+  let edges = allEdges
+  let regions = allRegions
+  let clusters = allClusters
+
+  if (galaxyMode === 'genre') {
+    const genreNodes = allNodes.filter((node) => node.type === 'genre' || node.type === 'cluster')
+    const artistNodes = allNodes
+      .filter((node) => node.type === 'artist')
+      .sort((left, right) => ((right.metrics?.anchorScore || 0) + (right.metrics?.significance || 0)) - ((left.metrics?.anchorScore || 0) + (left.metrics?.significance || 0)))
+      .slice(0, 24)
+    nodes = [...genreNodes, ...artistNodes]
+    nodes.forEach((node) => keepIds.add(node.id))
+    edges = allEdges.filter((edge) => (
+      keepIds.has(edge.source)
+      && keepIds.has(edge.target)
+      && ['artist_genre', 'genre_affinity', 'cluster_membership', 'shared_genre', 'bridge_lane'].includes(edge.type)
+    ))
+    regions = allRegions.filter((region) => (region.coverage || 0) > 0.08).slice(0, 6)
+  } else if (galaxyMode === 'artist') {
+    nodes = allNodes.filter((node) => node.type === 'artist')
+    nodes.forEach((node) => keepIds.add(node.id))
+    edges = allEdges.filter((edge) => (
+      keepIds.has(edge.source)
+      && keepIds.has(edge.target)
+      && ['shared_genre', 'audio_similarity', 'bridge_lane'].includes(edge.type)
+    ))
+    regions = []
+    clusters = allClusters.filter((cluster) => cluster.size > 1)
+  } else if (galaxyMode === 'song') {
+    nodes = allNodes
+      .filter((node) => node.type === 'track')
+      .sort((left, right) => ((right.metrics?.significance || 0) + (right.metrics?.discoveryScore || 0)) - ((left.metrics?.significance || 0) + (left.metrics?.discoveryScore || 0)))
+      .slice(0, 28)
+    nodes.forEach((node) => keepIds.add(node.id))
+    edges = buildSongSimilarityEdges(nodes)
+    regions = []
+    clusters = []
+  } else {
+    nodes = allNodes
+    edges = allEdges
+    regions = allRegions
+    clusters = allClusters
+  }
+
+  return {
+    ...model,
+    nodes,
+    edges,
+    regions,
+    clusters,
+    metadata: {
+      ...model.metadata,
+      galaxyMode,
+      modeDensity: {
+        nodes: nodes.length,
+        edges: edges.length,
+        regions: regions.length,
+        clusters: clusters.length,
+      },
     },
   }
 }
