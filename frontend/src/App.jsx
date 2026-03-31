@@ -47,7 +47,7 @@ function PageWrapper({ children }) {
   return (
     <motion.div
       variants={pageVariants}
-      initial="initial"
+      initial={false}
       animate="enter"
       exit="exit"
       style={{ height: '100%' }}
