@@ -399,7 +399,7 @@ export default function MusicSoulmate() {
   const [inviteComparison, setInviteComparison] = useState(null)
 
   const { profile, loading: profileLoading } = useMusicProfile({ autoFetch: true })
-  const soulmateConfidenceLabel = profile?.confidence?.labels?.soulmate || 'unavailable'
+  const soulmateConfidenceLabel = profile?.confidence?.labels?.soulmate || 'soft signal'
   const comparisonModeLabel = inviteComparison?.mode === 'degraded'
     ? 'partial signal'
     : inviteComparison?.mode === 'local'

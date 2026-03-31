@@ -1,33 +1,29 @@
-/**
- * MusicIdentityPanel
- * Displays Music Personality Report + Music MBTI in a unified card.
- * Reads profile.personality and profile.mbti — both computed once in
- * useMusicProfile's normalizeProfile. No duplicate computation here.
- */
 import { motion } from 'framer-motion'
 import { Brain, Sparkles } from 'lucide-react'
+import { MOTION_TOKENS } from '../features/motion/motionTokens'
 
 function TraitBar({ label, emoji, pct, color, delay = 0 }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -12 }}
       animate={{ opacity: 1, x: 0 }}
-      transition={{ delay, type: 'spring', stiffness: 260, damping: 28 }}
-      className="space-y-1"
+      transition={{ ...MOTION_TOKENS.focusSettle, delay }}
+      className="space-y-1.5"
     >
       <div className="flex items-center justify-between text-xs">
-        <span className="flex items-center gap-1.5 text-gray-300 font-medium">
-          <span>{emoji}</span> {label}
+        <span className="flex items-center gap-1.5 font-medium text-gray-300">
+          <span>{emoji}</span>
+          {label}
         </span>
-        <span className="font-black" style={{ color }}>{pct}%</span>
+        <span className="font-semibold" style={{ color }}>{pct}%</span>
       </div>
-      <div className="h-1.5 rounded-full bg-white/5 overflow-hidden">
+      <div className="h-1.5 overflow-hidden rounded-full bg-white/5">
         <motion.div
           className="h-full rounded-full"
           style={{ background: color, boxShadow: `0 0 8px ${color}80` }}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
-          transition={{ delay: delay + 0.1, duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ delay: delay + 0.08, duration: 0.72, ease: [0.22, 1, 0.36, 1] }}
         />
       </div>
     </motion.div>
@@ -36,26 +32,27 @@ function TraitBar({ label, emoji, pct, color, delay = 0 }) {
 
 function AxisRow({ axis, data, delay = 0 }) {
   const pct = Math.min(100, Math.max(0, data.score))
-  const color = data.flipped ? '#60a5fa' : '#a78bfa'
+  const color = data.flipped ? '#8fc0ff' : '#c09bff'
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 6 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ delay }}
+      transition={{ ...MOTION_TOKENS.panel, delay }}
       className="flex items-center gap-3"
     >
-      <span className="text-xs text-gray-500 w-4 font-mono shrink-0">{axis}</span>
-      <span className="text-xs font-semibold w-20 shrink-0" style={{ color }}>{data.label}</span>
-      <div className="flex-1 h-1 rounded-full bg-white/5 overflow-hidden">
+      <span className="w-4 shrink-0 font-mono text-xs text-gray-500">{axis}</span>
+      <span className="w-20 shrink-0 text-xs font-semibold" style={{ color }}>{data.label}</span>
+      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
         <motion.div
           className="h-full rounded-full"
           style={{ background: color }}
           initial={{ width: 0 }}
           animate={{ width: `${pct}%` }}
-          transition={{ delay: delay + 0.1, duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ delay: delay + 0.08, duration: 0.68, ease: [0.22, 1, 0.36, 1] }}
         />
       </div>
-      <span className="text-xs text-gray-600 w-8 text-right font-mono">{pct}%</span>
+      <span className="w-8 text-right font-mono text-xs text-gray-500">{pct}%</span>
     </motion.div>
   )
 }
@@ -72,11 +69,11 @@ export default function MusicIdentityPanel({ profile }) {
 
   if (!mbti && !personality?.length) {
     return (
-      <div className="rounded-2xl border border-white/8 bg-white/2 p-6 text-center">
-        <p className="text-xs text-gray-500 uppercase tracking-widest mb-1">Inner music self</p>
-        <p className="text-sm text-gray-600">the signal is still too thin for a full inner reading.</p>
-        <p className="text-xs text-gray-500 mt-2">
-          atmospheres: {dataQuality?.genresCount || 0} · deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%
+      <div className="noire-info-card p-6 text-center">
+        <p className="page-header-kicker mb-2">Inner music self</p>
+        <p className="text-sm text-gray-400">The signal is still too thin for a full inner reading.</p>
+        <p className="mt-2 text-xs text-gray-500">
+          atmospheres: {dataQuality?.genresCount || 0} / deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%
         </p>
       </div>
     )
@@ -91,118 +88,105 @@ export default function MusicIdentityPanel({ profile }) {
     <motion.div
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ type: 'spring', stiffness: 240, damping: 28 }}
-      className="rounded-2xl overflow-hidden relative"
-      style={{
-        background: `linear-gradient(135deg, ${topTrait.color}0d, rgba(0,0,0,0.4))`,
-        border: `1px solid ${topTrait.color}25`,
-      }}
+      transition={MOTION_TOKENS.focusSettle}
+      className="noire-orb-panel overflow-hidden"
     >
       <div
-        className="absolute top-0 right-0 w-48 h-48 rounded-full blur-3xl pointer-events-none"
+        className="absolute top-0 right-0 h-48 w-48 rounded-full blur-3xl pointer-events-none"
         style={{ background: `${topTrait.color}12` }}
       />
 
-      <div className="p-5 relative z-10 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div>
-          <div className="flex items-center gap-2 mb-4">
+      <div className="relative z-10 grid grid-cols-1 gap-6 p-5 md:grid-cols-2">
+        <div className="noire-info-card p-5">
+          <div className="mb-4 flex items-center gap-2">
             <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: `${topTrait.color}20`, border: `1px solid ${topTrait.color}30` }}
+              className="flex h-8 w-8 items-center justify-center rounded-xl border"
+              style={{ background: `${topTrait.color}18`, borderColor: `${topTrait.color}28` }}
             >
-              <Sparkles className="w-3.5 h-3.5" style={{ color: topTrait.color }} />
+              <Sparkles className="h-4 w-4" style={{ color: topTrait.color }} />
             </div>
-            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Sonic identity</p>
+            <p className="page-header-kicker">Sonic identity</p>
           </div>
 
           {personality?.length ? (
             <>
-              <div className="flex flex-wrap gap-2 mb-3 text-[11px] text-gray-500">
+              <div className="mb-4 flex flex-wrap gap-2 text-[11px] text-gray-500">
                 <span>clarity: {confidence?.labels?.identity || 'soft signal'}</span>
-                <span>•</span>
+                <span>/</span>
                 <span>atmospheres: {dataQuality?.genresCount || 0}</span>
-                <span>•</span>
-                <span>Audio tracks: {dataQuality?.audioFeaturesCount || 0}</span>
+                <span>/</span>
+                <span>deep signal: {dataQuality?.audioFeaturesCount || 0}</span>
               </div>
-              <p className="text-xs text-gray-500 mb-1">what returns most often:</p>
-              <div className="space-y-3 mb-4">
-                {personality.map((trait, i) => (
+
+              <p className="mb-3 text-xs text-gray-500">what returns most often:</p>
+
+              <div className="space-y-3">
+                {personality.map((trait, index) => (
                   <TraitBar
                     key={trait.id}
                     label={trait.label}
                     emoji={trait.emoji}
                     pct={trait.pct}
                     color={trait.color}
-                    delay={i * 0.08}
+                    delay={index * 0.08}
                   />
                 ))}
               </div>
-              <p className="text-xs text-gray-500 leading-relaxed italic">
-                "{topTrait.description}"
+
+              <p className="mt-4 text-xs italic leading-relaxed text-gray-400">
+                “{topTrait.description}”
               </p>
+
               {personalityMeta?.missingInputs?.length > 0 && (
-                <p className="text-[11px] text-gray-600 mt-3">
-                  Missing inputs: {personalityMeta.missingInputs.slice(0, 3).join(', ')}
+                <p className="mt-3 text-[11px] text-gray-500">
+                  missing inputs: {personalityMeta.missingInputs.slice(0, 3).join(', ')}
                 </p>
               )}
             </>
           ) : (
-            <p className="text-xs text-gray-500 leading-relaxed">
-              a little more listening variety will help the pattern settle into focus.
+            <p className="text-xs leading-relaxed text-gray-500">
+              A little more listening variety will help the pattern settle into focus.
             </p>
           )}
         </div>
 
-        <div>
-          <div className="flex items-center gap-2 mb-4">
-            <div
-              className="w-7 h-7 rounded-lg flex items-center justify-center"
-              style={{ background: 'rgba(167,139,250,0.15)', border: '1px solid rgba(167,139,250,0.25)' }}
-            >
-              <Brain className="w-3.5 h-3.5 text-purple-400" />
+        <div className="noire-info-card p-5">
+          <div className="mb-4 flex items-center gap-2">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5">
+              <Brain className="h-4 w-4 text-purple-300" />
             </div>
-            <p className="text-xs text-gray-500 uppercase tracking-[0.2em]">Inner music self</p>
+            <p className="page-header-kicker">Inner music self</p>
           </div>
 
           {mbti ? (
             <>
               <motion.div
-                initial={{ scale: 0.8, opacity: 0 }}
+                initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
-                transition={{ type: 'spring', stiffness: 300, damping: 24, delay: 0.1 }}
-                className="inline-flex items-center gap-2 mb-3"
+                transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.1 }}
+                className="mb-3 inline-flex items-center gap-2"
               >
-                <span
-                  className="text-3xl font-black tracking-widest"
-                  style={{
-                    background: 'linear-gradient(135deg, #a78bfa, #60a5fa)',
-                    WebkitBackgroundClip: 'text',
-                    WebkitTextFillColor: 'transparent',
-                  }}
-                >
-                  {mbti.type}
-                </span>
-                <span className="text-sm text-gray-400 font-semibold">· {mbti.name}</span>
+                <span className="text-gradient-aurora text-4xl font-semibold tracking-[0.18em]">{mbti.type}</span>
+                <span className="text-sm font-medium text-gray-400">· {mbti.name}</span>
               </motion.div>
 
-              <p className="text-xs text-gray-400 leading-relaxed mb-4">{mbti.desc}</p>
+              <p className="mb-4 text-sm leading-relaxed text-gray-400">{mbti.desc}</p>
 
-              <div className="space-y-2">
-                {Object.entries(mbti.axes).map(([axis, data], i) => (
-                  <AxisRow key={axis} axis={axis[0]} data={data} delay={0.15 + i * 0.06} />
+              <div className="space-y-2.5">
+                {Object.entries(mbti.axes).map(([axis, data], index) => (
+                  <AxisRow key={axis} axis={axis[0]} data={data} delay={0.14 + index * 0.05} />
                 ))}
               </div>
             </>
           ) : (
-            <div className="rounded-xl border border-white/8 bg-white/3 p-4">
-              <p className="text-sm text-gray-300 mb-2">the four-letter reading needs a steadier signal first.</p>
-              <p className="text-xs text-gray-500 leading-relaxed">
-                Deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%.
-                We can still show the softer contours, but the full type stays quiet until the profile is more complete.
+            <div className="noire-panel-soft p-4">
+              <p className="mb-2 text-sm text-gray-300">The four-letter reading needs a steadier signal first.</p>
+              <p className="text-xs leading-relaxed text-gray-500">
+                Deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%. We can trace the softer contours, but the full type stays quiet until the profile is more complete.
               </p>
               {mbtiMeta?.missingInputs?.length > 0 && (
-                <p className="text-[11px] text-gray-600 mt-2">
-                  Missing inputs: {mbtiMeta.missingInputs.slice(0, 4).join(', ')}
+                <p className="mt-2 text-[11px] text-gray-500">
+                  missing inputs: {mbtiMeta.missingInputs.slice(0, 4).join(', ')}
                 </p>
               )}
             </div>
