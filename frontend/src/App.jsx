@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from 'react'
+import React, { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
@@ -30,6 +30,14 @@ const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
 })
 
+function safeStorageGet(key) {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
 // Spatial spring-physics page transitions — suggest depth between layers
 const pageVariants = {
   initial: { opacity: 0, y: 18, scale: 0.98, filter: 'blur(4px)' },
@@ -57,9 +65,102 @@ function PageWrapper({ children }) {
   )
 }
 
+class RouteCrashBoundary extends React.Component {
+  constructor(props) {
+    super(props)
+    this.state = { hasError: false }
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true }
+  }
+
+  componentDidCatch(error) {
+    console.error('Protected route crashed during render', error)
+  }
+
+  componentDidUpdate(prevProps) {
+    if (this.state.hasError && prevProps.resetKey !== this.props.resetKey) {
+      this.setState({ hasError: false })
+    }
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback
+    }
+    return this.props.children
+  }
+}
+
+function ProtectedRouteFallback() {
+  const handleReload = () => {
+    window.location.reload()
+  }
+
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center px-6">
+      <div className="noire-panel max-w-xl rounded-[28px] p-8 text-center">
+        <p className="page-header-kicker mb-2">Booting the signal</p>
+        <h2 className="text-2xl font-semibold text-white">Your orbit is still settling.</h2>
+        <p className="mt-3 text-sm leading-relaxed text-gray-400">
+          Spotify auth succeeded, but one of the post-login surfaces failed to fully settle. Melody Map is holding the shell open instead of dropping you into a blank page.
+        </p>
+        <p className="mt-4 text-xs uppercase tracking-[0.22em] text-gray-500">
+          Try refreshing once if the quieter boot state does not clear.
+        </p>
+        <button
+          type="button"
+          onClick={handleReload}
+          className="mt-5 noire-chip rounded-full px-4 py-2 text-xs font-semibold text-white"
+        >
+          Reload the shell
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function GlobalRouteFallback() {
+  const handleReload = () => {
+    window.location.reload()
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center px-6 app-shell-bg">
+      <div className="noire-panel max-w-lg rounded-[28px] p-8 text-center">
+        <p className="page-header-kicker mb-2">Holding the thread</p>
+        <h1 className="text-2xl font-semibold text-white">Melody Map hit a render fault.</h1>
+        <p className="mt-3 text-sm leading-relaxed text-gray-400">
+          The app caught a runtime crash before it could turn into a blank screen. Your session is still there, and a reload should bring the surface back.
+        </p>
+        <button
+          type="button"
+          onClick={handleReload}
+          className="mt-5 noire-chip rounded-full px-4 py-2 text-xs font-semibold text-white"
+        >
+          Reload Melody Map
+        </button>
+      </div>
+    </div>
+  )
+}
+
 const ProtectedRoute = ({ children }) => {
   const isAuthenticated = useStore((s) => s.isAuthenticated)
   return isAuthenticated ? children : <Navigate to="/login" replace />
+}
+
+function ProtectedShell({ children }) {
+  const location = useLocation()
+
+  return (
+    <ProtectedRoute>
+      <RouteCrashBoundary resetKey={location.pathname} fallback={<ProtectedRouteFallback />}>
+        <AppShell>{children}</AppShell>
+      </RouteCrashBoundary>
+    </ProtectedRoute>
+  )
 }
 
 function AppShell({ children }) {
@@ -143,67 +244,49 @@ function AnimatedRoutes() {
   const location = useLocation()
 
   return (
-    <AnimatePresence mode="wait">
-      <ExperienceBridge />
-      <Routes location={location} key={location.pathname}>
-        <Route path="/login"           element={<PageWrapper><Login /></PageWrapper>} />
-        <Route path="/spotify-success" element={<SpotifySuccess />} />
-        <Route path="/lastfm-success"  element={<LastfmSuccess />} />
+    <RouteCrashBoundary resetKey={location.pathname} fallback={<GlobalRouteFallback />}>
+      <AnimatePresence mode="wait">
+        <ExperienceBridge />
+        <Routes location={location} key={location.pathname}>
+          <Route path="/login" element={<PageWrapper><Login /></PageWrapper>} />
+          <Route path="/spotify-success" element={<SpotifySuccess />} />
+          <Route path="/lastfm-success" element={<LastfmSuccess />} />
 
-        <Route path="/" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><Dashboard /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/galaxy" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><MusicMap /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/discover" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><Discover /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/playlists" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><Playlists /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/analytics" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><Analytics /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/soulmate" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><MusicSoulmate /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/soulmate/:identifier" element={<PageWrapper><MusicSoulmate /></PageWrapper>} />
-        <Route path="/aesthetic" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><MusicAesthetic /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/profile" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><Profile /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/identity" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><MusicIdentity /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="/auralith" element={
-          <ProtectedRoute>
-            <AppShell><PageWrapper><Auralith /></PageWrapper></AppShell>
-          </ProtectedRoute>
-        } />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-    </AnimatePresence>
+          <Route path="/" element={
+            <ProtectedShell><PageWrapper><Dashboard /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/galaxy" element={
+            <ProtectedShell><PageWrapper><MusicMap /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/discover" element={
+            <ProtectedShell><PageWrapper><Discover /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/playlists" element={
+            <ProtectedShell><PageWrapper><Playlists /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/analytics" element={
+            <ProtectedShell><PageWrapper><Analytics /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/soulmate" element={
+            <ProtectedShell><PageWrapper><MusicSoulmate /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/soulmate/:identifier" element={<PageWrapper><MusicSoulmate /></PageWrapper>} />
+          <Route path="/aesthetic" element={
+            <ProtectedShell><PageWrapper><MusicAesthetic /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/profile" element={
+            <ProtectedShell><PageWrapper><Profile /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/identity" element={
+            <ProtectedShell><PageWrapper><MusicIdentity /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="/auralith" element={
+            <ProtectedShell><PageWrapper><Auralith /></PageWrapper></ProtectedShell>
+          } />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AnimatePresence>
+    </RouteCrashBoundary>
   )
 }
 
@@ -216,17 +299,17 @@ export default function App() {
 
   // Rehydrate auth state on mount — handles page refresh
   useEffect(() => {
-    const spotifyToken  = localStorage.getItem('spotify_token')
-    const spotifyExpiry = localStorage.getItem('spotify_token_expiry')
-    const lastfmSession = localStorage.getItem('lastfm_session')
-    const lastfmUser    = localStorage.getItem('lastfm_username')
+    const spotifyToken = safeStorageGet('spotify_token')
+    const spotifyExpiry = safeStorageGet('spotify_token_expiry')
+    const lastfmSession = safeStorageGet('lastfm_session')
+    const lastfmUser = safeStorageGet('lastfm_username')
 
     if (spotifyToken) {
-      // Check if token is expired
-      if (spotifyExpiry && Date.now() > parseInt(spotifyExpiry, 10)) {
+      const expiryValue = Number.parseInt(spotifyExpiry || '', 10)
+      if (spotifyExpiry && Number.isFinite(expiryValue) && Date.now() > expiryValue) {
         logout()
       } else {
-        setSpotifyToken(spotifyToken, localStorage.getItem('spotify_refresh_token'))
+        setSpotifyToken(spotifyToken, safeStorageGet('spotify_refresh_token'))
       }
     } else if (lastfmSession && lastfmUser) {
       setLastfm(lastfmSession, lastfmUser)

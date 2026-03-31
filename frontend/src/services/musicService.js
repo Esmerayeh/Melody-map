@@ -4,16 +4,24 @@
  */
 import { spotifyAPI, lastfmAPI } from './api'
 
+function safeStorageGet(key) {
+  try {
+    return window.localStorage.getItem(key)
+  } catch {
+    return null
+  }
+}
+
 function hasSpotifyToken() {
-  return !!localStorage.getItem('spotify_token')
+  return !!safeStorageGet('spotify_token')
 }
 
 function hasLastfmSession() {
-  return !!localStorage.getItem('lastfm_session')
+  return !!safeStorageGet('lastfm_session')
 }
 
 function getProvider() {
-  const explicit = localStorage.getItem('music_provider')
+  const explicit = safeStorageGet('music_provider')
   if (explicit === 'spotify' && hasSpotifyToken()) return 'spotify'
   if (explicit === 'lastfm' && hasLastfmSession()) return 'lastfm'
   if (hasSpotifyToken()) return 'spotify'

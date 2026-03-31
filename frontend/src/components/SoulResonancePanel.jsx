@@ -82,16 +82,16 @@ export default function SoulResonancePanel({ profile, model }) {
 
       <div className="relative flex flex-col items-center gap-4">
         <DeferredSoulOrb
-          personality={profile.personality}
-          personalityMeta={profile.personalityMeta}
-          mbti={profile.mbti}
-          mbtiMeta={profile.mbtiMeta}
-          audioFeatures={profile.audioFeatures}
-          analyticsMetrics={profile.analyticsMetrics}
-          confidence={profile.confidence}
-          dataQuality={profile.dataQuality}
-          genres={profile.genres}
-          topArtists={profile.topArtists}
+          personality={profile?.personality}
+          personalityMeta={profile?.personalityMeta}
+          mbti={profile?.mbti}
+          mbtiMeta={profile?.mbtiMeta}
+          audioFeatures={profile?.audioFeatures}
+          analyticsMetrics={profile?.analyticsMetrics}
+          confidence={profile?.confidence}
+          dataQuality={profile?.dataQuality}
+          genres={profile?.genres}
+          topArtists={profile?.topArtists}
           resonance={resonance}
           size={210}
           showLabels

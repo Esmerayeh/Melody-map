@@ -52,6 +52,14 @@ function validateProfilePayload(raw) {
   return { ok: true }
 }
 
+function unwrapProfileResponse(payload) {
+  if (!payload || typeof payload !== 'object') return payload
+  if (payload.data && typeof payload.data === 'object' && !Array.isArray(payload.data)) {
+    return payload.data
+  }
+  return payload
+}
+
 function deriveConfidence(dataQuality = {}, profile = {}, backendConfidence = null) {
   const audioCoverage = Number(dataQuality.audioCoverage || 0)
   const topArtistsCount = Number(dataQuality.topArtistsCount || profile.topArtists?.length || 0)
@@ -326,7 +334,7 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
         rawProfile = await buildLastfmProfile(timeRange)
       } else {
         const res = await musicProfileAPI.get({ time_range: timeRange, limit: 50 })
-        rawProfile = res.data
+        rawProfile = unwrapProfileResponse(res.data)
       }
 
       const validation = validateProfilePayload(rawProfile)
