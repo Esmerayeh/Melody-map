@@ -1,290 +1,18 @@
-import { useState, useEffect, useCallback, useMemo } from 'react'
-import { useParams, Link } from 'react-router-dom'
-import { Heart, Users, Music, RefreshCw, Star, Zap, ChevronRight, AlertCircle, Sparkles, ExternalLink, Link2 } from 'lucide-react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
+import { HeartHandshake, Link2, RefreshCw, Sparkles, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { soulmateAPI, aestheticAPI, publicProfileAPI } from '../services/api'
+import { publicProfileAPI, soulmateAPI } from '../services/api'
 import { musicService } from '../services/musicService'
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicSourceCard from '../components/MusicSourceCard'
+import CompatibilityCard from '../components/CompatibilityCard'
 import SoulmateMap from '../components/SoulmateMap'
 import VibeEmitter from '../components/VibeEmitter'
-import CompatibilityCard from '../components/CompatibilityCard'
-import { computeAdvancedCompatibility } from '../utils/personalityEngine'
+import { computeSoulmateCompatibility } from '../utils/soulmateEngine'
 
-// ── Shared Aesthetic Board ─────────────────────────────────────────────────────
-function SharedAestheticBoard({ comparison }) {
-  const [shared, setShared]   = useState(null)
-  const [loading, setLoading] = useState(false)
-  const [open, setOpen]       = useState(false)
-
-  const load = useCallback(async () => {
-    if (shared || loading) return
-    setLoading(true)
-    try {
-      const res = await aestheticAPI.shared({
-        tags_a:         comparison.tags_a || [],
-        tags_b:         comparison.tags_b || [],
-        shared_genres:  comparison.shared_genres || [],
-        shared_artists: comparison.shared_artists || [],
-      })
-      setShared(res.data)
-    } catch {
-      toast.error('the shared atmosphere slipped back into the static')
-    } finally {
-      setLoading(false)
-    }
-  }, [comparison, shared, loading])
-
-  const handleOpen = () => {
-    setOpen(true)
-    load()
-  }
-
-  return (
-    <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 overflow-hidden">
-      <button
-        onClick={handleOpen}
-        className="w-full flex items-center justify-between px-5 py-4 hover:bg-purple-500/10 transition-all"
-      >
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-purple-400" />
-          <span className="font-semibold text-sm">Shared atmosphere</span>
-          <span className="text-xs text-gray-500">· where your moods overlap</span>
-        </div>
-        <span className="text-xs text-purple-400">{open ? 'Let it fade' : 'Reveal'}</span>
-      </button>
-
-      {open && (
-        <div className="px-5 pb-5">
-          {loading && (
-            <div className="flex items-center gap-2 py-6 justify-center text-gray-500 text-sm">
-              <VibeEmitter bpm={120} size={40} label="shaping your shared atmosphere..." />
-            </div>
-          )}
-
-          {shared && !loading && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4">
-              {/* Shared name */}
-              <div className="text-center py-4">
-                <p className="text-xs text-purple-400 uppercase tracking-widest mb-1">your shared atmosphere</p>
-                <h3 className="text-3xl font-black bg-gradient-to-r from-purple-300 via-pink-300 to-indigo-300 bg-clip-text text-transparent">
-                  {shared.shared_aesthetic_name}
-                </h3>
-                <p className="text-gray-400 text-sm mt-2 italic">"{shared.shared_vibe}"</p>
-              </div>
-
-              {/* Shared tags */}
-              <div className="flex flex-wrap gap-2">
-                {(shared.shared_tags || []).map((tag, i) => (
-                  <motion.a
-                    key={i}
-                    href={`https://www.pinterest.com/search/pins/?q=${encodeURIComponent(tag)}`}
-                    target="_blank" rel="noopener noreferrer"
-                    initial={{ opacity: 0, scale: 0.8 }}
-                    animate={{ opacity: 1, scale: 1 }}
-                    transition={{ delay: i * 0.04 }}
-                    className="px-3 py-1 rounded-full text-xs bg-purple-500/15 text-purple-300 border border-purple-500/20 hover:bg-purple-500/25 transition-all flex items-center gap-1"
-                  >
-                    {tag} <ExternalLink className="w-2.5 h-2.5 opacity-40" />
-                  </motion.a>
-                ))}
-              </div>
-
-              {/* Shared images grid */}
-              {shared.images?.length > 0 && (
-                <div className="columns-2 md:columns-3 gap-2 space-y-2">
-                  {shared.images.slice(0, 9).map((img, i) => (
-                    <motion.a
-                      key={img.id || i}
-                      href={img.unsplash_url}
-                      target="_blank" rel="noopener noreferrer"
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      transition={{ delay: i * 0.06 }}
-                      whileHover={{ scale: 1.03 }}
-                      className="break-inside-avoid mb-2 block rounded-xl overflow-hidden group relative"
-                    >
-                      <img
-                        src={img.thumb || img.url}
-                        alt={img.description}
-                        className="w-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        loading="lazy"
-                      />
-                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity" />
-                      <p className="absolute bottom-1 left-2 right-2 text-xs text-white/80 opacity-0 group-hover:opacity-100 transition-opacity truncate">
-                        📷 {img.photographer}
-                      </p>
-                    </motion.a>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          )}
-        </div>
-      )}
-    </div>
-  )
-}
-
-// ── Score ring ─────────────────────────────────────────────────────────────────
-function ScoreRing({ score }) {
-  const r    = 54
-  const circ = 2 * Math.PI * r
-  const dash = (score / 100) * circ
-  const color = score >= 75 ? '#a78bfa' : score >= 50 ? '#60a5fa' : '#f472b6'
-
-  return (
-    <motion.div className="relative w-36 h-36 flex items-center justify-center"
-      initial={{ scale: 0.7, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
-      transition={{ type: 'spring', stiffness: 200, damping: 20 }}>
-      {/* Ambient glow */}
-      <div className="absolute inset-0 rounded-full blur-xl pointer-events-none"
-        style={{ background: `${color}20` }} />
-      <svg className="absolute inset-0 -rotate-90" width="144" height="144">
-        <defs>
-          <filter id="ringGlow">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
-          </filter>
-        </defs>
-        <circle cx="72" cy="72" r={r} fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="8" />
-        <motion.circle cx="72" cy="72" r={r} fill="none" stroke={color} strokeWidth="8"
-          strokeLinecap="round" filter="url(#ringGlow)"
-          initial={{ strokeDasharray: `0 ${circ}` }}
-          animate={{ strokeDasharray: `${dash} ${circ}` }}
-          transition={{ duration: 1.2, ease: [0.22, 1, 0.36, 1], delay: 0.2 }} />
-      </svg>
-      <div className="text-center z-10">
-        <motion.div className="text-4xl font-black" style={{ color }}
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}>
-          {score}
-        </motion.div>
-        <div className="text-xs text-gray-500 mt-0.5">/ 100</div>
-      </div>
-    </motion.div>
-  )
-}
-
-// ── Breakdown bar ──────────────────────────────────────────────────────────────
-function BreakdownBar({ label, value, color }) {
-  return (
-    <div className="flex items-center gap-3">
-      <span className="text-xs text-gray-400 w-16 shrink-0">{label}</span>
-      <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
-        <div className="h-full rounded-full transition-all duration-700"
-          style={{ width: `${value}%`, background: color, boxShadow: `0 0 6px ${color}` }} />
-      </div>
-      <span className="text-xs font-medium w-8 text-right" style={{ color }}>{value}%</span>
-    </div>
-  )
-}
-
-// ── Match card ─────────────────────────────────────────────────────────────────
-function MatchCard({ match, onSelect, isSelected }) {
-  const score = match.match_score
-  const accentColor = score >= 75 ? '#a78bfa' : score >= 50 ? '#60a5fa' : '#f472b6'
-
-  return (
-    <motion.button onClick={() => onSelect(match)}
-      whileHover={{ x: 3, scale: 1.01 }} whileTap={{ scale: 0.99 }}
-      className="w-full flex items-center gap-4 p-4 rounded-xl transition-all text-left relative overflow-hidden"
-      style={{
-        background: isSelected ? `${accentColor}12` : 'rgba(255,255,255,0.025)',
-        border: `1px solid ${isSelected ? accentColor + '50' : 'rgba(255,255,255,0.07)'}`,
-        boxShadow: isSelected ? `0 0 24px ${accentColor}15` : 'none',
-      }}>
-      {isSelected && (
-        <div className="absolute inset-0 pointer-events-none"
-          style={{ background: `radial-gradient(ellipse at 20% 50%, ${accentColor}08 0%, transparent 70%)` }} />
-      )}
-      {/* Avatar planet */}
-      <div className="w-11 h-11 rounded-full flex items-center justify-center shrink-0 text-lg font-black text-white relative z-10"
-        style={{ background: `linear-gradient(135deg, ${accentColor}40, ${accentColor}20)`, boxShadow: `0 0 16px ${accentColor}30` }}>
-        {match.username?.[0]?.toUpperCase() || '?'}
-      </div>
-      <div className="flex-1 min-w-0 relative z-10">
-        <p className="font-semibold text-white">{match.username}</p>
-        {match.shared_artists?.length > 0 && (
-          <p className="text-xs text-gray-500 truncate mt-0.5">
-            Returns to: {match.shared_artists.slice(0, 2).join(', ')}
-          </p>
-        )}
-        {match.shared_genres?.length > 0 && (
-          <div className="flex gap-1 mt-1 flex-wrap">
-            {match.shared_genres.slice(0, 3).map((g) => (
-              <span key={g} className="text-xs px-1.5 py-0.5 rounded-md text-gray-400"
-                style={{ background: 'rgba(255,255,255,0.05)' }}>{g}</span>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="shrink-0 text-right relative z-10">
-        <div className="text-2xl font-black" style={{ color: accentColor }}>{score}</div>
-        <div className="text-xs text-gray-600">alignment</div>
-      </div>
-      <ChevronRight className="w-4 h-4 text-gray-600 shrink-0 relative z-10" />
-    </motion.button>
-  )
-}
-
-// ── Shared pill list ───────────────────────────────────────────────────────────
-function PillList({ items, color }) {
-  if (!items?.length) return <p className="text-gray-600 text-xs">still forming</p>
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {items.map((item) => (
-        <span key={item}
-          className="text-xs px-2.5 py-1 rounded-full border font-medium"
-          style={{ borderColor: `${color}40`, color, background: `${color}10` }}>
-          {item}
-        </span>
-      ))}
-    </div>
-  )
-}
-
-// ── Animated SVG skeleton for Soulmate empty state ────────────────────────────
-function SoulmateSkeleton() {
-  return (
-    <div className="space-y-3 pointer-events-none select-none" aria-hidden="true">
-      <p className="text-xs text-gray-600 uppercase tracking-widest mb-3">A quiet preview</p>
-      {[0, 1, 2].map((i) => (
-        <motion.div key={i}
-          initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }}
-          transition={{ delay: i * 0.1 }}
-          className="flex items-center gap-4 p-4 rounded-xl border border-white/6"
-          style={{ background: 'rgba(255,255,255,0.02)' }}>
-          <div className="skeleton w-11 h-11 rounded-full shrink-0" />
-          <div className="flex-1 space-y-2">
-            <div className="skeleton h-3.5 rounded" style={{ width: '45%' }} />
-            <div className="skeleton h-2.5 rounded" style={{ width: '65%' }} />
-          </div>
-          <div className="skeleton h-8 w-10 rounded-lg shrink-0" />
-        </motion.div>
-      ))}
-      {/* Score ring preview */}
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.4 }}
-        className="mt-4 p-6 rounded-2xl border border-white/6 flex items-center gap-6"
-        style={{ background: 'rgba(255,255,255,0.02)' }}>
-        <div className="skeleton w-36 h-36 rounded-full shrink-0" />
-        <div className="flex-1 space-y-3">
-          <div className="skeleton h-4 rounded" style={{ width: '55%' }} />
-          <div className="skeleton h-3 rounded" style={{ width: '80%' }} />
-          {['Artists', 'Genres', 'Audio', 'Tracks'].map((l) => (
-            <div key={l} className="flex items-center gap-3">
-              <div className="skeleton h-2 rounded-full" style={{ width: 48 }} />
-              <div className="flex-1 skeleton h-1.5 rounded-full" />
-            </div>
-          ))}
-        </div>
-      </motion.div>
-    </div>
-  )
-}
-
-// ── Invite link system ────────────────────────────────────────────────────────
 function parseSoulmateIdentifier(input) {
   const trimmed = String(input || '').trim()
   if (!trimmed) return ''
@@ -297,186 +25,120 @@ function parseSoulmateIdentifier(input) {
   }
 }
 
-function InviteLink({ publicSlug }) {
-  const [copied, setCopied] = useState(false)
-  const [pasteLink, setPasteLink] = useState('')
-  const normalizedSlug = String(publicSlug || '').trim()
-  const link = normalizedSlug
-    ? `${window.location.origin}/soulmate/${encodeURIComponent(normalizedSlug)}`
-    : ''
-
-  const copy = () => {
-    if (!link) return
-    navigator.clipboard.writeText(link).then(() => {
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
-    })
-  }
-
-  const pastedUser = parseSoulmateIdentifier(pasteLink)
-
+function MatchCard({ match, selected, onSelect }) {
+  const score = match.overallCompatibility ?? match.match_score ?? 0
   return (
-    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-      className="p-4 rounded-2xl relative overflow-hidden space-y-4"
-      style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(236,72,153,0.05))', border: '1px solid rgba(168,85,247,0.2)' }}>
-      {/* Your link */}
-      <div>
-        <p className="text-xs text-purple-400 uppercase tracking-[0.2em] mb-2">Share your orbit</p>
-        <p className="text-sm text-gray-300 mb-3">Send this link to someone you trust and see where your worlds meet.</p>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 px-3 py-2 rounded-xl text-xs font-mono text-gray-400 truncate"
-            style={{ background: 'rgba(255,255,255,0.04)', border: '0.5px solid rgba(255,255,255,0.08)' }}>
-            {link || 'Generating your public soulmate link...'}
-          </div>
-          <motion.button onClick={copy} whileHover={link ? { scale: 1.05 } : undefined} whileTap={link ? { scale: 0.95 } : undefined}
-            disabled={!link}
-            className="px-3 py-2 rounded-xl text-xs font-semibold shrink-0 transition-all"
-            style={{ background: copied ? 'rgba(52,211,153,0.15)' : 'rgba(168,85,247,0.15)',
-                     color: copied ? '#34d399' : '#c084fc',
-                     border: `1px solid ${copied ? 'rgba(52,211,153,0.3)' : 'rgba(168,85,247,0.3)'}`,
-                     opacity: link ? 1 : 0.45,
-                     cursor: link ? 'pointer' : 'not-allowed' }}>
-            {copied ? 'Held close' : 'Copy link'}
-          </motion.button>
+    <button
+      onClick={() => onSelect(match)}
+      className="w-full rounded-[24px] p-4 text-left transition-all"
+      style={{
+        background: selected ? 'rgba(143,117,255,0.12)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${selected ? 'rgba(143,117,255,0.34)' : 'rgba(255,255,255,0.08)'}`,
+        boxShadow: selected ? '0 0 28px rgba(143,117,255,0.12)' : 'none',
+      }}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-white">{match.username}</p>
+          <p className="mt-1 truncate text-xs text-slate-500">{match.relationshipArchetype || 'shared orbit'}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-2xl font-black text-brand-purple">{score}</p>
+          <p className="text-[11px] uppercase tracking-[0.18em] text-slate-500">{match.compatibilityTier || 'aligned'}</p>
         </div>
       </div>
-
-      {/* Paste a friend's link */}
-      <div>
-        <p className="text-xs text-gray-400 uppercase tracking-[0.15em] mb-2">Or bring in someone else's orbit</p>
-        <div className="flex items-center gap-2">
-          <input
-            type="text"
-            value={pasteLink}
-            onChange={(e) => setPasteLink(e.target.value)}
-            placeholder="Paste a soulmate link or a public name"
-            className="flex-1 px-3 py-2 rounded-xl text-xs font-mono text-gray-300 bg-white/4 border border-white/10 outline-none focus:border-purple-500/50 placeholder-gray-600 transition-colors"
-          />
-          {pastedUser && (
-            <Link
-              to={`/soulmate/${encodeURIComponent(pastedUser)}`}
-              className="px-3 py-2 rounded-xl text-xs font-semibold shrink-0 transition-all"
-              style={{ background: 'rgba(168,85,247,0.15)', color: '#c084fc', border: '1px solid rgba(168,85,247,0.3)' }}
-            >
-              See where you meet →
-            </Link>
-          )}
-        </div>
-      </div>
-    </motion.div>
+      {(match.sharedArtists || match.shared_artists || []).length > 0 && (
+        <p className="mt-3 truncate text-xs text-slate-400">
+          shared pull: {(match.sharedArtists || match.shared_artists || []).slice(0, 2).join(', ')}
+        </p>
+      )}
+    </button>
   )
 }
 
-// ── URL-based comparison — delegates to advanced engine ───────────────────────
-function computeLocalSimilarity(profileA, profileB) {
-  const result = computeAdvancedCompatibility(profileA, profileB)
-  if (!result) return null
-  return {
-    match_score:    result.score,
-    shared_artists: result.sharedArtists,
-    shared_genres:  result.sharedGenres,
-    breakdown:      result.breakdown,
-    _advanced:      result,
+function InviteLink({ publicSlug }) {
+  const [value, setValue] = useState('')
+  const [copied, setCopied] = useState(false)
+  const slug = String(publicSlug || '').trim()
+  const link = slug ? `${window.location.origin}/soulmate/${encodeURIComponent(slug)}` : ''
+
+  const handleCopy = async () => {
+    if (!link) return
+    try {
+      await navigator.clipboard.writeText(link)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1600)
+    } catch {
+      setCopied(false)
+    }
   }
+
+  const pastedUser = parseSoulmateIdentifier(value)
+
+  return (
+    <div className="noire-action-card rounded-[28px] p-5">
+      <p className="section-label mb-2">Share Your Orbit</p>
+      <p className="mb-4 text-sm text-slate-400">Send your public link to someone you trust and let the overlap come into focus.</p>
+      <div className="flex gap-2">
+        <div className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-slate-400">
+          {link || 'your share link will appear after sync'}
+        </div>
+        <button onClick={handleCopy} disabled={!link} className="noire-chip px-4 py-3 text-xs text-white disabled:opacity-50">
+          {copied ? 'held close' : 'copy link'}
+        </button>
+      </div>
+      <div className="mt-4 flex gap-2">
+        <input
+          type="text"
+          value={value}
+          onChange={(event) => setValue(event.target.value)}
+          placeholder="Paste a soulmate link or public name"
+          className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-xs text-white outline-none placeholder:text-slate-600"
+        />
+        {pastedUser && (
+          <Link to={`/soulmate/${encodeURIComponent(pastedUser)}`} className="noire-chip px-4 py-3 text-xs text-white">
+            open orbit
+          </Link>
+        )}
+      </div>
+    </div>
+  )
 }
 
-// ── Main page ──────────────────────────────────────────────────────────────────
 export default function MusicSoulmate() {
-  const { identifier: routeIdentifier } = useParams()
-  const isAuthenticated = useStore((s) => s.isAuthenticated)
-  const musicProvider = useStore((s) => s.musicProvider)
-  const vibeFeatures  = useStore((s) => s.vibeFeatures)
-  const myUsername    = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || '')
+  const { identifier } = useParams()
+  const { profile, loading: profileLoading } = useMusicProfile()
+  const musicProvider = useStore((state) => state.musicProvider)
+  const vibeFeatures = useStore((state) => state.vibeFeatures)
+
+  const [syncing, setSyncing] = useState(false)
+  const [synced, setSynced] = useState(false)
   const [myPublicSlug, setMyPublicSlug] = useState('')
-  const [syncing,    setSyncing]    = useState(false)
-  const [synced,     setSynced]     = useState(false)
-  const [matches,    setMatches]    = useState([])
+  const [matches, setMatches] = useState([])
   const [loadingMatches, setLoadingMatches] = useState(false)
-  const [selected,   setSelected]   = useState(null)
+  const [selected, setSelected] = useState(null)
   const [comparison, setComparison] = useState(null)
-  const [loadingCmp, setLoadingCmp] = useState(false)
-  // Invite link comparison (URL-based)
+  const [comparisonLoading, setComparisonLoading] = useState(false)
   const [inviteComparison, setInviteComparison] = useState(null)
 
-  const { profile, loading: profileLoading } = useMusicProfile({ autoFetch: true })
-  const soulmateConfidenceLabel = profile?.confidence?.labels?.soulmate || 'soft signal'
-  const comparisonModeLabel = inviteComparison?.mode === 'degraded'
-    ? 'partial signal'
-    : inviteComparison?.mode === 'local'
-      ? 'shared listening'
-      : inviteComparison?.mode === 'public'
-        ? 'public orbit'
-        : null
-  const normalizedRouteIdentifier = useMemo(() => parseSoulmateIdentifier(routeIdentifier), [routeIdentifier])
+  const myUsername = profile?.userProfile?.name || profile?.userProfile?.username || 'you'
+  const normalizedIdentifier = useMemo(() => parseSoulmateIdentifier(identifier), [identifier])
 
   useEffect(() => {
-    if (!isAuthenticated) {
-      setMyPublicSlug('')
-      return
-    }
-
-    soulmateAPI.getMyProfile()
-      .then(({ data }) => setMyPublicSlug(data?.public_slug || ''))
-      .catch(() => setMyPublicSlug(''))
-  }, [isAuthenticated])
-
-  // Handle public slug route and legacy ?user= invite links — wait for profile to load before fetching
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search)
-    const inviteUser = normalizedRouteIdentifier || parseSoulmateIdentifier(params.get('user'))
-    if (!inviteUser) return
-    if (profileLoading) return  // wait for auth + profile to settle
-    if (myPublicSlug && inviteUser === myPublicSlug) {
-      setInviteComparison({
-        inviteUser,
-        otherUsername: myUsername || 'You',
-        loading: false,
-        result: null,
-        error: 'This link already leads back to your own orbit.',
-        mode: 'public',
-      })
-      return
-    }
-
+    if (!musicProvider) return
     let cancelled = false
-    setInviteComparison({ inviteUser, loading: true, result: null, error: null })
-
-    publicProfileAPI.get(inviteUser)
-      .then(({ data: otherProfile }) => {
-        if (cancelled) return
-        // Normalise the public profile to match local profile shape
-        const normalised = {
-          topArtists:    otherProfile.topArtists    || [],
-          topTracks:     otherProfile.topTracks     || [],
-          genres:        otherProfile.genres        || [],
-          audioFeatures: otherProfile.audioFeatures || {},
-        }
-        const result = profile ? computeAdvancedCompatibility(profile, normalised) : null
-        setInviteComparison({
-          inviteUser,
-          otherUsername: otherProfile.displayName || otherProfile.username || inviteUser,
-          loading: false,
-          result: result ? { ...result, _advanced: result } : null,
-          error: result ? null : 'Connect and sync your music so the two worlds can meet clearly.',
-          mode: profile?.dataQuality?.hasAudioProfile === false ? 'degraded' : profile ? 'local' : 'public',
-        })
+    soulmateAPI.getMyProfile()
+      .then(({ data }) => {
+        if (cancelled || !data) return
+        setMyPublicSlug(data.public_slug || '')
+        setSynced(Boolean(data.top_artists?.length || data.top_tracks?.length))
       })
-      .catch(() => {
-        if (cancelled) return
-        setInviteComparison({
-          inviteUser,
-          otherUsername: inviteUser,
-          loading: false,
-          result: null,
-          error: `No orbit surfaced for "${inviteUser}". Check the link or ask them to sync again.`,
-          mode: 'public',
-        })
-      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [musicProvider])
 
-    return () => { cancelled = true }
-  }, [profile, profileLoading, normalizedRouteIdentifier, myPublicSlug, myUsername])
-
-  // ── Sync profile ─────────────────────────────────────────────────────────────
   const syncProfile = useCallback(async () => {
     if (!musicProvider) {
       toast.error('connect a music source first')
@@ -484,72 +146,77 @@ export default function MusicSoulmate() {
     }
     setSyncing(true)
     try {
-      let topArtists, topTracks, genres, audioFeatures = {}, userProfile
+      let topArtists = profile?.topArtists || []
+      let topTracks = profile?.topTracks || []
+      let genres = profile?.genres || []
+      let audioFeatures = profile?.audioFeatures || {}
+      let userProfile = profile?.userProfile
 
-      // Prefer central profile data — avoids redundant API calls
-      if (profile?.topArtists?.length) {
-        topArtists = profile.topArtists.map((a) => a.name)
-        topTracks  = profile.topTracks.map((t) => t.title || t.name)
-        genres     = profile.genres.slice(0, 50).map((g) => g.genre)
-        const af   = profile.audioFeatures || {}
-        audioFeatures = {
-          energy: af.energy, valence: af.valence, danceability: af.danceability,
-          acousticness: af.acousticness, instrumentalness: af.instrumentalness,
-          speechiness: af.speechiness,
-        }
-        userProfile = profile.userProfile
-      } else {
-        // Fallback: fetch directly
+      if (!topArtists.length || !topTracks.length) {
         const [tracks, artists] = await Promise.all([
           musicService.getTopTracks({ limit: 50 }),
           musicService.getTopArtists({ limit: 50 }),
         ])
-        const genreSet = new Set()
-        artists.forEach((a) => a.genres?.forEach((g) => genreSet.add(g)))
-        topArtists = artists.map((a) => a.name)
-        topTracks  = tracks.map((t) => t.title || t.name)
-        genres     = [...genreSet].slice(0, 50)
-
-        if (musicProvider === 'spotify' && tracks.length) {
-          try {
-            const feats = await musicService.getAudioFeatures(tracks.map((t) => t.id))
-            if (feats.length) {
-              const keys = ['energy', 'valence', 'danceability', 'acousticness', 'instrumentalness', 'speechiness']
-              const sums = {}
-              keys.forEach((k) => { sums[k] = 0 })
-              feats.forEach((f) => keys.forEach((k) => { sums[k] += f[k] || 0 }))
-              keys.forEach((k) => { audioFeatures[k] = sums[k] / feats.length })
-            }
-          } catch { /* optional */ }
-        }
+        topArtists = artists
+        topTracks = tracks
+        genres = profile?.genres || []
         userProfile = await musicService.getProfile()
       }
 
-      const { data } = await soulmateAPI.syncProfile({
-        top_artists:    topArtists,
-        top_tracks:     topTracks,
-        genres,
+      const dominantPersonality = (profile?.personality || [])[0]
+      const personalityTraits = (profile?.personality || profile?.personalityTraits || []).slice(0, 8)
+      const aestheticTags = profile?.aestheticTags || []
+      const atmosphereLabels = [
+        profile?.analyticsMetrics?.mood,
+        ...aestheticTags.slice(0, 3),
+        ...genres.slice(0, 3).map((genre) => genre.genre || genre),
+      ].filter(Boolean)
+
+      const payload = {
+        top_artists: topArtists.slice(0, 50),
+        top_tracks: topTracks.slice(0, 50),
+        genres: genres.slice(0, 50),
         audio_features: audioFeatures,
-        username:       userProfile?.name || userProfile?.username,
-        avatar:         userProfile?.image,
-        data_quality:   profile?.dataQuality || {},
-        confidence:     profile?.confidence || {},
+        username: userProfile?.name || userProfile?.username,
+        avatar: userProfile?.image,
+        mbti_type: profile?.mbti?.type || null,
+        mbti_profile: profile?.mbti || null,
+        sonic_personality_title: profile?.mbti?.name || dominantPersonality?.label || null,
+        personality_traits: personalityTraits,
+        personality_meta: profile?.personalityMeta || {},
+        archetype: dominantPersonality?.label || null,
+        emotional_signature: profile?.analyticsMetrics?.mood || null,
+        listening_style: profile?.mbti?.name || null,
+        trait_scores: Object.fromEntries(personalityTraits.map((trait) => [trait.label || trait.id, trait.pct || trait.score || 0])),
+        music_identity_summary: profile?.mbti?.desc || null,
+        mood_tags: [profile?.analyticsMetrics?.mood, ...aestheticTags.slice(0, 5)].filter(Boolean),
+        aesthetic_tags: aestheticTags.slice(0, 12),
+        atmosphere_labels: atmosphereLabels.slice(0, 12),
+        region_labels: genres.slice(0, 6).map((genre) => genre.genre || genre),
+        orb_state_descriptors: [dominantPersonality?.label, profile?.analyticsMetrics?.mood, profile?.mbti?.type].filter(Boolean),
+        time_of_day_patterns: [],
+        era_preferences: topTracks.slice(0, 8).map((track) => track.release_date?.slice(0, 4)).filter(Boolean),
+        analytics_metrics: profile?.analyticsMetrics || {},
+        data_quality: profile?.dataQuality || {},
+        confidence: profile?.confidence || {},
+        profile_tier: profile?.isDegraded ? 'partial' : 'full',
+        audio_coverage: profile?.dataQuality?.audioCoverage || 0,
+        genre_coverage: (genres.length || 0) / 12,
         soulmate_readiness: profile?.soulmateReadiness || {},
         identity_readiness: profile?.identityReadiness || {},
-      })
+      }
 
+      const { data } = await soulmateAPI.syncProfile(payload)
       setMyPublicSlug(data?.public_slug || '')
       setSynced(true)
-      toast.success('Your orbit is in sync')
-      loadMatches()
-    } catch (err) {
-      toast.error('something slipped through the static — try again')
+      toast.success('your orbit is in sync')
+    } catch (error) {
+      toast.error('something slipped through the static')
     } finally {
       setSyncing(false)
     }
   }, [musicProvider, profile])
 
-  // ── Load matches ──────────────────────────────────────────────────────────────
   const loadMatches = useCallback(async () => {
     setLoadingMatches(true)
     try {
@@ -563,234 +230,195 @@ export default function MusicSoulmate() {
   }, [])
 
   useEffect(() => {
-    if (synced) loadMatches()
+    if (synced) {
+      loadMatches()
+    }
   }, [synced, loadMatches])
 
-  // ── Select a match → load comparison ─────────────────────────────────────────
   const handleSelect = useCallback(async (match) => {
     setSelected(match)
     setComparison(null)
-    setLoadingCmp(true)
+    setComparisonLoading(true)
     try {
       const { data } = await soulmateAPI.compare(match.user_id)
       setComparison(data)
     } catch {
-      toast.error('the comparison drifted out of reach')
+      toast.error('the dual orbit drifted out of reach')
     } finally {
-      setLoadingCmp(false)
+      setComparisonLoading(false)
     }
   }, [])
 
-  return (
-    <div className="cosmic-page">
-      {/* Header */}
-      <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }}
-        transition={{ type: 'spring', stiffness: 260, damping: 28 }} className="mb-8">
-        <p className="page-header-kicker mb-2">The Dual Orbit</p>
-        <h1 className="page-header-title">Dual Orbit</h1>
-        <p className="page-header-copy mt-3">See where two listening worlds lean toward each other.</p>
-      </motion.div>
+  useEffect(() => {
+    if (!normalizedIdentifier || !profile || profileLoading) return
+    if (normalizedIdentifier === myPublicSlug) {
+      setInviteComparison({
+        otherUsername: myUsername,
+        result: null,
+        error: 'this link already leads back to your own orbit',
+        loading: false,
+      })
+      return
+    }
 
-      {/* Step 1 — connect source */}
+    let cancelled = false
+    setInviteComparison({ loading: true, result: null, error: null, otherUsername: normalizedIdentifier })
+
+    publicProfileAPI.get(normalizedIdentifier)
+      .then(({ data }) => {
+        if (cancelled) return
+        const result = computeSoulmateCompatibility(profile, data)
+        setInviteComparison({
+          loading: false,
+          result,
+          error: result ? null : 'the bridge is still too thin to read clearly',
+          otherUsername: data.displayName || data.username || normalizedIdentifier,
+          otherProfile: data,
+        })
+      })
+      .catch(() => {
+        if (cancelled) return
+        setInviteComparison({
+          loading: false,
+          result: null,
+          error: 'no public orbit surfaced for that link',
+          otherUsername: normalizedIdentifier,
+        })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [myPublicSlug, myUsername, normalizedIdentifier, profile, profileLoading])
+
+  return (
+    <div className="cosmic-page space-y-6">
+      <motion.section initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="noire-panel relative overflow-hidden rounded-[34px] p-6 lg:p-8">
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_24%_18%,rgba(143,117,255,0.18),transparent_34%),radial-gradient(ellipse_at_78%_72%,rgba(242,141,223,0.12),transparent_30%)]" />
+        <div className="relative z-10">
+          <p className="page-header-kicker mb-2">The Dual Orbit</p>
+          <h1 className="page-header-title">Soulmates</h1>
+          <p className="page-header-copy mt-3 max-w-3xl">
+            Two listening selves placed into the same field and read through overlap, discovery, and beautiful tension.
+          </p>
+        </div>
+      </motion.section>
+
       {!musicProvider && (
         <div className="max-w-lg">
-          <p className="text-gray-400 text-sm mb-4">Connect a music source and the other orbit can begin to appear.</p>
+          <p className="mb-4 text-sm text-slate-400">Connect a music source and the other orbit can begin to appear.</p>
           <MusicSourceCard />
         </div>
       )}
 
-      {/* Invite link — visible as soon as provider is connected */}
       {musicProvider && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }} className="mb-6 max-w-xl">
+        <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <InviteLink publicSlug={myPublicSlug} />
-          {profile && (
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-gray-500">
-              <span>dual-orbit clarity: {soulmateConfidenceLabel}</span>
-              <span>•</span>
-              <span>voices in reach: {profile?.dataQuality?.topArtistsCount || profile?.topArtists?.length || 0}/50</span>
-              <span>•</span>
-              <span>
-                deep signal: {profile?.dataQuality?.audioFeaturesCount || 0}/{profile?.dataQuality?.audioFeaturesRequested || 0}
-              </span>
+          <div className="noire-action-card rounded-[28px] p-5">
+            <p className="section-label mb-2">Sync Your Listening Field</p>
+            <p className="mb-4 text-sm text-slate-400">
+              We pull in your artists, songs, identity read, atmosphere labels, and signal confidence before comparing two worlds.
+            </p>
+            <div className="flex items-center justify-between gap-4">
+              <div className="text-xs text-slate-500">
+                clarity: {profile?.confidence?.labels?.soulmate || 'still forming'}
+              </div>
+              <button
+                onClick={syncProfile}
+                disabled={syncing}
+                className="noire-chip flex items-center gap-2 px-4 py-3 text-xs text-white disabled:opacity-60"
+              >
+                <RefreshCw className={`h-3.5 w-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                {syncing ? 'tuning...' : synced ? 'tune again' : 'sync now'}
+              </button>
             </div>
-          )}
-        </motion.div>
+          </div>
+        </div>
       )}
 
-      {/* Invite comparison result */}
       {inviteComparison && (
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-          className="mb-6 max-w-2xl">
-          <div className="flex items-center gap-2 mb-3">
-            <Link2 className="w-4 h-4 text-purple-400" />
-            <p className="text-xs text-purple-400 uppercase tracking-widest">Invite link detected</p>
+        <div className="space-y-4">
+          <div className="flex items-center gap-2">
+            <Link2 className="h-4 w-4 text-brand-purple" />
+            <p className="section-label">Invite Orbit</p>
           </div>
-          <p className="text-sm text-gray-300 mb-4">
-            Drifting toward: <span className="text-white font-semibold">{inviteComparison.otherUsername || inviteComparison.inviteUser}</span>
-          </p>
-          {comparisonModeLabel && (
-            <p className="text-[11px] text-gray-500 mb-3 uppercase tracking-[0.18em]">{comparisonModeLabel}</p>
-          )}
-          {!inviteComparison.loading && inviteComparison.result?._advanced && (
-            <p className="text-[11px] text-gray-500 mb-3">
-              clarity: {inviteComparison.mode === 'degraded' ? 'low' : profile?.confidence?.labels?.soulmate || 'medium'}
-            </p>
-          )}
           {inviteComparison.loading && (
-            <div className="flex items-center gap-3 py-6">
-              <VibeEmitter bpm={120} size={48} label="tuning into their orbit..." />
+            <div className="py-8">
+              <VibeEmitter bpm={vibeFeatures?.tempo ?? 112} size={56} label="tuning into their orbit..." />
             </div>
           )}
-          {!inviteComparison.loading && inviteComparison.result?._advanced && (
-            <>
-              <CompatibilityCard
-                result={inviteComparison.result._advanced}
-                userAName={myUsername}
-                userBName={inviteComparison.otherUsername || inviteComparison.inviteUser}
-              />
-              {inviteComparison.result.note && (
-                <p className="text-xs text-amber-400/80 mt-3">{inviteComparison.result.note}</p>
-              )}
-            </>
+          {!inviteComparison.loading && inviteComparison.result && (
+            <CompatibilityCard
+              result={inviteComparison.result}
+              userAName={myUsername}
+              userBName={inviteComparison.otherUsername}
+              userAProfile={profile}
+              userBProfile={inviteComparison.otherProfile}
+              shareHref={`${window.location.origin}/soulmate/${encodeURIComponent(normalizedIdentifier)}`}
+            />
           )}
           {!inviteComparison.loading && !inviteComparison.result && (
-            <p className="text-xs text-gray-500">
-              {inviteComparison.error || 'sync your orbit first so the overlap can come into focus.'}
-            </p>
+            <p className="text-sm text-slate-400">{inviteComparison.error}</p>
           )}
-        </motion.div>
+        </div>
       )}
 
-      {/* Step 2 — sync profile */}
-      {musicProvider && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-            className="mb-8 flex items-center gap-4 p-5 rounded-2xl max-w-xl relative overflow-hidden"
-            style={{ background: 'linear-gradient(135deg, rgba(168,85,247,0.08), rgba(236,72,153,0.05))', border: '1px solid rgba(168,85,247,0.2)' }}>
-          <div className="absolute inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse at 80% 50%, rgba(168,85,247,0.08) 0%, transparent 60%)' }} />
-          <div className="flex-1 relative z-10">
-            <p className="font-semibold text-sm text-white">{synced ? 'Your orbit is in sync' : 'Sync your listening orbit'}</p>
-            <p className="text-gray-400 text-xs mt-0.5">
-              {synced ? 'Your listening shape is current. Tune it again whenever you want.' : "We'll gather your listening shape, clarity, and overlap signals for comparison."}
-            </p>
-            {profile && (
-              <p className="text-[11px] text-gray-500 mt-2">
-                {profile.soulmateReadiness?.ready
-                  ? `Ready to compare with ${soulmateConfidenceLabel} clarity.`
-                  : 'The overlap will stay soft until enough Spotify-backed signal is present.'}
-              </p>
-            )}
-          </div>
-          <motion.button onClick={syncProfile} disabled={syncing} whileHover={{ scale: 1.03 }} whileTap={{ scale: 0.97 }}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all shrink-0 relative z-10 disabled:opacity-60"
-            style={{ background: 'linear-gradient(135deg, #9333ea, #ec4899)', boxShadow: '0 0 24px rgba(147,51,234,0.3)' }}>
-            <RefreshCw className={`w-4 h-4 ${syncing ? 'animate-spin' : ''}`} />
-            {syncing ? 'tuning...' : synced ? 'Tune again' : 'Sync now'}
-          </motion.button>
-        </motion.div>
-      )}
-
-      {/* Main content — two columns */}
       {synced && (
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-
-          {/* Left — match list */}
-          <div className="lg:col-span-1 space-y-3">
-            <div className="flex items-center justify-between mb-1">
-              <div className="flex items-center gap-2">
-                <Users className="w-4 h-4 text-purple-400" />
-                <h2 className="font-semibold text-sm">Closest orbits</h2>
-              </div>
-              <button onClick={loadMatches} disabled={loadingMatches}
-                className="p-1.5 rounded-lg hover:bg-white/5 transition-all">
-                <RefreshCw className={`w-3.5 h-3.5 text-gray-500 ${loadingMatches ? 'animate-spin' : ''}`} />
-              </button>
+        <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
+          <aside className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Users className="h-4 w-4 text-brand-purple" />
+              <p className="section-label">Closest Orbits</p>
             </div>
 
             {loadingMatches && (
-              <div className="flex items-center justify-center py-8">
-                <VibeEmitter bpm={vibeFeatures?.tempo ?? 120} size={56} label="listening for nearby worlds..." />
-              </div>
-            )}
-
-            {!loadingMatches && matches.length === 0 && (
-              <SoulmateSkeleton />
-            )}
-
-            {matches.map((m) => (
-              <MatchCard key={m.user_id} match={m}
-                onSelect={handleSelect}
-                isSelected={selected?.user_id === m.user_id} />
-            ))}
-
-            {/* Demo hint when no real matches */}
-            {!loadingMatches && matches.length === 0 && (
-              <div className="mt-4 p-4 bg-amber-500/5 border border-amber-500/20 rounded-xl">
-                <div className="flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-                  <p className="text-xs text-amber-300/80">
-                    Dual Orbit needs more than one synced world. Share Melody Map with a friend and this field will begin to glow.
-                  </p>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right — comparison panel */}
-          <div className="lg:col-span-2">
-            {!selected && (
               <div className="py-8">
-                <SoulmateSkeleton />
-                <p className="text-center text-xs text-gray-600 mt-4">Choose an orbit and see what forms between you</p>
+                <VibeEmitter bpm={vibeFeatures?.tempo ?? 112} size={56} label="listening for nearby worlds..." />
               </div>
             )}
 
-            {selected && loadingCmp && (
-              <div className="flex items-center justify-center py-20">
-                <VibeEmitter bpm={vibeFeatures?.tempo ?? 120} size={72} label="holding the overlap in view..." />
+            {!loadingMatches && matches.length === 0 && (
+              <div className="noire-panel-soft rounded-[24px] p-5 text-sm text-slate-400">
+                No nearby orbits have synced yet. Share Melody Map with someone and this field will begin to glow.
               </div>
             )}
 
-            {selected && comparison && !loadingCmp && (
-              <div className="space-y-5">
-                {/* Advanced compatibility card */}
+            {matches.map((match) => (
+              <MatchCard key={match.user_id} match={match} selected={selected?.user_id === match.user_id} onSelect={handleSelect} />
+            ))}
+          </aside>
+
+          <div className="space-y-5">
+            {!selected && (
+              <div className="noire-panel rounded-[28px] p-10 text-center">
+                <HeartHandshake className="mx-auto h-8 w-8 text-brand-purple" />
+                <p className="mt-4 text-lg font-semibold text-white">Choose an orbit</p>
+                <p className="mt-2 text-sm text-slate-400">The page will open into a full compatibility ritual once two worlds are in view.</p>
+              </div>
+            )}
+
+            {selected && comparisonLoading && (
+              <div className="py-12">
+                <VibeEmitter bpm={vibeFeatures?.tempo ?? 112} size={64} label="holding the overlap in view..." />
+              </div>
+            )}
+
+            {selected && comparison && !comparisonLoading && (
+              <>
                 <CompatibilityCard
-                  result={{
-                    score:          comparison.match_score,
-                    sharedGenres:   comparison.shared_genres  || [],
-                    sharedArtists:  comparison.shared_artists || [],
-                    sharedTracks:   comparison.shared_tracks  || [],
-                    breakdown: {
-                      genres:         comparison.breakdown?.genres         ?? 0,
-                      artists:        comparison.breakdown?.artists        ?? 0,
-                      audio:          comparison.breakdown?.audio          ?? null,
-                      tracks:         comparison.breakdown?.tracks         ?? null,
-                      vibe:           comparison.breakdown?.vibe           ?? null,
-                      moodAlignment:  comparison.breakdown?.mood_alignment ?? comparison.breakdown?.moodAlignment ?? 0,
-                      discoveryMatch: comparison.breakdown?.discovery_match ?? comparison.breakdown?.discoveryMatch ?? 0,
-                      eraMatch:       comparison.breakdown?.era_match       ?? comparison.breakdown?.eraMatch       ?? null,
-                    },
-                    confidence: comparison.confidence,
-                    note: comparison.note,
-                  }}
+                  result={comparison}
                   userAName={myUsername}
                   userBName={comparison.user_b?.username || selected.username}
+                  userAProfile={comparison.profile_a || profile}
+                  userBProfile={comparison.profile_b}
+                  shareHref={`${window.location.origin}/soulmate/${encodeURIComponent(comparison.user_b?.username || selected.username || selected.user_id)}`}
                 />
 
-                {/* Constellation map */}
                 {comparison.graph?.nodes?.length > 0 && (
-                  <div className="bg-[#050810] border border-white/5 rounded-2xl overflow-hidden">
-                    <div className="px-5 pt-4 pb-2 flex items-center justify-between">
-                      <div>
-                        <h3 className="font-semibold text-sm">Shared constellation</h3>
-                        <p className="text-gray-500 text-xs mt-0.5">drag the field · scroll to move closer</p>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-gray-500">
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-purple-400 inline-block" /> Shared</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-blue-400 inline-block" /> {myUsername}</span>
-                        <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-pink-400 inline-block" /> {comparison.user_b?.username}</span>
-                      </div>
+                  <div className="noire-panel rounded-[28px] overflow-hidden">
+                    <div className="px-5 pt-5">
+                      <p className="section-label mb-2">Shared Constellation</p>
+                      <p className="text-sm text-slate-400">See where your artist worlds overlap and where they keep their distance.</p>
                     </div>
                     <SoulmateMap
                       graph={comparison.graph}
@@ -801,20 +429,15 @@ export default function MusicSoulmate() {
                   </div>
                 )}
 
-                {/* Shared aesthetic board */}
-                <SharedAestheticBoard comparison={comparison} />
-
-                <Link
-                  to={`/galaxy?mode=artist${comparison.shared_artists?.[0] ? `&q=${encodeURIComponent(comparison.shared_artists[0])}` : ''}`}
-                  className="block rounded-2xl border border-white/8 bg-white/[0.03] p-4 transition-all hover:border-purple-500/25 hover:bg-white/[0.05]"
-                >
-                  <p className="section-label mb-2">Shared field</p>
-                  <p className="text-sm font-semibold text-white">See where your worlds meet inside the galaxy</p>
-                  <p className="mt-1 text-xs text-gray-500">
-                    Follow the overlap back into the map and let the same voices anchor both orbits.
-                  </p>
+                <Link to={`/galaxy?mode=artist${comparison.sharedArtists?.[0] ? `&q=${encodeURIComponent(comparison.sharedArtists[0])}` : ''}`} className="noire-action-card block rounded-[28px] p-5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-brand-purple" />
+                    <p className="section-label">Shared Field</p>
+                  </div>
+                  <p className="mt-3 text-lg font-semibold text-white">See where your stars overlap inside the galaxy</p>
+                  <p className="mt-2 text-sm text-slate-400">Follow the shared voices back into the map and let the same anchors hold both orbits at once.</p>
                 </Link>
-              </div>
+              </>
             )}
           </div>
         </div>
