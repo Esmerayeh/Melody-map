@@ -1,13 +1,15 @@
 import spotipy
 from spotipy.oauth2 import SpotifyClientCredentials
+
 from config import Config
+from utils.logger import logger
 
 class SpotifyService:
     def __init__(self):
-        if Config.SPOTIFY_CLIENT_ID and Config.SPOTIFY_CLIENT_SECRET:
+        if Config.spotify_client_id and Config.spotify_client_secret:
             auth_manager = SpotifyClientCredentials(
-                client_id=Config.SPOTIFY_CLIENT_ID,
-                client_secret=Config.SPOTIFY_CLIENT_SECRET
+                client_id=Config.spotify_client_id,
+                client_secret=Config.spotify_client_secret
             )
             self.sp = spotipy.Spotify(auth_manager=auth_manager)
         else:
@@ -47,7 +49,7 @@ class SpotifyService:
                 }
             }
         except Exception as e:
-            print(f"Error fetching track features: {e}")
+            logger.warning({'event': 'spotify_service_track_features_failed', 'error': str(e), 'track_id': track_id})
             return None
     
     def get_audio_features_batch(self, track_ids: list) -> list:
@@ -81,7 +83,7 @@ class SpotifyService:
                 })
             return features
         except Exception as e:
-            print(f"Error fetching batch audio features: {e}")
+            logger.warning({'event': 'spotify_service_batch_audio_failed', 'error': str(e), 'track_count': len(track_ids)})
             return []
 
     def search_tracks(self, query, limit=20):
@@ -93,7 +95,7 @@ class SpotifyService:
             results = self.sp.search(q=query, type='track', limit=limit)
             return results['tracks']['items']
         except Exception as e:
-            print(f"Error searching tracks: {e}")
+            logger.warning({'event': 'spotify_service_search_failed', 'error': str(e), 'query': query})
             return []
     
     def get_artist_info(self, artist_id):
@@ -112,5 +114,5 @@ class SpotifyService:
                 'image_url': artist['images'][0]['url'] if artist['images'] else None
             }
         except Exception as e:
-            print(f"Error fetching artist info: {e}")
+            logger.warning({'event': 'spotify_service_artist_info_failed', 'error': str(e), 'artist_id': artist_id})
             return None

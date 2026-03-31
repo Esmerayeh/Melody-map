@@ -56,7 +56,7 @@ def _fetch_unsplash_images(tags: list[str], per_tag: int = 4) -> list[dict]:
             resp = req.get(
                 f'{UNSPLASH_BASE}/search/photos',
                 params={'query': tag, 'per_page': per_tag, 'orientation': 'portrait'},
-                headers={'Authorization': f'Client-ID {Config.UNSPLASH_ACCESS_KEY}'},
+                headers={'Authorization': f'Client-ID {Config.unsplash_access_key}'},
                 timeout=5,
             )
             if resp.status_code != 200:
@@ -118,7 +118,7 @@ def _parse_body():
 def _build_aesthetic(data: dict, seed_offset: int = 0) -> dict:
     report = build_aesthetic_report(data, seed_offset=seed_offset)
     tags = report.get('tags') or report.get('paletteHints') or [report.get('primaryAesthetic', {}).get('label', 'music aesthetic')]
-    images = _fetch_unsplash_images(tags) if Config.UNSPLASH_ACCESS_KEY else _fallback_images(tags)
+    images = _fetch_unsplash_images(tags) if Config.unsplash_access_key else _fallback_images(tags)
     report['images'] = images
     return report
 
@@ -158,7 +158,7 @@ def get_shared_aesthetic():
     shared_artists  = data.get('shared_artists', [])
 
     shared = generate_shared_aesthetic(tags_a, tags_b, shared_genres, shared_artists)
-    images = _fetch_unsplash_images(shared['shared_tags']) if Config.UNSPLASH_ACCESS_KEY \
+    images = _fetch_unsplash_images(shared['shared_tags']) if Config.unsplash_access_key \
              else _fallback_images(shared['shared_tags'])
     shared['images'] = images
     return jsonify(shared), 200
@@ -245,7 +245,7 @@ def get_palette_from_features():
     result  = extract_palette_from_features(valence, energy, genres)
 
     # Optionally fetch Unsplash images for the extracted palette
-    if Config.UNSPLASH_ACCESS_KEY:
+    if Config.unsplash_access_key:
         images = _fetch_unsplash_images([result['unsplash_query']], per_tag=6)
         result['images'] = images
     else:

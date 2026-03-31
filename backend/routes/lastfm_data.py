@@ -7,6 +7,8 @@ All routes expect header:  X-Lastfm-Session: <session_key>
 import requests
 from flask import Blueprint, jsonify, request
 
+from utils.api import api_error
+
 lastfm_data_bp = Blueprint('lastfm_data', __name__)
 
 LASTFM_API = 'https://ws.audioscrobbler.com/2.0/'
@@ -17,14 +19,14 @@ def _ctx():
     from config import Config
     session  = request.headers.get('X-Lastfm-Session', '')
     username = request.headers.get('X-Lastfm-User', '')
-    return session, username, Config.LASTFM_API_KEY
+    return session, username, Config.lastfm_api_key
 
 
 def _get(method, extra=None):
     """GET from Last.fm API, return (data, error_response)."""
     session, username, api_key = _ctx()
     if not username:
-        return None, (jsonify({'error': 'Last.fm username missing'}), 401)
+        return None, api_error('Last.fm username missing', 401, code='LASTFM_USERNAME_MISSING')
 
     params = {
         'method':  method,
@@ -41,10 +43,10 @@ def _get(method, extra=None):
         resp.raise_for_status()
         data = resp.json()
         if 'error' in data:
-            return None, (jsonify({'error': data.get('message', 'Last.fm error'), 'code': data['error']}), 400)
+            return None, api_error(data.get('message', 'Last.fm error'), 400, code=f"LASTFM_{data['error']}")
         return data, None
     except requests.RequestException as e:
-        return None, (jsonify({'error': str(e)}), 500)
+        return None, api_error('Last.fm request failed', 502, code='LASTFM_REQUEST_FAILED', details={'reason': str(e)})
 
 
 @lastfm_data_bp.route('/lastfm/me')
@@ -146,7 +148,7 @@ def get_similar_artists():
     """Get similar artists for a given artist name."""
     artist = request.args.get('artist', '')
     if not artist:
-        return jsonify({'error': 'artist param required'}), 400
+        return api_error('artist param required', 400, code='ARTIST_PARAM_REQUIRED')
 
     _, _, api_key = _ctx()
     try:
@@ -160,7 +162,7 @@ def get_similar_artists():
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        return jsonify({'error': str(e)}), 500
+        return api_error('Last.fm request failed', 502, code='LASTFM_REQUEST_FAILED', details={'reason': str(e)})
 
     similar = []
     for item in data.get('similarartists', {}).get('artist', []):
@@ -179,7 +181,7 @@ def get_artist_tags():
     """Get top tags (genres) for an artist."""
     artist = request.args.get('artist', '')
     if not artist:
-        return jsonify({'error': 'artist param required'}), 400
+        return api_error('artist param required', 400, code='ARTIST_PARAM_REQUIRED')
 
     _, _, api_key = _ctx()
     try:
@@ -192,7 +194,7 @@ def get_artist_tags():
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        return jsonify({'error': str(e)}), 500
+        return api_error('Last.fm request failed', 502, code='LASTFM_REQUEST_FAILED', details={'reason': str(e)})
 
     tags = [t['name'] for t in data.get('toptags', {}).get('tag', [])[:5]]
     return jsonify(tags)

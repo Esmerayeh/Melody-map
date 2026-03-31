@@ -11,7 +11,7 @@ public so that invite links work without the viewer being logged in.
 from flask import Blueprint, jsonify
 from datetime import datetime, timezone
 from middleware.rate_limit import rate_limit
-from utils.logger import logger
+from utils.api import api_error
 
 public_profile_bp = Blueprint('public_profile', __name__)
 
@@ -28,10 +28,10 @@ def init_mongo(mongo_instance):
 def get_public_profile(identifier: str):
     """
     Look up a taste_profile by public_slug, with limited legacy fallback.
-    Returns a safe subset: topArtists, topTracks, genres, audioFeatures.
+    Returns a safe subset of the soulmate-readable profile.
     """
     if _mongo is None:
-        return jsonify({'error': 'Database not initialised'}), 500
+        return api_error('Database not initialised', 500, code='DATABASE_NOT_INITIALISED')
 
     doc = _mongo.db.taste_profiles.find_one({'public_slug': identifier})
     if not doc:
@@ -39,7 +39,7 @@ def get_public_profile(identifier: str):
     if not doc:
         doc = _mongo.db.taste_profiles.find_one({'user_id': identifier})
     if not doc:
-        return jsonify({'error': 'Profile not found'}), 404
+        return api_error('Profile not found', 404, code='PROFILE_NOT_FOUND')
 
     # Normalise to the same shape the frontend expects from /api/music-profile
     top_artists_raw = doc.get('top_artists', [])
@@ -76,9 +76,30 @@ def get_public_profile(identifier: str):
         'topTracks':            top_tracks,
         'genres':               genres,
         'audioFeatures':        doc.get('audio_features', {}),
+        'mbti':                 doc.get('mbti_profile') or ({'type': doc.get('mbti_type')} if doc.get('mbti_type') else None),
+        'mbtiType':             doc.get('mbti_type'),
+        'personality':          doc.get('personality_traits', []),
+        'personalityMeta':      doc.get('personality_meta') or {},
+        'sonicPersonalityTitle': doc.get('sonic_personality_title'),
+        'archetype':            doc.get('archetype'),
+        'emotionalSignature':   doc.get('emotional_signature'),
+        'listeningStyle':       doc.get('listening_style'),
+        'traitScores':          doc.get('trait_scores') or {},
+        'musicIdentitySummary': doc.get('music_identity_summary'),
+        'moodTags':             doc.get('mood_tags', []),
+        'aestheticTags':        doc.get('aesthetic_tags', []),
+        'atmosphereLabels':     doc.get('atmosphere_labels', []),
+        'regionLabels':         doc.get('region_labels', []),
+        'orbStateDescriptors':  doc.get('orb_state_descriptors', []),
+        'timeOfDayPatterns':    doc.get('time_of_day_patterns', []),
+        'eraPreferences':       doc.get('era_preferences', []),
+        'analyticsMetrics':     doc.get('analytics_metrics') or {},
         'syncedAt':             doc.get('updated_at').replace(tzinfo=timezone.utc).isoformat() if doc.get('updated_at') else None,
         'dataQuality':          doc.get('data_quality', {}),
         'confidence':           doc.get('confidence', {}),
+        'profileTier':          doc.get('profile_tier'),
+        'audioCoverage':        doc.get('audio_coverage'),
+        'genreCoverage':        doc.get('genre_coverage'),
         'soulmateReadiness':    doc.get('soulmate_readiness', {}),
         'identityReadiness':    doc.get('identity_readiness', {}),
     }), 200

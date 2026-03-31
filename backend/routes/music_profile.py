@@ -15,8 +15,11 @@ Response: see music_profile_builder.build_music_profile()
 """
 
 from flask import Blueprint, request, jsonify
+
 from middleware.rate_limit import rate_limit
 from services.music_profile_builder import build_music_profile
+from utils.api import api_error
+from utils.logger import logger
 
 music_profile_bp = Blueprint('music_profile', __name__)
 
@@ -29,7 +32,7 @@ def get_music_profile():
         request.headers.get('Authorization', '').replace('Bearer ', '').strip()
     )
     if not token:
-        return jsonify({'error': 'Spotify token required (X-Spotify-Token header)'}), 401
+        return api_error('Spotify token required (X-Spotify-Token header)', 401, code='SPOTIFY_TOKEN_REQUIRED')
 
     time_range = request.args.get('time_range', 'medium_term')
     if time_range not in ('short_term', 'medium_term', 'long_term'):
@@ -48,4 +51,5 @@ def get_music_profile():
         )
         return jsonify(profile), 200
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error({'event': 'music_profile_build_failed', 'error': str(e), 'time_range': time_range, 'limit': limit})
+        return api_error('Music profile generation failed', 500, code='MUSIC_PROFILE_BUILD_FAILED')

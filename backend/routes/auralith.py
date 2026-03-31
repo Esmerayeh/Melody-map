@@ -1,5 +1,7 @@
 from flask import Blueprint, jsonify, request
 
+from utils.api import api_error
+
 auralith_bp = Blueprint("auralith", __name__)
 
 _engine = None
@@ -22,7 +24,7 @@ def _require_engine():
     try:
         return get_engine(), None
     except Exception:
-        return None, (jsonify({"error": "Auralith engine unavailable", "details": _engine_error}), 503)
+        return None, api_error("Auralith engine unavailable", 503, code="AURALITH_ENGINE_UNAVAILABLE", details=_engine_error)
 
 
 @auralith_bp.route("/auralith/generate-playlist", methods=["POST"])
@@ -30,7 +32,7 @@ def generate_playlist():
     data = request.get_json() or {}
     prompt = (data.get("prompt") or "").strip()
     if not prompt:
-        return jsonify({"error": "prompt required"}), 400
+        return api_error("prompt required", 400, code="PROMPT_REQUIRED")
     engine, error_response = _require_engine()
     if error_response:
         return error_response
@@ -42,7 +44,7 @@ def analyze_taste():
     data = request.get_json() or {}
     seeds = data.get("seeds") or []
     if not seeds:
-        return jsonify({"error": "seeds required"}), 400
+        return api_error("seeds required", 400, code="SEEDS_REQUIRED")
     engine, error_response = _require_engine()
     if error_response:
         return error_response
@@ -54,7 +56,7 @@ def explain_song():
     data = request.get_json() or {}
     prompt = (data.get("prompt") or "").strip()
     if not prompt:
-        return jsonify({"error": "prompt required"}), 400
+        return api_error("prompt required", 400, code="PROMPT_REQUIRED")
     engine, error_response = _require_engine()
     if error_response:
         return error_response
@@ -66,7 +68,7 @@ def critique_playlist():
     data = request.get_json() or {}
     songs = data.get("songs") or []
     if not songs:
-        return jsonify({"error": "songs required"}), 400
+        return api_error("songs required", 400, code="SONGS_REQUIRED")
     engine, error_response = _require_engine()
     if error_response:
         return error_response
@@ -78,7 +80,7 @@ def concept_playlist():
     data = request.get_json() or {}
     prompt = (data.get("prompt") or "").strip()
     if not prompt:
-        return jsonify({"error": "prompt required"}), 400
+        return api_error("prompt required", 400, code="PROMPT_REQUIRED")
     engine, error_response = _require_engine()
     if error_response:
         return error_response

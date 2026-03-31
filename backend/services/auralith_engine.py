@@ -4,6 +4,8 @@ from pathlib import Path
 
 import numpy as np
 
+from utils.logger import logger
+
 
 class AuralithEngine:
     def __init__(self, dataset_path: str | None = None) -> None:
@@ -15,8 +17,7 @@ class AuralithEngine:
 
     def _load_songs(self) -> list[dict]:
         if not self.dataset_path.exists():
-            import sys
-            print(f"WARNING: auralith dataset not found at {self.dataset_path} — engine will run with empty catalog", file=sys.stderr)
+            logger.warning({"event": "auralith_dataset_missing", "path": str(self.dataset_path)})
             return []
         with self.dataset_path.open("r", encoding="utf-8") as handle:
             return json.load(handle)

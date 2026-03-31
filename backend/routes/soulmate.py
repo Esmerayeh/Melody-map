@@ -7,13 +7,12 @@ GET  /api/soulmate/compare/<uid_b>  — full comparison between current user and
 """
 
 from flask import Blueprint, jsonify, request, g
-from flask_pymongo import PyMongo
-from bson import ObjectId
 from datetime import datetime
 import re
 from middleware.auth import require_auth
 from middleware.rate_limit import rate_limit
 from ml.soulmate_engine import soulmate_engine
+from utils.api import api_error
 from utils.logger import logger
 
 soulmate_bp = Blueprint('soulmate', __name__)
@@ -45,6 +44,8 @@ def _clean_public_identity_value(value: str | None) -> str:
 
 
 def _get_profile(user_id: str) -> dict | None:
+    if _mongo is None:
+        return None
     doc = _mongo.db.taste_profiles.find_one({'user_id': user_id})
     return doc
 
@@ -55,10 +56,36 @@ def _profile_to_engine_format(doc: dict) -> dict:
         'user_id':  doc.get('user_id'),
         'username': doc.get('username', 'Unknown'),
         'avatar':   doc.get('avatar'),
-        'artists':  doc.get('top_artists', []),
-        'tracks':   doc.get('top_tracks',  []),
-        'genres':   doc.get('genres',      []),
-        'audio':    doc.get('audio_features', {}),
+        'topArtists': doc.get('top_artists', []),
+        'topTracks': doc.get('top_tracks',  []),
+        'genres': doc.get('genres', []),
+        'audioFeatures': doc.get('audio_features', {}),
+        'audio': doc.get('audio_features', {}),
+        'mbtiType': doc.get('mbti_type'),
+        'mbti': doc.get('mbti_profile') or {},
+        'mbtiProfile': doc.get('mbti_profile') or {},
+        'sonicPersonalityTitle': doc.get('sonic_personality_title'),
+        'personalityTraits': doc.get('personality_traits', []),
+        'personality': doc.get('personality_traits', []),
+        'personalityMeta': doc.get('personality_meta') or {},
+        'archetype': doc.get('archetype'),
+        'emotionalSignature': doc.get('emotional_signature'),
+        'listeningStyle': doc.get('listening_style'),
+        'traitScores': doc.get('trait_scores') or {},
+        'musicIdentitySummary': doc.get('music_identity_summary'),
+        'moodTags': doc.get('mood_tags', []),
+        'aestheticTags': doc.get('aesthetic_tags', []),
+        'atmosphereLabels': doc.get('atmosphere_labels', []),
+        'regionLabels': doc.get('region_labels', []),
+        'orbStateDescriptors': doc.get('orb_state_descriptors', []),
+        'timeOfDayPatterns': doc.get('time_of_day_patterns', []),
+        'eraPreferences': doc.get('era_preferences', []),
+        'analyticsMetrics': doc.get('analytics_metrics') or {},
+        'confidence': doc.get('confidence') or {},
+        'dataQuality': doc.get('data_quality') or {},
+        'profileTier': doc.get('profile_tier'),
+        'audioCoverage': doc.get('audio_coverage'),
+        'genreCoverage': doc.get('genre_coverage'),
     }
 
 
@@ -94,6 +121,7 @@ def _resolve_username(data: dict, user_id: str) -> str:
 
     user_doc = None
     try:
+        from bson import ObjectId
         user_doc = _mongo.db.users.find_one({'_id': ObjectId(user_id)})
     except Exception:
         user_doc = _mongo.db.users.find_one({'_id': user_id})
@@ -130,6 +158,8 @@ def upsert_profile():
     """
     data = request.json or {}
     user_id = g.user_id
+    if _mongo is None:
+        return api_error('Database not initialised', 500, code='DATABASE_NOT_INITIALISED')
 
     username = _resolve_username(data, user_id)
 
@@ -142,8 +172,29 @@ def upsert_profile():
         'top_tracks':     data.get('top_tracks',  [])[:50],
         'genres':         data.get('genres',      [])[:50],
         'audio_features': data.get('audio_features', {}),
+        'mbti_type': data.get('mbti_type'),
+        'mbti_profile': data.get('mbti_profile') or {},
+        'sonic_personality_title': data.get('sonic_personality_title'),
+        'personality_traits': data.get('personality_traits', [])[:12],
+        'personality_meta': data.get('personality_meta') or {},
+        'archetype': data.get('archetype'),
+        'emotional_signature': data.get('emotional_signature'),
+        'listening_style': data.get('listening_style'),
+        'trait_scores': data.get('trait_scores') or {},
+        'music_identity_summary': data.get('music_identity_summary'),
+        'mood_tags': data.get('mood_tags', [])[:16],
+        'aesthetic_tags': data.get('aesthetic_tags', [])[:16],
+        'atmosphere_labels': data.get('atmosphere_labels', [])[:16],
+        'region_labels': data.get('region_labels', [])[:16],
+        'orb_state_descriptors': data.get('orb_state_descriptors', [])[:12],
+        'time_of_day_patterns': data.get('time_of_day_patterns', [])[:8],
+        'era_preferences': data.get('era_preferences', [])[:8],
+        'analytics_metrics': data.get('analytics_metrics') or {},
         'data_quality':   data.get('data_quality', {}),
         'confidence':     data.get('confidence', {}),
+        'profile_tier': data.get('profile_tier'),
+        'audio_coverage': data.get('audio_coverage'),
+        'genre_coverage': data.get('genre_coverage'),
         'soulmate_readiness': data.get('soulmate_readiness', {}),
         'identity_readiness': data.get('identity_readiness', {}),
         'updated_at':     datetime.utcnow(),
@@ -177,7 +228,7 @@ def get_matches():
     my_doc  = _get_profile(user_id)
 
     if not my_doc:
-        return jsonify({'error': 'Profile not found. Sync your music first.'}), 404
+        return api_error('Profile not found. Sync your music first.', 404, code='PROFILE_NOT_FOUND')
 
     my_profile = _profile_to_engine_format(my_doc)
 
@@ -202,9 +253,9 @@ def compare(uid_b: str):
     doc_b = _get_profile(uid_b)
 
     if not doc_a:
-        return jsonify({'error': 'Your profile not found. Sync your music first.'}), 404
+        return api_error('Your profile not found. Sync your music first.', 404, code='PROFILE_NOT_FOUND')
     if not doc_b:
-        return jsonify({'error': 'Other user profile not found.'}), 404
+        return api_error('Other user profile not found.', 404, code='PROFILE_NOT_FOUND')
 
     profile_a = _profile_to_engine_format(doc_a)
     profile_b = _profile_to_engine_format(doc_b)
@@ -220,6 +271,8 @@ def compare(uid_b: str):
         **result,
         'user_a': {'user_id': user_id,  'username': profile_a['username'], 'avatar': profile_a.get('avatar')},
         'user_b': {'user_id': uid_b,    'username': profile_b['username'], 'avatar': profile_b.get('avatar')},
+        'profile_a': profile_a,
+        'profile_b': profile_b,
         'graph':  graph,
     }), 200
 

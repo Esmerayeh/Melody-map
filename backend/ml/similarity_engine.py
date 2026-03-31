@@ -60,7 +60,7 @@ class MusicSimilarityEngine:
                            top_k: int = 10) -> tuple[np.ndarray, np.ndarray]:
         sims = cosine_similarity([song_features], all_features)[0]
         indices = np.argsort(sims)[::-1][1:top_k + 1]
-        return indices, sims[indices]
+        return indices, np.clip(sims[indices], 0.0, 1.0)
 
     # ------------------------------------------------------------------
     # Clustering

@@ -16,11 +16,16 @@ function buildRequestId() {
 function normalizeError(err) {
   const status = err?.response?.status || 0
   const data = err?.response?.data || {}
-  const message = data?.error || data?.message || err.message || 'Request failed'
+  const message =
+    data?.error?.message ||
+    data?.error ||
+    data?.message ||
+    err.message ||
+    'Request failed'
   return {
     status,
     message,
-    code: data?.code || null,
+    code: data?.error?.code || data?.code || null,
     requestId: err?.response?.headers?.['x-request-id'] || err?.config?.headers?.['X-Request-ID'] || null,
     raw: err,
   }

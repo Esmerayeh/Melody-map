@@ -10,7 +10,9 @@ Flow:
 import hashlib
 import requests
 from flask import Blueprint, redirect, request
+
 from config import Config
+from utils.logger import logger
 
 lastfm_auth_bp = Blueprint('lastfm_auth', __name__)
 
@@ -19,7 +21,7 @@ LASTFM_API_URL  = 'https://ws.audioscrobbler.com/2.0/'
 
 
 def _api_sig(params: dict) -> str:
-    secret  = Config.LASTFM_API_SECRET or ''
+    secret  = Config.lastfm_api_secret or ''
     sig_str = ''.join(f"{k}{v}" for k, v in sorted(params.items()) if k != 'format')
     sig_str += secret
     return hashlib.md5(sig_str.encode('utf-8')).hexdigest()
@@ -30,8 +32,8 @@ def lastfm_login():
     """Redirect user to Last.fm authorization page."""
     url = (
         f"{LASTFM_AUTH_URL}"
-        f"?api_key={Config.LASTFM_API_KEY}"
-        f"&cb={requests.utils.quote(Config.LASTFM_REDIRECT_URI)}"
+        f"?api_key={Config.lastfm_api_key}"
+        f"&cb={requests.utils.quote(Config.lastfm_redirect_uri)}"
     )
     return redirect(url)
 
@@ -41,11 +43,11 @@ def lastfm_callback():
     """Receive Last.fm token, exchange for session key, redirect to frontend."""
     token = request.args.get('token')
     if not token:
-        return redirect(f"{Config.FRONTEND_URL}/lastfm-success?error=no_token")
+        return redirect(f"{Config.frontend_url}/lastfm-success?error=no_token")
 
     params = {
         'method':  'auth.getSession',
-        'api_key': Config.LASTFM_API_KEY,
+        'api_key': Config.lastfm_api_key,
         'token':   token,
     }
     params['api_sig'] = _api_sig(params)
@@ -56,12 +58,12 @@ def lastfm_callback():
         resp.raise_for_status()
         data = resp.json()
     except requests.RequestException as e:
-        print(f"[Last.fm] Session exchange error: {e}")
-        return redirect(f"{Config.FRONTEND_URL}/lastfm-success?error=session_failed")
+        logger.error({'event': 'lastfm_session_exchange_failed', 'error': str(e)})
+        return redirect(f"{Config.frontend_url}/lastfm-success?error=session_failed")
 
     if 'error' in data:
         msg = data.get('message', 'auth_failed')
-        return redirect(f"{Config.FRONTEND_URL}/lastfm-success?error={requests.utils.quote(msg)}")
+        return redirect(f"{Config.frontend_url}/lastfm-success?error={requests.utils.quote(msg)}")
 
     session  = data['session']
     sess_key = session['key']
@@ -69,7 +71,7 @@ def lastfm_callback():
 
     # Always redirect back to the FRONTEND — never leave the user on the backend domain
     return redirect(
-        f"{Config.FRONTEND_URL}/lastfm-success"
+        f"{Config.frontend_url}/lastfm-success"
         f"?session={sess_key}"
         f"&username={requests.utils.quote(username)}"
     )

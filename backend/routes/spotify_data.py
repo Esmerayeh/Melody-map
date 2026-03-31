@@ -1,36 +1,26 @@
-"""
-Proxy endpoints that call Spotify Web API on behalf of the frontend.
-All routes expect:  X-Spotify-Token: <spotify_access_token>
-"""
+"""Proxy endpoints that call Spotify Web API on behalf of the frontend."""
 
-import requests
 from flask import Blueprint, jsonify, request
+
+from services.spotify_proxy_service import spotify_proxy_service
+from utils.api import api_error
 
 spotify_data_bp = Blueprint('spotify_data', __name__)
 
-SPOTIFY_API = 'https://api.spotify.com/v1'
-
-
-def _spotify_headers():
-    auth = request.headers.get('X-Spotify-Token') or request.headers.get('Authorization', '')
-    token = auth.replace('Bearer ', '').strip()
-    if not token:
-        return None, jsonify({'error': 'Spotify token missing'}), 401
-    return {'Authorization': f'Bearer {token}'}, None, None
+def _token_from_request() -> str:
+    return request.headers.get('X-Spotify-Token') or request.headers.get('Authorization', '')
 
 
 def _get(path, params=None):
-    headers, err_resp, status = _spotify_headers()
-    if err_resp:
-        return None, (err_resp, status)
-    try:
-        resp = requests.get(f"{SPOTIFY_API}{path}", headers=headers, params=params, timeout=10)
-        if resp.status_code == 401:
-            return None, (jsonify({'error': 'Spotify token expired', 'code': 'TOKEN_EXPIRED'}), 401)
-        resp.raise_for_status()
-        return resp.json(), None
-    except requests.RequestException as e:
-        return None, (jsonify({'error': str(e)}), 500)
+    result = spotify_proxy_service.get(_token_from_request(), path, params)
+    if not result.ok:
+        return None, api_error(
+            result.error_message or 'Spotify request failed',
+            result.status,
+            code=result.error_code,
+            details=result.data,
+        )
+    return result.data or {}, None
 
 
 @spotify_data_bp.route('/spotify/me')
@@ -118,7 +108,8 @@ def get_playlists():
 
 @spotify_data_bp.route('/spotify/audio-features', methods=['POST'])
 def get_audio_features():
-    track_ids = request.json.get('track_ids', [])
+    payload = request.get_json(silent=True) or {}
+    track_ids = payload.get('track_ids', [])
     if not track_ids:
         return jsonify([])
     ids_str   = ','.join(track_ids[:100])

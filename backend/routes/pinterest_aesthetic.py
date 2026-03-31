@@ -57,7 +57,7 @@ def _build_queries(genres: list[str], archetypes: list[str]) -> list[str]:
 
 
 def _fetch_pinterest(queries: list[str], per_query: int = 5) -> list[dict]:
-    token = Config.PINTEREST_ACCESS_TOKEN
+    token = Config.pinterest_access_token
     if not token:
         return []
 
@@ -121,7 +121,7 @@ def _fetch_pinterest(queries: list[str], per_query: int = 5) -> list[dict]:
 
 def _fallback_unsplash(queries: list[str], per_query: int = 4) -> list[dict]:
     """Use Unsplash as fallback when Pinterest token is absent."""
-    if not Config.UNSPLASH_ACCESS_KEY:
+    if not Config.unsplash_access_key:
         return _placeholder_images(queries)
 
     pins, seen_ids = [], set()
@@ -130,7 +130,7 @@ def _fallback_unsplash(queries: list[str], per_query: int = 4) -> list[dict]:
             resp = req.get(
                 'https://api.unsplash.com/search/photos',
                 params={'query': query, 'per_page': per_query, 'orientation': 'portrait'},
-                headers={'Authorization': f'Client-ID {Config.UNSPLASH_ACCESS_KEY}'},
+                headers={'Authorization': f'Client-ID {Config.unsplash_access_key}'},
                 timeout=5,
             )
             if resp.status_code != 200:
@@ -188,5 +188,5 @@ def get_pinterest_aesthetic():
     return jsonify({
         'pins':    pins[:20],
         'queries': queries,
-        'source':  'pinterest' if Config.PINTEREST_ACCESS_TOKEN else ('unsplash' if Config.UNSPLASH_ACCESS_KEY else 'placeholder'),
+        'source':  'pinterest' if Config.pinterest_access_token else ('unsplash' if Config.unsplash_access_key else 'placeholder'),
     }), 200

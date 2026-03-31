@@ -19,8 +19,11 @@ Redirect URI rules (Spotify post-April 2025):
 
 import requests
 import base64
-from flask import Blueprint, redirect, request, jsonify, current_app
+from flask import Blueprint, redirect, request, jsonify
+
 from config import Config
+from utils.api import api_error
+from utils.logger import logger
 
 spotify_auth_bp = Blueprint('spotify_auth', __name__)
 
@@ -38,7 +41,7 @@ SCOPES = ' '.join([
 
 def _basic_auth_header():
     """Return Base64-encoded Basic auth header for Spotify token endpoint."""
-    creds = f"{Config.SPOTIFY_CLIENT_ID}:{Config.SPOTIFY_CLIENT_SECRET}"
+    creds = f"{Config.spotify_client_id}:{Config.spotify_client_secret}"
     encoded = base64.b64encode(creds.encode()).decode()
     return f"Basic {encoded}"
 
@@ -46,10 +49,12 @@ def _basic_auth_header():
 @spotify_auth_bp.route('/auth/spotify/login')
 def spotify_login():
     """Redirect the user to Spotify's authorization page."""
+    if not Config.spotify_credentials_available:
+        return api_error('Spotify OAuth is not configured', 503, code='SPOTIFY_OAUTH_UNAVAILABLE')
     params = {
-        'client_id':     Config.SPOTIFY_CLIENT_ID,
+        'client_id':     Config.spotify_client_id,
         'response_type': 'code',
-        'redirect_uri':  Config.SPOTIFY_REDIRECT_URI,
+        'redirect_uri':  Config.spotify_redirect_uri,
         'scope':         SCOPES,
         'show_dialog':   'false',
     }
@@ -60,19 +65,19 @@ def spotify_login():
 @spotify_auth_bp.route('/auth/spotify/callback')
 def spotify_callback():
     """Handle Spotify's redirect, exchange code for tokens."""
-    print(f"[Spotify] Callback hit. args={dict(request.args)}")
+    if not Config.spotify_credentials_available:
+        return redirect(f"{Config.frontend_url}/spotify-success?error=spotify_not_configured")
     error = request.args.get('error')
     if error:
-        print(f"[Spotify] Auth error from Spotify: {error}")
-        return redirect(f"{Config.FRONTEND_URL}/spotify-success?error={error}")
+        logger.warning({'event': 'spotify_auth_error', 'error': error})
+        return redirect(f"{Config.frontend_url}/spotify-success?error={error}")
 
     code = request.args.get('code')
     if not code:
-        print("[Spotify] No code in callback")
-        return redirect(f"{Config.FRONTEND_URL}/spotify-success?error=no_code")
+        logger.warning({'event': 'spotify_callback_missing_code'})
+        return redirect(f"{Config.frontend_url}/spotify-success?error=no_code")
 
     # Exchange authorization code for access token
-    print(f"[Spotify] Exchanging code for token. redirect_uri={Config.SPOTIFY_REDIRECT_URI!r}")
     try:
         resp = requests.post(
             SPOTIFY_TOKEN_URL,
@@ -83,30 +88,29 @@ def spotify_callback():
             data={
                 'grant_type':   'authorization_code',
                 'code':          code,
-                'redirect_uri':  Config.SPOTIFY_REDIRECT_URI,
+                'redirect_uri':  Config.spotify_redirect_uri,
             },
             timeout=10,
         )
-        print(f"[Spotify] Token response status: {resp.status_code}")
         if not resp.ok:
-            print(f"[Spotify] Token error body: {resp.text}")
-            return redirect(f"{Config.FRONTEND_URL}/spotify-success?error=token_exchange_failed&detail={requests.utils.quote(resp.text)}")
+            logger.warning({'event': 'spotify_token_exchange_failed', 'status': resp.status_code, 'body': resp.text})
+            return redirect(f"{Config.frontend_url}/spotify-success?error=token_exchange_failed&detail={requests.utils.quote(resp.text)}")
         token_data = resp.json()
     except requests.RequestException as e:
-        print(f"[Spotify] Token exchange exception: {e}")
-        return redirect(f"{Config.FRONTEND_URL}/spotify-success?error=token_exchange_failed")
+        logger.error({'event': 'spotify_token_exchange_exception', 'error': str(e)})
+        return redirect(f"{Config.frontend_url}/spotify-success?error=token_exchange_failed")
 
     access_token  = token_data.get('access_token')
     refresh_token = token_data.get('refresh_token', '')
     expires_in    = token_data.get('expires_in', 3600)
 
     if not access_token:
-        print(f"[Spotify] No access_token in response: {token_data}")
-        return redirect(f"{Config.FRONTEND_URL}/spotify-success?error=no_access_token")
+        logger.warning({'event': 'spotify_token_missing_access_token'})
+        return redirect(f"{Config.frontend_url}/spotify-success?error=no_access_token")
 
     # Redirect frontend with token in query string
     return redirect(
-        f"{Config.FRONTEND_URL}/spotify-success"
+        f"{Config.frontend_url}/spotify-success"
         f"?token={access_token}"
         f"&refresh_token={refresh_token}"
         f"&expires_in={expires_in}"
@@ -116,9 +120,12 @@ def spotify_callback():
 @spotify_auth_bp.route('/auth/spotify/refresh', methods=['POST'])
 def spotify_refresh():
     """Refresh an expired Spotify access token."""
-    refresh_token = request.json.get('refresh_token')
+    if not Config.spotify_credentials_available:
+        return api_error('Spotify OAuth is not configured', 503, code='SPOTIFY_OAUTH_UNAVAILABLE')
+    payload = request.get_json(silent=True) or {}
+    refresh_token = payload.get('refresh_token')
     if not refresh_token:
-        return jsonify({'error': 'refresh_token required'}), 400
+        return api_error('refresh_token required', 400, code='REFRESH_TOKEN_REQUIRED')
 
     try:
         resp = requests.post(
@@ -140,4 +147,5 @@ def spotify_refresh():
             'expires_in':   data.get('expires_in', 3600),
         })
     except requests.RequestException as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error({'event': 'spotify_refresh_failed', 'error': str(e)})
+        return api_error('Spotify token refresh failed', 500, code='SPOTIFY_REFRESH_FAILED')
