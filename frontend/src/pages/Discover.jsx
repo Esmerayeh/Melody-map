@@ -8,9 +8,11 @@ import {
 } from 'lucide-react'
 import { spotifyAPI, discoverAPI } from '../services/api'
 import useMusicProfile from '../hooks/useMusicProfile'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import useStore from '../store/useStore'
 import { useDebounce } from '../hooks/useDebounce'
 import MusicSourceCard from '../components/MusicSourceCard'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 import toast from 'react-hot-toast'
 
 function getTimeContext() {
@@ -178,7 +180,7 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
             <div className="px-5 py-4">
               {loadingTracks && (
                 <div className="flex items-center gap-2 py-6 justify-center text-gray-500 text-sm">
-                  <Loader2 className="w-4 h-4 animate-spin" /> Finding tracks…
+                  <Loader2 className="w-4 h-4 animate-spin" /> Finding tracks...
                 </div>
               )}
               {!loadingTracks && tracks.length > 0 && tracks.map((t, i) => (
@@ -349,7 +351,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
           className="mb-5 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
           <Shuffle className="w-3.5 h-3.5 shrink-0" />
-          Serendipity mode — these sequences drift toward the farther edge of your taste.
+          Serendipity mode - these sequences drift toward the farther edge of your taste.
         </motion.div>
       )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
@@ -483,15 +485,44 @@ function BrowseTab({ spotifyConnected, lastfmConnected, initialQuery = '' }) {
 export default function Discover() {
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('forYou')
+  const { profile, phase, tier, readiness, musicProvider } = useMusicProfile({ autoFetch: true })
   const spotifyConnected = useStore((s) => s.spotifyConnected)
   const lastfmConnected  = useStore((s) => s.lastfmConnected)
   const seededQuery = searchParams.get('q') || ''
+  const boot = useRouteReadiness({
+    phase,
+    profile,
+    readiness,
+    tier,
+    require: {},
+    copy: {
+      empty: {
+        title: 'Connect a music source to open Drift.',
+        subtitle: 'The signal stream opens once your listening signal is present.',
+        detail: 'Connect Spotify or Last.fm to begin.',
+      },
+    },
+  })
 
   useEffect(() => {
     if (seededQuery) {
       setActiveTab('browse')
     }
   }, [seededQuery])
+
+  if (boot.blocked && boot.variant !== 'empty') {
+    return (
+      <div className="cosmic-page">
+        <ProfileBootPanel
+          variant={boot.variant}
+          title={boot.title}
+          subtitle={boot.subtitle}
+          detail={boot.detail}
+          provider={musicProvider || 'spotify'}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="cosmic-page">

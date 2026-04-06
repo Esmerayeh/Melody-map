@@ -12,6 +12,7 @@ import { getVibeName, extractPastelPalette } from '../services/vibeTheme'
 import VibeEmitter from '../components/VibeEmitter'
 import IdentityReveal from '../components/IdentityReveal'
 import ProfileBootPanel from '../components/ProfileBootPanel'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../features/motion/motionTokens'
 
 const cleanCopy = (value = '') => value
@@ -267,7 +268,7 @@ export default function Dashboard() {
   const setTimeRange         = useStore((s) => s.setMusicProfileTimeRange)
   const isConnected          = spotifyConnected || lastfmConnected
 
-  const { profile, loading, error, refetch, timeRange, confidence, dataQuality, phase } = useMusicProfile()
+  const { profile, loading, error, refetch, timeRange, confidence, dataQuality, phase, readiness, tier } = useMusicProfile()
 
   const [showReveal, setShowReveal] = useState(false)
 
@@ -299,39 +300,45 @@ export default function Dashboard() {
     })
   }, [tracks])
 
-  if (phase === 'loading' && !profile && isConnected) {
-    return (
-      <ProfileBootPanel
-        variant="loading"
-        title="The observatory is tuning in."
-        subtitle="We are gathering your listening signal before the room fills in."
-        detail="Hold steady."
-      />
-    )
-  }
+  const boot = useRouteReadiness({
+    phase,
+    profile: isConnected ? profile : null,
+    readiness,
+    tier,
+    require: { profile: true },
+    copy: {
+      loading: {
+        title: 'The observatory is tuning in.',
+        subtitle: 'We are gathering your listening signal before the room fills in.',
+        detail: 'Hold steady.',
+      },
+      error: {
+        title: 'The observatory could not read your signal.',
+        subtitle: 'The listening data is not reachable right now.',
+        detail: 'Refresh once and the room should return.',
+      },
+      empty: {
+        title: 'The observatory is still quiet.',
+        subtitle: 'Your listening signal has not settled into a full profile yet.',
+        detail: 'Try syncing again in a moment.',
+      },
+      sparse: {
+        title: 'Sparse signal mode.',
+        subtitle: 'We are rendering a lighter observatory until the profile deepens.',
+        detail: 'This is intentional, not an error.',
+      },
+    },
+  })
 
-  if (phase === 'error' && !profile && isConnected) {
+  if (boot.blocked && isConnected) {
     return (
       <ProfileBootPanel
-        variant="error"
-        title="The observatory could not read your signal."
-        subtitle="The listening data is not reachable right now."
-        detail="Refresh once and the room should return."
-        actionLabel="Reload the observatory"
-        onAction={() => window.location.reload()}
-      />
-    )
-  }
-
-  if (phase === 'empty' && isConnected) {
-    return (
-      <ProfileBootPanel
-        variant="empty"
-        title="The observatory is still quiet."
-        subtitle="Your listening signal has not settled into a full profile yet."
-        detail="Try syncing again in a moment."
-        actionLabel="Refresh the signal"
-        onAction={refetch}
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the observatory' : boot.variant === 'empty' ? 'Refresh the signal' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : boot.variant === 'empty' ? refetch : undefined}
       />
     )
   }
@@ -375,6 +382,7 @@ export default function Dashboard() {
                   topArtists={profile?.topArtists}
                   size={120}
                   showLabels={false}
+                  lowPower={tier === 'sparse' || tier === 'limited'}
                 />
               </div>
             )}

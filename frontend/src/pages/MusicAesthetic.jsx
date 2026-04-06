@@ -6,10 +6,12 @@ import {
   Palette, Wand2, User, ChevronDown, ZoomIn,
 } from 'lucide-react'
 import { aestheticAPI, spotifyAPI, lastfmAPI, pinterestAPI } from '../services/api'
+import { normalizeAestheticResponse, normalizeListResponse } from '../services/dataAdapters'
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import VibeEmitter from '../components/VibeEmitter'
 import ProfileBootPanel from '../components/ProfileBootPanel'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 
 import toast from 'react-hot-toast'
 
@@ -416,6 +418,8 @@ export default function MusicAesthetic() {
   const [activeTab, setActiveTab]   = useState('board') // 'board' | 'pinterest'
   const [pinterestPins, setPinterestPins]   = useState(null)
   const [pinterestLoading, setPinterestLoading] = useState(false)
+  const [aestheticStatus, setAestheticStatus] = useState('empty')
+  const [aestheticWarnings, setAestheticWarnings] = useState([])
   const profileRef = useRef(null)
 
   const spotifyConnected = useStore((s) => s.spotifyConnected)
@@ -423,7 +427,7 @@ export default function MusicAesthetic() {
   const setAestheticState = useStore((s) => s.setAestheticState)
 
   // Pull from central profile store — avoids redundant Spotify calls
-  const { profile, phase } = useMusicProfile({ autoFetch: true })
+  const { profile, phase, readiness, tier } = useMusicProfile({ autoFetch: true })
   const hasSupportingSignals = Boolean(
     aesthetic?.supportingSignals?.genreEvidence?.length
       || aesthetic?.supportingSignals?.artistEvidence?.length
@@ -432,37 +436,45 @@ export default function MusicAesthetic() {
       || aesthetic?.eraInfluence?.dominant?.length
   )
 
-  if (phase === 'loading' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="loading"
-        title="The atmosphere is gathering."
-        subtitle="We are shaping your aesthetic field from the listening signal."
-        detail="This will settle shortly."
-      />
-    )
-  }
+  const boot = useRouteReadiness({
+    phase,
+    profile,
+    readiness,
+    tier,
+    require: { profile: true, aesthetic: true },
+    copy: {
+      loading: {
+        title: 'The atmosphere is gathering.',
+        subtitle: 'We are shaping your aesthetic field from the listening signal.',
+        detail: 'This will settle shortly.',
+      },
+      empty: {
+        title: 'Connect a music source to reveal your aesthetic.',
+        subtitle: 'Once the listening signal arrives, the mood shrine will appear.',
+        detail: 'No signal is present yet.',
+      },
+      error: {
+        title: 'The aesthetic field could not load.',
+        subtitle: 'The listening data is not reachable right now.',
+        detail: 'Refresh once and the atmosphere should return.',
+      },
+      sparse: {
+        title: 'Sparse signal mode.',
+        subtitle: 'We are rendering a lighter shrine until the profile deepens.',
+        detail: 'This is intentional, not an error.',
+      },
+    },
+  })
 
-  if (phase === 'empty') {
+  if (boot.blocked) {
     return (
       <ProfileBootPanel
-        variant="empty"
-        title="Connect a music source to reveal your aesthetic."
-        subtitle="Once the listening signal arrives, the mood shrine will appear."
-        detail="No signal is present yet."
-      />
-    )
-  }
-
-  if (phase === 'error' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="error"
-        title="The aesthetic field could not load."
-        subtitle="The listening data is not reachable right now."
-        detail="Refresh once and the atmosphere should return."
-        actionLabel="Reload the atmosphere"
-        onAction={() => window.location.reload()}
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the atmosphere' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
       />
     )
   }
@@ -578,11 +590,17 @@ export default function MusicAesthetic() {
       const res = offset === 0
         ? await aestheticAPI.get(profile)
         : await aestheticAPI.regenerate(profile, offset)
-      setAesthetic(res.data)
+      const normalized = normalizeAestheticResponse(res?.data)
+      if (!normalized.data) {
+        throw new Error(normalized.warnings?.[0] || 'aesthetic payload missing')
+      }
+      setAesthetic(normalized.data)
+      setAestheticStatus(normalized.status)
+      setAestheticWarnings(normalized.warnings || [])
       setSeedOffset(offset)
       // Persist palette to global store for dynamic app theming
-      if (res.data?.palette) {
-        setAestheticState({ palette: res.data.palette, name: res.data.aesthetic_name })
+      if (normalized.data?.palette) {
+        setAestheticState({ palette: normalized.data.palette, name: normalized.data.aesthetic_name })
       }
     } catch {
       toast.error('something slipped through the static. try again.')
@@ -610,7 +628,8 @@ export default function MusicAesthetic() {
       const genres = (profile?.genres || []).slice(0, 6).map((g) => typeof g === 'string' ? g : g.genre)
       const archetypes = (profile?.personality || []).map((t) => t.id)
       const res = await pinterestAPI.getAesthetic({ genres, archetypes })
-      setPinterestPins(res.data?.pins || [])
+      const normalized = normalizeListResponse(res?.data?.pins || res?.data || [], [])
+      setPinterestPins(normalized.data)
     } catch {
       toast.error('the reference board drifted out of reach')
       setPinterestPins([])
@@ -660,6 +679,18 @@ export default function MusicAesthetic() {
             </div>
           )}
         </div>
+
+        {aesthetic && aestheticStatus !== 'ready' && (
+          <div className="mb-6 text-xs text-amber-300/80">
+            This is a partial atmosphere reading. The shrine will deepen as more listening signal arrives.
+          </div>
+        )}
+
+        {aestheticWarnings?.length > 0 && (
+          <div className="mb-6 text-[11px] uppercase tracking-[0.22em] text-gray-500">
+            {aestheticWarnings[0]}
+          </div>
+        )}
 
         {/* States */}
         {!aesthetic && !loading && <EmptyState onGenerate={() => generate(0)} loading={loading} />}

@@ -9,6 +9,7 @@ import useMusicProfile from '../hooks/useMusicProfile'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import DeferredSoulOrb from '../components/DeferredSoulOrb'
 import ProfileBootPanel from '../components/ProfileBootPanel'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 
 const normalizeUnit = (value) => {
   if (value == null || Number.isNaN(Number(value))) return null
@@ -190,41 +191,49 @@ function DiversityPie({ genres }) {
 }
 
 export default function Analytics() {
-  const { profile, loading, canComputeAnalytics, dataQuality, confidence, phase } = useMusicProfile()
+  const { profile, loading, canComputeAnalytics, dataQuality, confidence, phase, readiness, tier } = useMusicProfile()
   const safeProfile = profile || {}
   const af = useMemo(() => safeProfile.audioFeatures || {}, [safeProfile])
 
-  if (phase === 'loading' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="loading"
-        title="The signal reading is tuning in."
-        subtitle="We are collecting the deeper track-level signal before the full read appears."
-        detail="This will settle shortly."
-      />
-    )
-  }
+  const boot = useRouteReadiness({
+    phase,
+    profile,
+    readiness,
+    tier,
+    require: { profile: true, analytics: true },
+    copy: {
+      loading: {
+        title: 'The signal reading is tuning in.',
+        subtitle: 'We are collecting the deeper track-level signal before the full read appears.',
+        detail: 'This will settle shortly.',
+      },
+      empty: {
+        title: 'Connect a music source to read the signal.',
+        subtitle: 'When your listening history is connected, the deeper read will appear here.',
+        detail: 'No signal is present yet.',
+      },
+      error: {
+        title: 'We could not read your signal.',
+        subtitle: 'The listening data could not be reached just now.',
+        detail: 'Refresh once and the signal should return.',
+      },
+      sparse: {
+        title: 'Sparse signal mode.',
+        subtitle: 'We are rendering a lighter reading until the profile deepens.',
+        detail: 'This is intentional, not an error.',
+      },
+    },
+  })
 
-  if (phase === 'empty') {
+  if (boot.blocked) {
     return (
       <ProfileBootPanel
-        variant="empty"
-        title="Connect a music source to read the signal."
-        subtitle="When your listening history is connected, the deeper read will appear here."
-        detail="No signal is present yet."
-      />
-    )
-  }
-
-  if (phase === 'error' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="error"
-        title="We could not read your signal."
-        subtitle="The listening data could not be reached just now."
-        detail="Refresh once and the signal should return."
-        actionLabel="Reload the reading"
-        onAction={() => window.location.reload()}
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the reading' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
       />
     )
   }
@@ -280,6 +289,7 @@ export default function Analytics() {
             topArtists={safeProfile.topArtists}
             size={160}
             showLabels
+            lowPower={tier === 'sparse' || tier === 'limited'}
           />
         </motion.div>
       </div>

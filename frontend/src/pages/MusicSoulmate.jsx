@@ -3,16 +3,17 @@ import { Link, useParams } from 'react-router-dom'
 import { HeartHandshake, Link2, RefreshCw, Sparkles, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
-import { publicProfileAPI, soulmateAPI } from '../services/api'
+import { soulmateAPI } from '../services/api'
 import { musicService } from '../services/musicService'
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import MusicSourceCard from '../components/MusicSourceCard'
 import CompatibilityCard from '../components/CompatibilityCard'
 import SoulmateMap from '../components/SoulmateMap'
 import VibeEmitter from '../components/VibeEmitter'
 import ProfileBootPanel from '../components/ProfileBootPanel'
-import { computeSoulmateCompatibility } from '../utils/soulmateEngine'
+import { normalizeListResponse, normalizeSoulmateResponse } from '../services/dataAdapters'
 
 function parseSoulmateIdentifier(input) {
   const trimmed = String(input || '').trim()
@@ -108,7 +109,7 @@ function InviteLink({ publicSlug }) {
 
 export default function MusicSoulmate() {
   const { identifier } = useParams()
-  const { profile, loading: profileLoading, phase, readiness } = useMusicProfile()
+  const { profile, loading: profileLoading, phase, readiness, tier } = useMusicProfile()
   const musicProvider = useStore((state) => state.musicProvider)
   const vibeFeatures = useStore((state) => state.vibeFeatures)
 
@@ -238,8 +239,9 @@ export default function MusicSoulmate() {
   const loadMatches = useCallback(async () => {
     setLoadingMatches(true)
     try {
-      const { data } = await soulmateAPI.getMatches()
-      setMatches(data || [])
+      const res = await soulmateAPI.getMatches()
+      const normalized = normalizeListResponse(res?.data, [])
+      setMatches(normalized.data || [])
     } catch {
       setMatches([])
     } finally {
@@ -262,8 +264,9 @@ export default function MusicSoulmate() {
     setComparison(null)
     setComparisonLoading(true)
     try {
-      const { data } = await soulmateAPI.compare(match.user_id)
-      setComparison(data)
+      const res = await soulmateAPI.compare(match.user_id)
+      const normalized = normalizeSoulmateResponse(res?.data)
+      setComparison(normalized.data || null)
     } catch {
       toast.error('the dual orbit drifted out of reach')
     } finally {
@@ -272,7 +275,7 @@ export default function MusicSoulmate() {
   }, [hasAppToken])
 
   useEffect(() => {
-    if (!normalizedIdentifier || !profile || profileLoading) return
+    if (!normalizedIdentifier || !profile || profileLoading || !hasAppToken) return
     if (normalizedIdentifier === myPublicSlug) {
       setInviteComparison({
         otherUsername: myUsername,
@@ -286,16 +289,17 @@ export default function MusicSoulmate() {
     let cancelled = false
     setInviteComparison({ loading: true, result: null, error: null, otherUsername: normalizedIdentifier })
 
-    publicProfileAPI.get(normalizedIdentifier)
-      .then(({ data }) => {
+    soulmateAPI.comparePublic(normalizedIdentifier)
+      .then((res) => {
         if (cancelled) return
-        const result = computeSoulmateCompatibility(profile, data)
+        const normalized = normalizeSoulmateResponse(res?.data)
+        const result = normalized.data
         setInviteComparison({
           loading: false,
           result,
           error: result ? null : 'the bridge is still too thin to read clearly',
-          otherUsername: data.displayName || data.username || normalizedIdentifier,
-          otherProfile: data,
+          otherUsername: result?.user_b?.username || normalizedIdentifier,
+          otherProfile: result?.profile_b,
         })
       })
       .catch(() => {
@@ -311,39 +315,52 @@ export default function MusicSoulmate() {
     return () => {
       cancelled = true
     }
-  }, [myPublicSlug, myUsername, normalizedIdentifier, profile, profileLoading])
+  }, [hasAppToken, myPublicSlug, myUsername, normalizedIdentifier, profile, profileLoading])
 
-  if (phase === 'loading' && !profile) {
+  const boot = useRouteReadiness({
+    phase,
+    profile,
+    readiness,
+    tier,
+    require: { profile: true },
+    copy: {
+      loading: {
+        title: 'Holding the dual orbit.',
+        subtitle: 'We are pulling your listening field into alignment before the comparison ritual begins.',
+        detail: 'This should settle shortly.',
+      },
+      error: {
+        title: 'The orbit failed to load.',
+        subtitle: 'We could not reach your listening profile just yet.',
+        detail: 'Refresh once and the signal should return.',
+      },
+      empty: {
+        title: 'Connect a music source to compare soulmates.',
+        subtitle: 'The compatibility ritual begins once your listening signal is present.',
+        detail: 'No signal is present yet.',
+      },
+      partial: {
+        title: 'Partial signal detected.',
+        subtitle: 'Enough signal exists to begin, but the comparison will deepen as your profile matures.',
+        detail: 'Some sections may stay quiet until more data lands.',
+      },
+      sparse: {
+        title: 'Sparse signal mode.',
+        subtitle: 'We are rendering a lighter soulmate ritual while your profile continues to form.',
+        detail: 'This is intentional, not an error.',
+      },
+    },
+  })
+
+  if (boot.blocked) {
     return (
       <ProfileBootPanel
-        variant="loading"
-        title="Holding the dual orbit."
-        subtitle="We are pulling your listening field into alignment before the comparison ritual begins."
-        detail="This should settle shortly."
-      />
-    )
-  }
-
-  if (phase === 'error' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="error"
-        title="The orbit failed to load."
-        subtitle="We could not reach your listening profile just yet."
-        detail="Refresh once and the signal should return."
-        actionLabel="Reload the orbit"
-        onAction={() => window.location.reload()}
-      />
-    )
-  }
-
-  if (phase === 'empty') {
-    return (
-      <ProfileBootPanel
-        variant="empty"
-        title="Connect a music source to compare soulmates."
-        subtitle="The compatibility ritual begins once your listening signal is present."
-        detail="No signal is present yet."
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the orbit' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
       />
     )
   }

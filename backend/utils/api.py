@@ -11,6 +11,19 @@ def api_success(data=None, status: int = 200, **meta):
     return jsonify(payload), status
 
 
+def legacy_envelope(data, **meta) -> dict:
+    payload = data_envelope(data, **meta)
+    if isinstance(data, dict):
+        for key, value in data.items():
+            payload.setdefault(key, value)
+    return payload
+
+
+def api_success_legacy(data=None, status: int = 200, **meta):
+    payload = legacy_envelope(data, **meta)
+    return jsonify(payload), status
+
+
 def api_error(
     message: str,
     status: int = 400,
@@ -40,4 +53,3 @@ def data_envelope(data, **meta) -> dict:
     payload = {"success": True, "data": data}
     payload.update({key: value for key, value in meta.items() if value is not None})
     return payload
-

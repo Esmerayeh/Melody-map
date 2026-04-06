@@ -514,24 +514,39 @@ export function buildGalaxyModel(profile = null) {
   }
 
   const profileFeatures = profile.audioFeatures || {}
-  const genreNodes = buildGenreAnchors(genres, profileFeatures)
-  const artistNodes = buildArtistStars(artists, genreNodes, profileFeatures)
-  const clusterBodies = buildClusterBodies(genreNodes, artistNodes)
-  const trackNodes = buildTrackSatellites(tracks, artistNodes, genreNodes)
-  const nodes = [...genreNodes, ...clusterBodies, ...artistNodes, ...trackNodes].map(sanitizeNode)
-  const edges = buildEdges({ genreNodes, clusterBodies, artistNodes, trackNodes, profileFeatures })
-  const moodRegions = buildMoodRegions(nodes)
-  const coreArtists = artistNodes
+  const genreNodesBase = buildGenreAnchors(genres, profileFeatures)
+  const artistNodesBase = buildArtistStars(artists, genreNodesBase, profileFeatures)
+  const coreArtists = artistNodesBase
     .filter((node) => node.metrics.anchorScore > 0.68)
     .slice(0, 8)
   const corePosition = averagePosition(coreArtists.map((node) => node.position))
-  const profileTier = !artistNodes.length
+  const profileTier = !artistNodesBase.length
     ? 'partial'
     : (profile.dataQuality?.audioCoverage || 0) > 0.55 && genres.length >= 4
       ? 'rich'
-      : artistNodes.length >= 12
+      : artistNodesBase.length >= 12
         ? 'medium'
         : 'partial'
+
+  const sparseMode = profileTier === 'partial'
+    || profileTier === 'limited'
+    || (profile.confidence?.galaxy ?? 0) < 0.45
+
+  const genreNodes = sparseMode ? genreNodesBase.slice(0, 6) : genreNodesBase
+  const artistNodes = sparseMode ? artistNodesBase.slice(0, 18) : artistNodesBase
+  const clusterBodies = buildClusterBodies(genreNodes, artistNodes)
+  const trackNodes = sparseMode ? [] : buildTrackSatellites(tracks, artistNodes, genreNodes)
+  const nodes = [...genreNodes, ...clusterBodies, ...artistNodes, ...trackNodes].map(sanitizeNode)
+  const edgesBase = buildEdges({ genreNodes, clusterBodies, artistNodes, trackNodes, profileFeatures })
+  const keepIds = new Set(nodes.map((node) => node.id))
+  const edges = sparseMode
+    ? edgesBase
+        .filter((edge) => keepIds.has(edge.source) && keepIds.has(edge.target))
+        .filter((edge) => ['artist_genre', 'genre_affinity', 'shared_genre', 'bridge_lane'].includes(edge.type))
+        .slice(0, 120)
+    : edgesBase
+  const moodRegions = buildMoodRegions(nodes)
+  const slimRegions = sparseMode ? moodRegions.filter((region) => (region.coverage || 0) > 0.12).slice(0, 4) : moodRegions
 
   const clusters = clusterBodies
     .map((clusterNode) => {
@@ -562,7 +577,7 @@ export function buildGalaxyModel(profile = null) {
     nodes,
     edges,
     clusters,
-    regions: moodRegions,
+    regions: slimRegions,
     metadata: {
       layoutVersion: 'canonical-profile-v2',
       galaxyDataVersion: GALAXY_LAYOUT_VERSION,
@@ -575,9 +590,10 @@ export function buildGalaxyModel(profile = null) {
         artistStars: artistNodes.length,
         trackSatellites: trackNodes.length,
         edges: edges.length,
-        regions: moodRegions.length,
+        regions: slimRegions.length,
       },
       profileTier,
+      sparseMode,
       core: {
         label: 'Taste Core',
         position: corePosition,

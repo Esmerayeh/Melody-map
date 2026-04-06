@@ -11,6 +11,7 @@ from flask import Blueprint, request, jsonify
 from middleware.rate_limit import rate_limit
 from config import Config
 import requests as req
+from utils.api import api_success_legacy
 
 try:
     from ml.aesthetic_engine import (
@@ -123,10 +124,24 @@ def _build_aesthetic(data: dict, seed_offset: int = 0) -> dict:
     return report
 
 
+def _wrap_aesthetic_payload(payload: dict, *, warnings: list | None = None, limited_signal: bool | None = None):
+    return api_success_legacy(
+        payload,
+        status=200,
+        warnings=warnings or payload.get('warnings') or [],
+        limitedSignal=limited_signal,
+    )
+
+
 @aesthetic_bp.route('/api/aesthetic', methods=['GET', 'POST'])
 @rate_limit(max_requests=20, window_seconds=60)
 def get_aesthetic():
-    return jsonify(_build_aesthetic(_parse_body())), 200
+    report = _build_aesthetic(_parse_body())
+    limited = not report.get('palette') and not report.get('images')
+    warnings = []
+    if not Config.unsplash_access_key:
+        warnings.append('fallback_images_used')
+    return _wrap_aesthetic_payload(report, warnings=warnings, limited_signal=limited)
 
 
 @aesthetic_bp.route('/api/aesthetic/regenerate', methods=['POST'])
@@ -134,7 +149,11 @@ def get_aesthetic():
 def regenerate_aesthetic():
     data   = request.json or {}
     offset = int(data.pop('seed_offset', 1))
-    return jsonify(_build_aesthetic(data, seed_offset=offset)), 200
+    report = _build_aesthetic(data, seed_offset=offset)
+    warnings = []
+    if not Config.unsplash_access_key:
+        warnings.append('fallback_images_used')
+    return _wrap_aesthetic_payload(report, warnings=warnings)
 
 
 @aesthetic_bp.route('/api/aesthetic/personality', methods=['POST'])
@@ -145,7 +164,8 @@ def get_personality():
     energy  = data.get('energy')
     valence = data.get('valence')
     tempo   = data.get('tempo')
-    return jsonify(generate_personality(genres, energy, valence, tempo)), 200
+    payload = generate_personality(genres, energy, valence, tempo)
+    return _wrap_aesthetic_payload(payload)
 
 
 @aesthetic_bp.route('/api/aesthetic/shared', methods=['POST'])
@@ -161,7 +181,10 @@ def get_shared_aesthetic():
     images = _fetch_unsplash_images(shared['shared_tags']) if Config.unsplash_access_key \
              else _fallback_images(shared['shared_tags'])
     shared['images'] = images
-    return jsonify(shared), 200
+    warnings = []
+    if not Config.unsplash_access_key:
+        warnings.append('fallback_images_used')
+    return _wrap_aesthetic_payload(shared, warnings=warnings)
 
 
 @aesthetic_bp.route('/api/aesthetic/vibe', methods=['POST'])
@@ -173,19 +196,20 @@ def get_vibe():
     """
     data    = request.json or {}
     if data.get('energy') is None or data.get('valence') is None or data.get('tempo') is None:
-        return jsonify({
+        payload = {
             'label': 'Insufficient Data',
             'hex': '#7c6fff',
             'description': 'Spotify audio-feature coverage is too limited to classify a vibe safely.',
             'energy': None,
             'valence': None,
             'tempo': None,
-        }), 200
+        }
+        return _wrap_aesthetic_payload(payload, warnings=['insufficient_audio_features'], limited_signal=True)
     energy  = float(data.get('energy'))
     valence = float(data.get('valence'))
     tempo   = float(data.get('tempo'))
     genres  = data.get('genres', [])
-    return jsonify(classify_vibe(energy, valence, tempo, genres)), 200
+    return _wrap_aesthetic_payload(classify_vibe(energy, valence, tempo, genres))
 
 
 @aesthetic_bp.route('/api/aesthetic/identity', methods=['POST'])
@@ -198,7 +222,7 @@ def get_identity():
     data    = request.json or {}
     genres  = data.get('genres', [])
     if data.get('energy') is None or data.get('valence') is None or data.get('tempo') is None:
-        return jsonify({
+        payload = {
             'name': 'Unresolved Identity',
             'tagline': 'There is not enough analyzable audio data yet.',
             'report': 'Melody Map needs stronger Spotify audio-feature coverage before it can confidently generate a poetic identity report.',
@@ -212,11 +236,12 @@ def get_identity():
                 'tempo': None,
                 'genres': genres,
             },
-        }), 200
+        }
+        return _wrap_aesthetic_payload(payload, warnings=['insufficient_audio_features'], limited_signal=True)
     energy  = float(data.get('energy'))
     valence = float(data.get('valence'))
     tempo   = float(data.get('tempo'))
-    return jsonify(generate_poetic_persona(genres, energy, valence, tempo)), 200
+    return _wrap_aesthetic_payload(generate_poetic_persona(genres, energy, valence, tempo))
 
 
 @aesthetic_bp.route('/api/aesthetic/palette-from-features', methods=['POST'])
@@ -229,7 +254,7 @@ def get_palette_from_features():
     """
     data    = request.json or {}
     if data.get('average_valence') is None or data.get('average_energy') is None:
-        return jsonify({
+        payload = {
             'name': 'Insufficient Data',
             'palette': ['#1a1a2e', '#3a0ca3', '#7209b7', '#f72585', '#4361ee'],
             'unsplash_query': 'abstract space nebula dark',
@@ -238,7 +263,8 @@ def get_palette_from_features():
             'valence': None,
             'genre_override': False,
             'images': _fallback_images(['abstract space nebula dark']),
-        }), 200
+        }
+        return _wrap_aesthetic_payload(payload, warnings=['insufficient_audio_features'], limited_signal=True)
     valence = float(data.get('average_valence'))
     energy  = float(data.get('average_energy'))
     genres  = data.get('genres', [])
@@ -251,4 +277,7 @@ def get_palette_from_features():
     else:
         result['images'] = _fallback_images([result['unsplash_query']])
 
-    return jsonify(result), 200
+    warnings = []
+    if not Config.unsplash_access_key:
+        warnings.append('fallback_images_used')
+    return _wrap_aesthetic_payload(result, warnings=warnings)

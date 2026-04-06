@@ -113,12 +113,13 @@ function OrbRing({ radius, color, opacity, behavior, axis = [0, 0, 0], rotationO
   )
 }
 
-function OrbParticleHalo({ count, color, accent, behavior }) {
+function OrbParticleHalo({ count, color, accent, behavior, lowPower = false }) {
   const groupRef = useRef()
+  const particleCount = lowPower ? Math.max(6, Math.round(count * 0.6)) : count
   const particles = useMemo(
-    () => Array.from({ length: count }, (_, index) => ({
+    () => Array.from({ length: particleCount }, (_, index) => ({
       id: `particle-${index}`,
-      angle: (index / Math.max(count, 1)) * Math.PI * 2,
+      angle: (index / Math.max(particleCount, 1)) * Math.PI * 2,
       radius: 1.42 + (index % 5) * 0.18,
       drift: 0.12 + (index % 7) * 0.02,
       vertical: ((index % 6) - 2.5) * 0.06,
@@ -126,7 +127,7 @@ function OrbParticleHalo({ count, color, accent, behavior }) {
       color: index % 3 === 0 ? accent : color,
       escape: index % 8 === 0,
     })),
-    [accent, color, count],
+    [accent, color, count, particleCount],
   )
 
   useFrame(({ clock }) => {
@@ -145,7 +146,7 @@ function OrbParticleHalo({ count, color, accent, behavior }) {
     })
   })
 
-  if (!count) return null
+  if (!particleCount) return null
 
   return (
     <group ref={groupRef}>
@@ -264,7 +265,7 @@ function OrbCore({ presentation, hovered }) {
   )
 }
 
-function OrbPresenceRig({ presentation, hovered }) {
+function OrbPresenceRig({ presentation, hovered, lowPower = false }) {
   const groupRef = useRef()
   const focusBias = presentation.shader.focusIntensity
   const hoverBias = hovered ? 1 : 0
@@ -289,14 +290,22 @@ function OrbPresenceRig({ presentation, hovered }) {
       <OrbRing radius={1.42} color={presentation.palette.ring} opacity={0.22} behavior={presentation.behavior} axis={[1.05, 0.18, 0.12]} stretch={[1.24, 0.82, 1.08]} />
       <OrbRing radius={1.62} color={presentation.palette.glow} opacity={0.18} behavior={presentation.behavior} axis={[1.2, 0.56, 0.46]} stretch={[1.38, 0.78, 1.18]} broken rotationOffset={0.9} />
       <OrbRing radius={1.86} color={presentation.palette.shell} opacity={0.12} behavior={presentation.behavior} axis={[0.94, -0.38, -0.18]} stretch={[1.58, 0.68, 1.32]} />
-      <OrbParticleHalo count={Math.max(6, presentation.behavior.satelliteCount * 4)} color={presentation.palette.glow} accent={presentation.palette.ring} behavior={presentation.behavior} />
+      <OrbParticleHalo
+        count={Math.max(6, presentation.behavior.satelliteCount * 4)}
+        color={presentation.palette.glow}
+        accent={presentation.palette.ring}
+        behavior={presentation.behavior}
+        lowPower={lowPower}
+      />
     </group>
   )
 }
 
-function OrbCanvas({ presentation, hovered }) {
+function OrbCanvas({ presentation, hovered, lowPower = false }) {
   const { palette, behavior, threads } = presentation
   const bloomIntensity = 0.72 + behavior.glowIntensity * 0.76 + (hovered ? 0.08 : 0)
+  const maxDpr = typeof window === 'undefined' ? 1.5 : Math.min(1.5, window.devicePixelRatio || 1.5)
+  const dpr = lowPower ? [1, 1] : [1, maxDpr]
 
   return (
     <>
@@ -304,7 +313,7 @@ function OrbCanvas({ presentation, hovered }) {
       <Canvas
         camera={{ position: [0, 0, 3.45], fov: 42 }}
         gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}
-        dpr={[1, 1.5]}
+        dpr={dpr}
         style={{ background: 'transparent' }}
       >
         <ambientLight intensity={0.22 + presentation.formation.complexity * 0.14} />
@@ -312,16 +321,18 @@ function OrbCanvas({ presentation, hovered }) {
         <pointLight position={[-2.8, -2.2, -2]} intensity={0.72 + behavior.glowIntensity * 0.55} color={palette.glow} />
         <pointLight position={[0, 2.5, -3]} intensity={0.34 + presentation.formation.score * 0.28} color={palette.ring} />
 
-        <OrbPresenceRig presentation={presentation} hovered={hovered} />
+        <OrbPresenceRig presentation={presentation} hovered={hovered} lowPower={lowPower} />
 
-        <EffectComposer>
-          <Bloom
-            intensity={bloomIntensity}
-            luminanceThreshold={0.18}
-            luminanceSmoothing={0.94}
-            mipmapBlur
-          />
-        </EffectComposer>
+        {!lowPower && (
+          <EffectComposer>
+            <Bloom
+              intensity={bloomIntensity}
+              luminanceThreshold={0.18}
+              luminanceSmoothing={0.94}
+              mipmapBlur
+            />
+          </EffectComposer>
+        )}
       </Canvas>
     </>
   )
@@ -382,6 +393,7 @@ export default function MusicSoulOrb(props) {
     resonance = null,
     size = 180,
     showLabels = true,
+    lowPower = false,
   } = props
 
   const presentation = useSoulOrbController({ ...props, resonance })
@@ -429,7 +441,7 @@ export default function MusicSoulOrb(props) {
               opacity: 0.62,
             }}
           />
-          <OrbCanvas presentation={presentation} hovered={hovered} />
+          <OrbCanvas presentation={presentation} hovered={hovered} lowPower={lowPower} />
         </motion.button>
       </motion.div>
 

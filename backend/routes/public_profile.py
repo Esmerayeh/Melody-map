@@ -11,7 +11,7 @@ public so that invite links work without the viewer being logged in.
 from flask import Blueprint, jsonify
 from datetime import datetime, timezone
 from middleware.rate_limit import rate_limit
-from utils.api import api_error
+from utils.api import api_error, api_success_legacy
 
 public_profile_bp = Blueprint('public_profile', __name__)
 
@@ -66,7 +66,7 @@ def get_public_profile(identifier: str):
         elif isinstance(g, dict):
             genres.append(g)
 
-    return jsonify({
+    profile = {
         'profileSchemaVersion': '2026-03-public-profile-v2',
         'username':             doc.get('username', identifier),
         'displayName':          doc.get('username', identifier),
@@ -102,4 +102,13 @@ def get_public_profile(identifier: str):
         'genreCoverage':        doc.get('genre_coverage'),
         'soulmateReadiness':    doc.get('soulmate_readiness', {}),
         'identityReadiness':    doc.get('identity_readiness', {}),
-    }), 200
+    }
+
+    return api_success_legacy(
+        profile,
+        status=200,
+        confidence=profile.get('confidence'),
+        dataQuality=profile.get('dataQuality'),
+        profileTier=profile.get('profileTier'),
+        warnings=doc.get('warnings') or [],
+    )

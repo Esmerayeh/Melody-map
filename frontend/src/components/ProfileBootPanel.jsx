@@ -9,6 +9,14 @@ const TONES = {
     kicker: 'partial signal',
     glow: 'rgba(250,204,21,0.22)',
   },
+  sparse: {
+    kicker: 'sparse signal',
+    glow: 'rgba(125,211,252,0.2)',
+  },
+  failed: {
+    kicker: 'signal interference',
+    glow: 'rgba(248,113,113,0.22)',
+  },
   error: {
     kicker: 'signal interference',
     glow: 'rgba(248,113,113,0.22)',

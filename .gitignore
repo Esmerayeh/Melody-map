@@ -40,6 +40,8 @@ build/
 # Logs
 logs/
 *.log
+analysis_frames/
+frontend/.npm-cache/
 
 # Database
 *.db

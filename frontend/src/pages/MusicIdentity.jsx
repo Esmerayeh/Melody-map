@@ -6,6 +6,7 @@ import useMusicProfile from '../hooks/useMusicProfile'
 import ProfileBootPanel from '../components/ProfileBootPanel'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 
 const pct = (v, max = 100) => Math.round(Math.min(Math.max((v ?? 0), 0), max))
 
@@ -60,7 +61,7 @@ function DnaBand({ label, pct: p, color, icon, delay = 0 }) {
 }
 
 export default function MusicIdentity() {
-  const { profile, phase, confidence, dataQuality } = useMusicProfile()
+  const { profile, phase, confidence, dataQuality, readiness, tier } = useMusicProfile()
   const safeProfile = profile || {}
 
   const personality = safeProfile.personality || []
@@ -68,37 +69,45 @@ export default function MusicIdentity() {
   const mbtiMeta = safeProfile.mbtiMeta
   const traits = useMemo(() => personality.slice(0, 5), [personality])
 
-  if (phase === 'loading' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="loading"
-        title="Your inner music self is coming into focus."
-        subtitle="We are listening for enough signal to reveal the full reading."
-        detail="Hold steady a moment."
-      />
-    )
-  }
+  const boot = useRouteReadiness({
+    phase,
+    profile,
+    readiness,
+    tier,
+    require: { profile: true, identity: true },
+    copy: {
+      loading: {
+        title: 'Your inner music self is coming into focus.',
+        subtitle: 'We are listening for enough signal to reveal the full reading.',
+        detail: 'Hold steady a moment.',
+      },
+      empty: {
+        title: 'Your identity needs a connected signal.',
+        subtitle: 'Connect a music source and the inner reading will appear.',
+        detail: 'No listening history is available yet.',
+      },
+      error: {
+        title: 'The identity reading could not load.',
+        subtitle: 'The listening data is not reachable right now.',
+        detail: 'Refresh once and the inner reading should return.',
+      },
+      sparse: {
+        title: 'Sparse signal mode.',
+        subtitle: 'We are rendering a lighter identity reading until the profile deepens.',
+        detail: 'This is intentional, not an error.',
+      },
+    },
+  })
 
-  if (phase === 'empty') {
+  if (boot.blocked) {
     return (
       <ProfileBootPanel
-        variant="empty"
-        title="Your identity needs a connected signal."
-        subtitle="Connect a music source and the inner reading will appear."
-        detail="No listening history is available yet."
-      />
-    )
-  }
-
-  if (phase === 'error' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="error"
-        title="The identity reading could not load."
-        subtitle="The listening data is not reachable right now."
-        detail="Refresh once and the inner reading should return."
-        actionLabel="Reload the reading"
-        onAction={() => window.location.reload()}
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the reading' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
       />
     )
   }

@@ -18,7 +18,7 @@ from flask import Blueprint, request, jsonify
 
 from middleware.rate_limit import rate_limit
 from services.music_profile_builder import build_music_profile
-from utils.api import api_error
+from utils.api import api_error, api_success_legacy
 from utils.logger import logger
 
 music_profile_bp = Blueprint('music_profile', __name__)
@@ -49,7 +49,18 @@ def get_music_profile():
             time_range=time_range,
             limit=limit,
         )
-        return jsonify(profile), 200
+        data_quality = profile.get('dataQuality') or profile.get('data_quality')
+        confidence = profile.get('confidence')
+        profile_tier = profile.get('profileTier') or profile.get('profile_tier')
+        warnings = profile.get('warnings') or []
+        return api_success_legacy(
+            profile,
+            status=200,
+            confidence=confidence,
+            dataQuality=data_quality,
+            profileTier=profile_tier,
+            warnings=warnings,
+        )
     except Exception as e:
         logger.error({'event': 'music_profile_build_failed', 'error': str(e), 'time_range': time_range, 'limit': limit})
         return api_error('Music profile generation failed', 500, code='MUSIC_PROFILE_BUILD_FAILED')

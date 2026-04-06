@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request
 
-from utils.api import api_error
+from utils.api import api_error, api_success_legacy
 
 auralith_bp = Blueprint("auralith", __name__)
 
@@ -36,7 +36,8 @@ def generate_playlist():
     engine, error_response = _require_engine()
     if error_response:
         return error_response
-    return jsonify(engine.generate_playlist(prompt, data.get("profile"), data.get("limit", 8))), 200
+    payload = engine.generate_playlist(prompt, data.get("profile"), data.get("limit", 8))
+    return api_success_legacy(payload, status=200, warnings=payload.get("warnings") if isinstance(payload, dict) else None)
 
 
 @auralith_bp.route("/auralith/analyze-taste", methods=["POST"])
@@ -48,7 +49,8 @@ def analyze_taste():
     engine, error_response = _require_engine()
     if error_response:
         return error_response
-    return jsonify(engine.analyze_taste(seeds, data.get("profile"))), 200
+    payload = engine.analyze_taste(seeds, data.get("profile"))
+    return api_success_legacy(payload, status=200, warnings=payload.get("warnings") if isinstance(payload, dict) else None)
 
 
 @auralith_bp.route("/auralith/explain-song", methods=["POST"])
@@ -60,7 +62,8 @@ def explain_song():
     engine, error_response = _require_engine()
     if error_response:
         return error_response
-    return jsonify(engine.explain_song(prompt, data.get("profile"))), 200
+    payload = engine.explain_song(prompt, data.get("profile"))
+    return api_success_legacy(payload, status=200, warnings=payload.get("warnings") if isinstance(payload, dict) else None)
 
 
 @auralith_bp.route("/auralith/critique-playlist", methods=["POST"])
@@ -72,7 +75,8 @@ def critique_playlist():
     engine, error_response = _require_engine()
     if error_response:
         return error_response
-    return jsonify(engine.critique_playlist(songs, data.get("profile"))), 200
+    payload = engine.critique_playlist(songs, data.get("profile"))
+    return api_success_legacy(payload, status=200, warnings=payload.get("warnings") if isinstance(payload, dict) else None)
 
 
 @auralith_bp.route("/auralith/concept-playlist", methods=["POST"])
@@ -84,4 +88,5 @@ def concept_playlist():
     engine, error_response = _require_engine()
     if error_response:
         return error_response
-    return jsonify(engine.concept_playlist(prompt, data.get("profile"), data.get("limit", 8))), 200
+    payload = engine.concept_playlist(prompt, data.get("profile"), data.get("limit", 8))
+    return api_success_legacy(payload, status=200, warnings=payload.get("warnings") if isinstance(payload, dict) else None)

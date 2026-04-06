@@ -12,7 +12,7 @@ import re
 from middleware.auth import require_auth
 from middleware.rate_limit import rate_limit
 from ml.soulmate_engine import soulmate_engine
-from utils.api import api_error
+from utils.api import api_error, api_success_legacy
 from utils.logger import logger
 
 soulmate_bp = Blueprint('soulmate', __name__)
@@ -48,6 +48,20 @@ def _get_profile(user_id: str) -> dict | None:
         return None
     doc = _mongo.db.taste_profiles.find_one({'user_id': user_id})
     return doc
+
+
+def _get_profile_by_slug(slug: str) -> dict | None:
+    if _mongo is None or not slug:
+        return None
+    doc = _mongo.db.taste_profiles.find_one({'public_slug': slug})
+    if doc:
+        return doc
+    try:
+        return _mongo.db.taste_profiles.find_one({
+            'username': {'$regex': f'^{re.escape(slug)}$', '$options': 'i'}
+        })
+    except Exception:
+        return None
 
 
 def _profile_to_engine_format(doc: dict) -> dict:
@@ -207,7 +221,7 @@ def upsert_profile():
     )
     logger.info({'event': 'profile_upsert', 'user_id': user_id})
     public_url = f'/soulmate/{profile["public_slug"]}'
-    return jsonify({
+    payload = {
         'ok': True,
         'username': username,
         'public_slug': profile['public_slug'],
@@ -216,7 +230,14 @@ def upsert_profile():
         'confidence': profile['confidence'],
         'soulmate_readiness': profile['soulmate_readiness'],
         'identity_readiness': profile['identity_readiness'],
-    }), 200
+    }
+    return api_success_legacy(
+        payload,
+        status=200,
+        confidence=payload.get('confidence'),
+        dataQuality=payload.get('data_quality'),
+        profileTier=profile.get('profile_tier'),
+    )
 
 
 @soulmate_bp.route('/soulmate/matches', methods=['GET'])
@@ -235,11 +256,11 @@ def get_matches():
     # Fetch all other profiles
     others = list(_mongo.db.taste_profiles.find({'user_id': {'$ne': user_id}}))
     if not others:
-        return jsonify([]), 200
+        return api_success_legacy([], status=200, warnings=['no_matches'])
 
     other_profiles = [_profile_to_engine_format(o) for o in others]
     ranked = soulmate_engine.rank_matches(my_profile, other_profiles)
-    return jsonify(ranked[:5]), 200
+    return api_success_legacy(ranked[:5], status=200)
 
 
 @soulmate_bp.route('/soulmate/compare/<uid_b>', methods=['GET'])
@@ -267,14 +288,66 @@ def compare(uid_b: str):
         user_b_name=profile_b['username'],
     )
 
-    return jsonify({
+    comparison = {
         **result,
         'user_a': {'user_id': user_id,  'username': profile_a['username'], 'avatar': profile_a.get('avatar')},
         'user_b': {'user_id': uid_b,    'username': profile_b['username'], 'avatar': profile_b.get('avatar')},
         'profile_a': profile_a,
         'profile_b': profile_b,
         'graph':  graph,
-    }), 200
+    }
+    return api_success_legacy(
+        comparison,
+        status=200,
+        confidence=result.get('confidence'),
+        dataQuality=doc_a.get('data_quality'),
+        profileTier=doc_a.get('profile_tier'),
+        warnings=result.get('warnings'),
+    )
+
+
+@soulmate_bp.route('/soulmate/compare-public/<slug>', methods=['GET'])
+@require_auth
+@rate_limit(max_requests=30, window_seconds=60)
+def compare_public(slug: str):
+    """Full comparison between the current user and a public slug."""
+    user_id = g.user_id
+    normalized_slug = (slug or '').strip()
+
+    doc_a = _get_profile(user_id)
+    doc_b = _get_profile_by_slug(normalized_slug)
+
+    if not doc_a:
+        return api_error('Your profile not found. Sync your music first.', 404, code='PROFILE_NOT_FOUND')
+    if not doc_b:
+        return api_error('Other user profile not found.', 404, code='PROFILE_NOT_FOUND')
+
+    profile_a = _profile_to_engine_format(doc_a)
+    profile_b = _profile_to_engine_format(doc_b)
+
+    result = soulmate_engine.compute_score(profile_a, profile_b)
+    graph = soulmate_engine.build_constellation_graph(
+        profile_a, profile_b,
+        user_a_name=profile_a['username'],
+        user_b_name=profile_b['username'],
+    )
+
+    comparison = {
+        **result,
+        'user_a': {'user_id': user_id, 'username': profile_a['username'], 'avatar': profile_a.get('avatar')},
+        'user_b': {'user_id': profile_b.get('user_id'), 'username': profile_b['username'], 'avatar': profile_b.get('avatar')},
+        'profile_a': profile_a,
+        'profile_b': profile_b,
+        'graph': graph,
+    }
+    return api_success_legacy(
+        comparison,
+        status=200,
+        confidence=result.get('confidence'),
+        dataQuality=doc_a.get('data_quality'),
+        profileTier=doc_a.get('profile_tier'),
+        warnings=result.get('warnings'),
+    )
 
 
 @soulmate_bp.route('/soulmate/profile/me', methods=['GET'])
@@ -283,6 +356,12 @@ def get_my_profile():
     """Return the current user's stored taste profile."""
     doc = _get_profile(g.user_id)
     if not doc:
-        return jsonify(None), 200
+        return api_success_legacy(None, status=200, warnings=['profile_missing'])
     doc['_id'] = str(doc['_id'])
-    return jsonify(doc), 200
+    return api_success_legacy(
+        doc,
+        status=200,
+        confidence=doc.get('confidence'),
+        dataQuality=doc.get('data_quality'),
+        profileTier=doc.get('profile_tier'),
+    )

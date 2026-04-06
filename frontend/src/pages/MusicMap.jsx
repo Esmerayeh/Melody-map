@@ -13,6 +13,7 @@ import GalaxyLegend from '../features/galaxy/GalaxyLegend'
 import GalaxyScene from '../features/galaxy/GalaxyScene'
 import SoulResonancePanel from '../components/SoulResonancePanel'
 import ProfileBootPanel from '../components/ProfileBootPanel'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import { mapGalaxySelectionToResonance } from '../features/orb/resonanceEngine'
 import useGalaxyInteractionStore from '../features/galaxy/useGalaxyInteractionStore'
 import { resolveInteractionEntity, slugifyInteraction } from '../features/galaxy/interactionModel.js'
@@ -41,42 +42,50 @@ function ClusterOverlay({ cluster, region }) {
 
 export default function MusicMap() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { profile: profileSnapshot, loading: profileLoading, phase } = useMusicProfile({ autoFetch: false })
+  const { profile: profileSnapshot, loading: profileLoading, phase, readiness, tier } = useMusicProfile({ autoFetch: false })
   const musicProfile = profileSnapshot || useStore((state) => state.musicProfile)
   const cinemaMode = useStore((state) => state.cinemaMode)
   const setCinemaMode = useStore((state) => state.setCinemaMode)
 
-  if (phase === 'loading' && !musicProfile) {
-    return (
-      <ProfileBootPanel
-        variant="loading"
-        title="The galaxy is assembling."
-        subtitle="We are plotting your core stars before the map ignites."
-        detail="Hold steady."
-      />
-    )
-  }
+  const boot = useRouteReadiness({
+    phase,
+    profile: musicProfile,
+    readiness,
+    tier,
+    require: { profile: true, galaxy: true },
+    copy: {
+      loading: {
+        title: 'The galaxy is assembling.',
+        subtitle: 'We are plotting your core stars before the map ignites.',
+        detail: 'Hold steady.',
+      },
+      error: {
+        title: 'The galaxy could not render.',
+        subtitle: 'The listening data is not reachable right now.',
+        detail: 'Refresh once and the map should return.',
+      },
+      empty: {
+        title: 'No listening signal yet.',
+        subtitle: 'Connect a music source to reveal your galaxy.',
+        detail: 'The map will appear once the signal arrives.',
+      },
+      sparse: {
+        title: 'Sparse signal mode.',
+        subtitle: 'We are rendering a lighter galaxy until the profile deepens.',
+        detail: 'This is intentional, not an error.',
+      },
+    },
+  })
 
-  if (phase === 'error' && !musicProfile) {
+  if (boot.blocked) {
     return (
       <ProfileBootPanel
-        variant="error"
-        title="The galaxy could not render."
-        subtitle="The listening data is not reachable right now."
-        detail="Refresh once and the map should return."
-        actionLabel="Reload the galaxy"
-        onAction={() => window.location.reload()}
-      />
-    )
-  }
-
-  if (phase === 'empty') {
-    return (
-      <ProfileBootPanel
-        variant="empty"
-        title="No listening signal yet."
-        subtitle="Connect a music source to reveal your galaxy."
-        detail="The map will appear once the signal arrives."
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the galaxy' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
       />
     )
   }
@@ -464,13 +473,14 @@ export default function MusicMap() {
   const hoveredCluster = hoveredEntity.cluster || (hoveredEntity.node?.clusterId ? activeModel?.clusters?.find((cluster) => cluster.id === hoveredEntity.node.clusterId) : null)
   const hoveredRegion = hoveredEntity.region || (hoveredEntity.node?.regionLabel ? activeModel?.regions?.find((region) => region.label === hoveredEntity.node.regionLabel) : null)
 
-  const showBootPanel = phase === 'loading' && !musicProfile
+  const sparseMode = boot?.mode === 'sparse' || tier === 'sparse' || Boolean(musicProfile && !readiness?.galaxy)
+  const showBootPanel = loading && !activeModel && !cinemaMode
 
   const scene = (
     <div className="relative h-full w-full overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(120,255,206,0.14),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(194,120,255,0.18),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(255,184,120,0.16),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(255,193,120,0.12),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(132,153,255,0.14),transparent_24%),linear-gradient(180deg,#050713_0%,#050610_48%,#03040b_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.02)_0%,transparent_18%,transparent_82%,rgba(255,255,255,0.02)_100%)] opacity-70" />
-      <GalaxyScene model={activeModel} />
+      <GalaxyScene model={activeModel} sparseMode={sparseMode} />
       {isCoarsePointer && !loading && (
         <div className="pointer-events-none absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[#090d1f]/72 px-4 py-2 text-[11px] text-gray-200 shadow-[0_18px_40px_rgba(3,4,15,0.35)] backdrop-blur-xl">
           Touch a star, nebula, bridge, or the core to see what it reveals. Touch it again to let it go.

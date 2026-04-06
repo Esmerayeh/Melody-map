@@ -29,7 +29,7 @@ const buildStarGeometry = (count, radius, bias = 1) => {
   return geometry
 }
 
-function ParallaxStarfield({ density }) {
+function ParallaxStarfield({ density, sparseMode }) {
   const foregroundRef = useRef()
   const midgroundRef = useRef()
   const backgroundRef = useRef()
@@ -38,15 +38,16 @@ function ParallaxStarfield({ density }) {
   const dustMaterialRef = useRef()
 
   const [foreground, midground, background, dust] = useMemo(() => {
-    const artistDensity = density?.artistStars || 30
-    const trackDensity = density?.trackSatellites || 20
+    const densityScale = sparseMode ? 0.35 : 1
+    const artistDensity = (density?.artistStars || 30) * densityScale
+    const trackDensity = (density?.trackSatellites || 20) * densityScale
     return [
       buildStarGeometry(1400 + artistDensity * 8, 34, 0.9),
       buildStarGeometry(2200 + trackDensity * 14, 68, 1),
       buildStarGeometry(3000 + (artistDensity + trackDensity) * 12, 115, 1.08),
       buildStarGeometry(900 + artistDensity * 5, 52, 0.96),
     ]
-  }, [density])
+  }, [density, sparseMode])
 
   useFrame(({ camera, clock }) => {
     const drift = Math.sin(clock.getElapsedTime() * 0.06) * 0.05
@@ -95,7 +96,12 @@ function FocusController({ focusTarget, controlsRef }) {
   return null
 }
 
-function getNodeVisibility(node, galaxyMode, viewMode, showTracks) {
+function getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode) {
+  if (sparseMode) {
+    if (node.type === 'track') return { visible: false, opacity: 0 }
+    if (node.type === 'cluster' && (node.metrics?.significance || 0) < 0.65) return { visible: false, opacity: 0 }
+    if (node.type === 'artist' && (node.metrics?.significance || 0) < 0.55) return { visible: true, opacity: 0.42 }
+  }
   if (galaxyMode === 'genre') {
     if (node.type === 'track') return { visible: false, opacity: 0 }
     if (node.type === 'genre') return { visible: true, opacity: 0.94 }
@@ -158,10 +164,10 @@ function labelPriority(node) {
   return 1
 }
 
-function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject) {
+function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode) {
   const candidates = nodes
     .filter((node) => NODE_TYPES_WITH_LABELS.has(node.type))
-    .filter((node) => getNodeVisibility(node, galaxyMode, viewMode, showTracks).visible)
+    .filter((node) => getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode).visible)
     .filter((node) => {
       const objectType = node.type === 'cluster' ? 'cluster' : node.type
       const objectId = node.type === 'cluster' ? node.clusterId : node.id
@@ -172,10 +178,12 @@ function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, sh
     .sort((left, right) => labelPriority(right) - labelPriority(left))
 
   const threshold = cameraDistance < 10 ? 1.45 : cameraDistance < 16 ? 1.9 : 2.5
+  const maxLabels = sparseMode ? 8 : 24
   const accepted = []
   const layout = new Map()
 
   candidates.forEach((node) => {
+    if (accepted.length >= maxLabels) return
     const position = node.position || { x: 0, y: 0, z: 0 }
     const collides = accepted.some((acceptedNode) => {
       const other = acceptedNode.position || { x: 0, y: 0, z: 0 }
@@ -203,7 +211,7 @@ function nodeLabelTone(type) {
   return 'border-white/12 bg-[#0a0f23]/88 text-white'
 }
 
-function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset }) {
+function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset, sparseMode }) {
   const groupRef = useRef()
   const meshRef = useRef()
   const haloRef = useRef()
@@ -223,7 +231,7 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   const objectId = isClusterNode ? node.clusterId : node.id
   const selected = focusedObject?.id === objectId && focusedObject?.type === objectType
   const hovered = hoveredObject?.id === objectId && hoveredObject?.type === objectType
-  const visibility = getNodeVisibility(node, galaxyMode, viewMode, showTracks)
+  const visibility = getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode)
   const renderedSize = clamp(node.size || 0.5, node.type === 'track' ? 0.13 : 0.24, node.type === 'cluster' ? 1.45 : node.type === 'genre' ? 1.34 : 0.92)
   const hitRadius = Math.max(renderedSize * 2.2, node.type === 'track' ? 0.45 : 0.7)
   const driftSeed = useMemo(() => stableHash(node.id || node.label || 'node'), [node.id, node.label])
@@ -741,7 +749,7 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
   )
 }
 
-function SceneContents({ model }) {
+function SceneContents({ model, sparseMode }) {
   const [cameraDistance, setCameraDistance] = useState(24)
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
   const viewMode = useGalaxyInteractionStore((state) => state.constellationMode ? 'constellation' : state.viewMode)
@@ -756,8 +764,8 @@ function SceneContents({ model }) {
   const nebulaColors = getNebulaColors(model)
   const controlsRef = useRef()
   const labelLayout = useMemo(
-    () => buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject),
-    [cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode],
+    () => buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode),
+    [cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
   )
 
   return (
@@ -770,7 +778,7 @@ function SceneContents({ model }) {
       <pointLight position={[-9, -6, -10]} intensity={0.54} color="#7ea8ff" />
       <pointLight position={[16, 12, 6]} intensity={0.45} color="#ffcf9b" />
 
-      <ParallaxStarfield density={model?.metadata?.density} />
+      <ParallaxStarfield density={model?.metadata?.density} sparseMode={sparseMode} />
       <NebulaBackdrop colors={nebulaColors} regions={model?.regions || []} model={model} galaxyMode={galaxyMode} viewMode={viewMode} showMoodRegions={showMoodRegions} />
       <TasteCore core={model?.metadata?.core} model={model} galaxyMode={galaxyMode} />
       <GalaxyEdges model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
@@ -786,6 +794,7 @@ function SceneContents({ model }) {
           showTracks={showTracks}
           showLabel={labelLayout.has(node.id)}
           labelOffset={labelLayout.get(node.id)}
+          sparseMode={sparseMode}
         />
       ))}
 
@@ -820,7 +829,7 @@ function SceneContents({ model }) {
   )
 }
 
-export default function GalaxyScene({ model }) {
+export default function GalaxyScene({ model, sparseMode = false }) {
   return (
     <div className="h-full w-full">
       <Canvas
@@ -829,7 +838,7 @@ export default function GalaxyScene({ model }) {
         onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
       >
         <Suspense fallback={null}>
-          <SceneContents model={model} />
+          <SceneContents model={model} sparseMode={sparseMode} />
         </Suspense>
       </Canvas>
     </div>

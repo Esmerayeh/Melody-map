@@ -155,6 +155,7 @@ export const soulmateAPI = {
   getMyProfile:()        => api.get('/soulmate/profile/me', { meta: { suppressAuthRedirect: true } }),
   getMatches:  ()        => api.get('/soulmate/matches', { meta: { suppressAuthRedirect: true } }),
   compare:     (uid_b)   => api.get(`/soulmate/compare/${uid_b}`, { meta: { suppressAuthRedirect: true } }),
+  comparePublic: (slug)  => api.get(`/soulmate/compare-public/${encodeURIComponent(slug)}`, { meta: { suppressAuthRedirect: true } }),
 }
 
 export const aestheticAPI = {
