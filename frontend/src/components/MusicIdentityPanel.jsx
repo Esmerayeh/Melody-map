@@ -134,7 +134,7 @@ export default function MusicIdentityPanel({ profile }) {
               </div>
 
               <p className="mt-4 text-xs italic leading-relaxed text-gray-400">
-                “{topTrait.description}”
+                "{topTrait.description}"
               </p>
 
               {personalityMeta?.missingInputs?.length > 0 && (
@@ -167,15 +167,18 @@ export default function MusicIdentityPanel({ profile }) {
                 className="mb-3 inline-flex items-center gap-2"
               >
                 <span className="text-gradient-aurora text-4xl font-semibold tracking-[0.18em]">{mbti.type}</span>
-                <span className="text-sm font-medium text-gray-400">· {mbti.name}</span>
+                <span className="text-sm font-medium text-gray-400">- {mbti.name}</span>
               </motion.div>
 
               <p className="mb-4 text-sm leading-relaxed text-gray-400">{mbti.desc}</p>
 
               <div className="space-y-2.5">
-                {Object.entries(mbti.axes).map(([axis, data], index) => (
+                {(mbti?.axes ? Object.entries(mbti.axes) : []).map(([axis, data], index) => (
                   <AxisRow key={axis} axis={axis[0]} data={data} delay={0.14 + index * 0.05} />
                 ))}
+                {!mbti?.axes && (
+                  <p className="text-xs text-gray-500">The axis details will appear once the profile has enough depth.</p>
+                )}
               </div>
             </>
           ) : (

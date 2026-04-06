@@ -1,6 +1,6 @@
 import { useMemo } from 'react'
 import { motion } from 'framer-motion'
-import { Loader2, Music2, Mic2, Zap, Heart, Activity, Disc3, BarChart2 } from 'lucide-react'
+import { Music2, Mic2, Zap, Heart, Activity, Disc3, BarChart2 } from 'lucide-react'
 import {
   Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, Cell, PieChart, Pie,
@@ -8,6 +8,7 @@ import {
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import DeferredSoulOrb from '../components/DeferredSoulOrb'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 
 const normalizeUnit = (value) => {
   if (value == null || Number.isNaN(Number(value))) return null
@@ -66,7 +67,7 @@ function AudioRadar({ af }) {
   ]
   const available = data.filter((item) => item.value != null)
   if (available.length < 3) {
-    return <p className="text-sm text-gray-500 px-2 py-8">the pattern is still forming — not enough deep signal for a full shape yet.</p>
+    return <p className="text-sm text-gray-500 px-2 py-8">the pattern is still forming -- not enough deep signal for a full shape yet.</p>
   }
   return (
     <ResponsiveContainer width="100%" height={260}>
@@ -141,7 +142,8 @@ function TempoBar({ tempo }) {
 
 function ArtistFrequency({ topArtists }) {
   const data = (topArtists || []).slice(0, 8).map((a) => ({ name: (a.name || '').slice(0, 14), popularity: a.popularity || 0 }))
-  if (!data.length) return <p className="text-gray-500 text-sm">no strong artist pull yet</p>
+  const hasSignal = data.some((item) => item.popularity > 0)
+  if (!data.length || !hasSignal) return <p className="text-gray-500 text-sm">no strong artist pull yet</p>
   return (
     <ResponsiveContainer width="100%" height={200}>
       <BarChart data={data} layout="vertical" margin={{ left: 0, right: 16, top: 4, bottom: 4 }}>
@@ -188,23 +190,44 @@ function DiversityPie({ genres }) {
 }
 
 export default function Analytics() {
-  const { profile, loading, canComputeAnalytics, dataQuality, confidence } = useMusicProfile()
-  const af = useMemo(() => profile?.audioFeatures || {}, [profile])
+  const { profile, loading, canComputeAnalytics, dataQuality, confidence, phase } = useMusicProfile()
+  const safeProfile = profile || {}
+  const af = useMemo(() => safeProfile.audioFeatures || {}, [safeProfile])
 
-  if (loading) return (
-    <div className="flex items-center justify-center h-64">
-      <div className="flex flex-col items-center gap-3 text-sm text-gray-400">
-        <Loader2 className="w-8 h-8 text-brand-purple animate-spin" />
-        <p>tuning into your signal...</p>
-      </div>
-    </div>
-  )
+  if (phase === 'loading' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="The signal reading is tuning in."
+        subtitle="We are collecting the deeper track-level signal before the full read appears."
+        detail="This will settle shortly."
+      />
+    )
+  }
 
-  if (!profile) return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <p className="text-gray-400 text-sm">Connect a music source and the deeper read will appear.</p>
-    </div>
-  )
+  if (phase === 'empty') {
+    return (
+      <ProfileBootPanel
+        variant="empty"
+        title="Connect a music source to read the signal."
+        subtitle="When your listening history is connected, the deeper read will appear here."
+        detail="No signal is present yet."
+      />
+    )
+  }
+
+  if (phase === 'error' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="error"
+        title="We could not read your signal."
+        subtitle="The listening data could not be reached just now."
+        detail="Refresh once and the signal should return."
+        actionLabel="Reload the reading"
+        onAction={() => window.location.reload()}
+      />
+    )
+  }
 
   return (
     <div className="cosmic-page space-y-8">
@@ -245,16 +268,16 @@ export default function Analytics() {
             <p className="text-sm font-semibold text-white">The listening entity</p>
           </div>
           <DeferredSoulOrb
-            personality={profile?.personality}
-            personalityMeta={profile?.personalityMeta}
-            mbti={profile?.mbti}
-            mbtiMeta={profile?.mbtiMeta}
-            audioFeatures={profile?.audioFeatures}
-            analyticsMetrics={profile?.analyticsMetrics}
-            confidence={profile?.confidence}
-            dataQuality={profile?.dataQuality}
-            genres={profile?.genres}
-            topArtists={profile?.topArtists}
+            personality={safeProfile.personality}
+            personalityMeta={safeProfile.personalityMeta}
+            mbti={safeProfile.mbti}
+            mbtiMeta={safeProfile.mbtiMeta}
+            audioFeatures={safeProfile.audioFeatures}
+            analyticsMetrics={safeProfile.analyticsMetrics}
+            confidence={safeProfile.confidence}
+            dataQuality={safeProfile.dataQuality}
+            genres={safeProfile.genres}
+            topArtists={safeProfile.topArtists}
             size={160}
             showLabels
           />
@@ -275,7 +298,7 @@ export default function Analytics() {
             <Music2 className="w-4 h-4 text-blue-400" />
             <p className="text-sm font-semibold text-white">Atmospheric spread</p>
           </div>
-          <DiversityPie genres={profile.genres} />
+          <DiversityPie genres={safeProfile.genres} />
         </motion.div>
       </div>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
@@ -284,7 +307,7 @@ export default function Analytics() {
           <Mic2 className="w-4 h-4 text-amber-400" />
           <p className="text-sm font-semibold text-white">The loudest pull</p>
         </div>
-        <ArtistFrequency topArtists={profile.topArtists} />
+        <ArtistFrequency topArtists={safeProfile.topArtists} />
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
         className="noire-info-card p-5 rounded-[28px]">
@@ -292,10 +315,10 @@ export default function Analytics() {
           <Zap className="w-4 h-4 text-fuchsia-400" />
           <p className="text-sm font-semibold text-white">The atmospheres you return to</p>
         </div>
-        <GenrePills genres={profile.genres} />
+        <GenrePills genres={safeProfile.genres} />
       </motion.div>
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.6 }}>
-        <MusicIdentityPanel profile={profile} />
+        <MusicIdentityPanel profile={safeProfile} />
       </motion.div>
     </div>
   )

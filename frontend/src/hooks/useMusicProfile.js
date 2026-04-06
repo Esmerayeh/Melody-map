@@ -1,5 +1,5 @@
 /**
- * useMusicProfile — central data hook
+ * useMusicProfile -- central data hook
  *
  * Spotify uses the backend canonical /api/music-profile contract.
  * Last.fm builds the same contract client-side so the rest of the app
@@ -397,5 +397,27 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
     canRenderGalaxy: Boolean(musicProfile?.canRenderGalaxy),
     confidence: musicProfile?.confidence || null,
     dataQuality: musicProfile?.dataQuality || null,
+    phase: (() => {
+      if (musicProfileLoading && !musicProfile) return 'loading'
+      if (musicProfileError && !musicProfile) return 'error'
+      if (!musicProfile) return 'empty'
+      if (musicProfile?.isDegraded) return 'partial'
+      return 'ready'
+    })(),
+    tier: (() => {
+      if (musicProfileError && !musicProfile) return 'failed'
+      if (!musicProfile) return 'limited'
+      const overall = musicProfile?.confidence?.overall ?? 0
+      if (overall >= 0.78) return 'rich'
+      if (overall >= 0.55) return 'medium'
+      if (overall >= 0.35) return 'sparse'
+      return 'limited'
+    })(),
+    readiness: {
+      analytics: Boolean(musicProfile?.analyticsReadiness?.ready),
+      identity: Boolean(musicProfile?.identityReadiness?.ready),
+      soulmate: Boolean(musicProfile?.soulmateReadiness?.ready),
+      galaxy: Boolean(musicProfile?.canRenderGalaxy),
+    },
   }
 }

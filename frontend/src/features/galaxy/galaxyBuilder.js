@@ -16,6 +16,12 @@ export const GALAXY_LAYOUT_VERSION = 'canonical-galaxy-v2'
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value ?? 0))
 const slugify = (value = '') => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+const finite = (value) => (Number.isFinite(value) ? value : 0)
+const clamp3d = (position = {}, limit = 18) => ({
+  x: clamp(finite(position.x), -limit, limit),
+  y: clamp(finite(position.y), -limit, limit),
+  z: clamp(finite(position.z), -limit, limit),
+})
 const average = (values = []) => {
   const valid = values.filter((value) => value != null && !Number.isNaN(Number(value)))
   if (!valid.length) return null
@@ -33,6 +39,33 @@ function averagePosition(points = []) {
     x: total.x / points.length,
     y: total.y / points.length,
     z: total.z / points.length,
+  }
+}
+
+function sanitizeNode(node = {}) {
+  const baseSize = Number(node.size ?? 0.5)
+  const size = node.type === 'track'
+    ? clamp(baseSize, 0.1, 0.45)
+    : node.type === 'cluster'
+      ? clamp(baseSize, 0.4, 1.2)
+      : node.type === 'genre'
+        ? clamp(baseSize, 0.5, 1.25)
+        : clamp(baseSize, 0.18, 0.95)
+  return {
+    ...node,
+    position: clamp3d(node.position || { x: 0, y: 0, z: 0 }),
+    size: Number(size.toFixed(2)),
+  }
+}
+
+function sanitizeRegion(region = {}) {
+  if (!region.centroid) return null
+  const centroid = clamp3d(region.centroid, 16)
+  if (!Number.isFinite(centroid.x) || !Number.isFinite(centroid.y) || !Number.isFinite(centroid.z)) return null
+  return {
+    ...region,
+    centroid,
+    coverage: clamp(region.coverage, 0, 1),
   }
 }
 
@@ -70,7 +103,7 @@ function normalizeLegacyNode(node = {}) {
 }
 
 export function buildLegacyGalaxyModel(rawNodes = [], source = 'legacy') {
-  const nodes = rawNodes.map(normalizeLegacyNode)
+  const nodes = rawNodes.map(normalizeLegacyNode).map(sanitizeNode)
   const nodeMap = Object.fromEntries(nodes.map((node) => [node.id, node]))
   const edges = []
   const seen = new Set()
@@ -113,10 +146,12 @@ export function buildLegacyGalaxyModel(rawNodes = [], source = 'legacy') {
     }
   })
 
-  const clusters = [...clusterMap.values()].map((cluster) => ({
-    ...cluster,
-    explanation: describeCluster(cluster),
-  }))
+  const clusters = [...clusterMap.values()]
+    .map((cluster) => ({
+      ...cluster,
+      centroid: clamp3d(cluster.centroid || { x: 0, y: 0, z: 0 }, 14),
+      explanation: describeCluster(cluster),
+    }))
 
   return {
     nodes,
@@ -352,6 +387,8 @@ function buildMoodRegions(nodes = []) {
       explanation: `${label} mood field created from ${members.length} nearby bodies.`,
     }))
     .sort((a, b) => b.coverage - a.coverage)
+    .map((region) => sanitizeRegion(region))
+    .filter(Boolean)
     .map((region) => ({ ...region, explanation: describeMoodRegion(region) }))
 }
 
@@ -481,7 +518,7 @@ export function buildGalaxyModel(profile = null) {
   const artistNodes = buildArtistStars(artists, genreNodes, profileFeatures)
   const clusterBodies = buildClusterBodies(genreNodes, artistNodes)
   const trackNodes = buildTrackSatellites(tracks, artistNodes, genreNodes)
-  const nodes = [...genreNodes, ...clusterBodies, ...artistNodes, ...trackNodes]
+  const nodes = [...genreNodes, ...clusterBodies, ...artistNodes, ...trackNodes].map(sanitizeNode)
   const edges = buildEdges({ genreNodes, clusterBodies, artistNodes, trackNodes, profileFeatures })
   const moodRegions = buildMoodRegions(nodes)
   const coreArtists = artistNodes

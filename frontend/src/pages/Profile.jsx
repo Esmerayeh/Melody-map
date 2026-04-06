@@ -14,6 +14,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicSourceCard from '../components/MusicSourceCard'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
 
 function StatusChip({ tone = 'violet', children, icon: Icon }) {
@@ -59,12 +60,36 @@ export default function Profile() {
   const logout = useStore((s) => s.logout)
   const navigate = useNavigate()
 
-  const { profile: musicProfile } = useMusicProfile({ autoFetch: true })
+  const { profile: musicProfile, phase } = useMusicProfile({ autoFetch: true })
   const profile = musicProfile?.userProfile || null
 
   const handleLogout = () => {
     logout()
     navigate('/login')
+  }
+
+  if (phase === 'loading' && !musicProfile) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="Your presence is tuning in."
+        subtitle="We are gathering your profile signal."
+        detail="Hold steady."
+      />
+    )
+  }
+
+  if (phase === 'error' && !musicProfile) {
+    return (
+      <ProfileBootPanel
+        variant="error"
+        title="We could not load your presence."
+        subtitle="The listening profile is not reachable right now."
+        detail="Refresh once and your profile should return."
+        actionLabel="Reload the profile"
+        onAction={() => window.location.reload()}
+      />
+    )
   }
 
   const displayName = profile?.name || lastfmUsername || 'Music Explorer'

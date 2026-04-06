@@ -4,13 +4,13 @@ import { motion } from 'framer-motion'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
 
 const NAV = [
-  { path: '/',          icon: LayoutDashboard, label: 'Observatory', color: '#7C6FFF' },
-  { path: '/discover',  icon: Compass,         label: 'Drift',       color: '#00D1FF' },
-  { path: '/galaxy',    icon: Disc3,           label: 'Galaxy',    color: '#E040FB' },
-  { path: '/soulmate',  icon: Heart,           label: 'Dual Orbit', color: '#FF5DA2' },
-  { path: '/aesthetic', icon: Sparkles,        label: 'Atmosphere', color: '#FBBF24' },
-  { path: '/auralith',  icon: Wand2,           label: 'Auralith',  color: '#C084FC' },
-  { path: '/analytics', icon: BarChart3,       label: 'Signal',     color: '#34D399' },
+  { path: '/',          icon: LayoutDashboard, label: 'Dashboard',  color: '#7C6FFF' },
+  { path: '/discover',  icon: Compass,         label: 'Discover',   color: '#00D1FF' },
+  { path: '/galaxy',    icon: Disc3,           label: 'Galaxy',     color: '#E040FB' },
+  { path: '/soulmate',  icon: Heart,           label: 'Soulmates',  color: '#FF5DA2' },
+  { path: '/aesthetic', icon: Sparkles,        label: 'Aesthetic',  color: '#FBBF24' },
+  { path: '/auralith',  icon: Wand2,           label: 'Auralith',   color: '#C084FC' },
+  { path: '/analytics', icon: BarChart3,       label: 'Analytics',  color: '#34D399' },
   { path: '/identity',  icon: Brain,           label: 'Identity',   color: '#60A5FA' },
 ]
 

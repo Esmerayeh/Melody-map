@@ -15,6 +15,9 @@ const DEFAULT_CONFIDENCE = {
   degraded: false,
   hasAudioProfile: false,
   profileReady: false,
+  tier: 'limited',
+  bootPhase: 'idle',
+  bootMessage: '',
 }
 
 const useExperienceStore = create((set) => ({

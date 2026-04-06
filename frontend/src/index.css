@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Playfair+Display:ital,wght@0,400;0,600;0,700;0,900;1,400;1,600&family=Inter:wght@300;400;500;600;700;800;900&family=Manrope:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -9,25 +9,39 @@
   html { scroll-behavior: smooth; }
 
   :root {
-    --color-brand-purple: #8f75ff;
-    --color-brand-pink:   #f28ddf;
-    --color-brand-blue:   #8fa8ff;
-    --color-brand-teal:   #88b8d8;
-    --color-brand-amber:  #d7a56f;
-    --color-brand-magenta:#b77dff;
-    --color-brand-cyan:   #9fd0ff;
-    --color-surface:      #060610;
-    --color-surface-1:    #0a0a17;
-    --color-surface-2:    #111025;
-    --color-surface-3:    #18162f;
-    --color-panel:        rgba(14, 13, 30, 0.72);
-    --color-panel-soft:   rgba(17, 15, 36, 0.56);
-    --color-copy:         #ece7ff;
-    --color-muted:        #b4accf;
+    --color-brand-purple:  #7c6fff;
+    --color-brand-pink:    #f28ddf;
+    --color-brand-blue:    #8fa8ff;
+    --color-brand-teal:    #88b8d8;
+    --color-brand-amber:   #d7a56f;
+    --color-brand-magenta: #b77dff;
+    --color-brand-cyan:    #9fd0ff;
+    --color-brand-rose:    #f472b6;
+    --color-brand-indigo:  #818cf8;
+    --color-brand-silver:  #bba4ff;
+    /* Surfaces */
+    --color-surface:    #04040e;
+    --color-surface-1:  #07071a;
+    --color-surface-2:  #0d0c22;
+    --color-surface-3:  #131230;
+    /* Panels */
+    --color-panel:      rgba(10, 9, 26, 0.78);
+    --color-panel-soft: rgba(13, 12, 30, 0.60);
+    /* Text */
+    --color-copy:  #ece7ff;
+    --color-muted: #b4accf;
+    /* Accents */
     --accent-amber:   #d7a56f;
     --accent-magenta: #f28ddf;
     --accent-cyan:    #9fd0ff;
-    --glass-border: linear-gradient(135deg, rgba(238,230,255,0.20) 0%, rgba(143,117,255,0.24) 38%, rgba(244,170,222,0.12) 72%, rgba(255,255,255,0.04) 100%);
+    --accent-rose:    #f472b6;
+    --accent-violet:  #7c6fff;
+    /* Glass */
+    --glass-border: linear-gradient(135deg, rgba(238,230,255,0.18) 0%, rgba(143,117,255,0.22) 38%, rgba(244,170,222,0.10) 72%, rgba(255,255,255,0.03) 100%);
+    /* Glow radii */
+    --glow-purple: 0 0 40px rgba(124,111,255,0.28), 0 0 80px rgba(124,111,255,0.10);
+    --glow-pink:   0 0 40px rgba(242,141,223,0.24), 0 0 80px rgba(242,141,223,0.08);
+    --glow-rose:   0 0 40px rgba(244,114,182,0.24), 0 0 80px rgba(244,114,182,0.08);
   }
 
   body {
@@ -36,19 +50,29 @@
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background:
-      radial-gradient(ellipse 68% 48% at 16% 18%, rgba(146, 111, 255, 0.16) 0%, transparent 55%),
-      radial-gradient(ellipse 56% 38% at 80% 16%, rgba(242, 141, 223, 0.10) 0%, transparent 56%),
-      radial-gradient(ellipse 62% 44% at 72% 72%, rgba(126, 106, 210, 0.12) 0%, transparent 58%),
-      radial-gradient(ellipse 40% 36% at 26% 72%, rgba(126, 182, 255, 0.08) 0%, transparent 64%),
-      linear-gradient(180deg, #05060f 0%, #080814 44%, #0b0a18 100%);
+      /* Deep nebula clouds */
+      radial-gradient(ellipse 90% 55% at 8% 12%, rgba(100, 60, 200, 0.22) 0%, transparent 52%),
+      radial-gradient(ellipse 70% 45% at 88% 10%, rgba(180, 80, 220, 0.14) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 50% at 78% 78%, rgba(100, 80, 200, 0.16) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 20% 80%, rgba(80, 60, 180, 0.12) 0%, transparent 58%),
+      radial-gradient(ellipse 40% 30% at 50% 50%, rgba(120, 90, 220, 0.08) 0%, transparent 65%),
+      /* Base deep space */
+      linear-gradient(180deg, #03030c 0%, #05050f 35%, #060614 65%, #04040e 100%);
     color: var(--color-copy);
     overflow-x: hidden;
-    transition: background-color 1.2s ease;
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Cinzel', 'Manrope', serif;
+    font-family: 'Cinzel', 'Playfair Display', serif;
     letter-spacing: 0.01em;
+  }
+
+  /* Playfair for display/hero text */
+  .font-display {
+    font-family: 'Playfair Display', 'Cinzel', serif;
+  }
+  .font-cinzel {
+    font-family: 'Cinzel', serif;
   }
 
   ::-webkit-scrollbar { width: 3px; height: 3px; }
@@ -221,17 +245,18 @@
 }
 
 @layer utilities {
-  .bg-surface   { background-color: #070710; }
-  .bg-surface-1 { background-color: #0C0C1A; }
-  .bg-surface-2 { background-color: #111124; }
-  .bg-surface-3 { background-color: #16162E; }
+  .bg-surface   { background-color: #04040e; }
+  .bg-surface-1 { background-color: #07071a; }
+  .bg-surface-2 { background-color: #0d0c22; }
+  .bg-surface-3 { background-color: #131230; }
 
   .app-shell-bg {
     background:
-      radial-gradient(ellipse 72% 52% at 12% 14%, rgba(143,117,255,0.18) 0%, transparent 56%),
-      radial-gradient(ellipse 48% 42% at 84% 18%, rgba(242,141,223,0.10) 0%, transparent 55%),
-      radial-gradient(ellipse 62% 48% at 76% 76%, rgba(124,140,255,0.08) 0%, transparent 56%),
-      linear-gradient(180deg, rgba(8,8,17,0.98) 0%, rgba(7,6,16,0.98) 44%, rgba(10,8,20,0.98) 100%);
+      radial-gradient(ellipse 90% 55% at 8% 12%, rgba(100, 60, 200, 0.22) 0%, transparent 52%),
+      radial-gradient(ellipse 70% 45% at 88% 10%, rgba(180, 80, 220, 0.14) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 50% at 78% 78%, rgba(100, 80, 200, 0.16) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 20% 80%, rgba(80, 60, 180, 0.12) 0%, transparent 58%),
+      linear-gradient(180deg, #03030c 0%, #05050f 35%, #060614 65%, #04040e 100%);
   }
 
   .app-main-shell {
@@ -284,9 +309,27 @@
     font-family: 'Cinzel', serif;
     font-size: clamp(2rem, 3.6vw, 3.8rem);
     line-height: 1.02;
-    letter-spacing: 0.04em;
+    letter-spacing: 0.06em;
     color: #f7f3ff;
-    text-shadow: 0 0 24px rgba(220, 205, 255, 0.12);
+    text-shadow: 0 0 40px rgba(220, 205, 255, 0.18), 0 0 80px rgba(180, 150, 255, 0.08);
+  }
+
+  /* Playfair hero — for MBTI type reveal, identity page */
+  .hero-display-title {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(3.5rem, 8vw, 7rem);
+    font-weight: 900;
+    line-height: 0.92;
+    letter-spacing: -0.01em;
+    color: #f0eaff;
+    text-shadow: 0 0 60px rgba(180, 140, 255, 0.35), 0 0 120px rgba(140, 100, 255, 0.15);
+  }
+
+  /* Cinzel display — section headers */
+  .cinzel-display {
+    font-family: 'Cinzel', serif;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
   }
 
   .page-header-copy {
@@ -580,4 +623,185 @@
   @keyframes dashMove {
     to { stroke-dashoffset: -16; }
   }
+
+  /* ── Identity / MBTI specific ── */
+  .identity-panel {
+    position: relative;
+    overflow: hidden;
+    border-radius: 28px;
+    background: linear-gradient(160deg, rgba(18,15,40,0.88) 0%, rgba(10,8,26,0.84) 100%);
+    border: 1px solid rgba(124,111,255,0.18);
+    box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 0 0 0.5px rgba(124,111,255,0.12), inset 0 1px 0 rgba(255,255,255,0.05);
+    backdrop-filter: blur(36px) saturate(180%);
+  }
+
+  .identity-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse 70% 50% at 20% 20%, rgba(124,111,255,0.14) 0%, transparent 60%),
+      radial-gradient(ellipse 50% 40% at 80% 80%, rgba(242,141,223,0.07) 0%, transparent 60%);
+  }
+
+  .mbti-type-reveal {
+    font-family: 'Playfair Display', serif;
+    font-size: clamp(4rem, 10vw, 8rem);
+    font-weight: 900;
+    line-height: 0.9;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, #d4c4ff 0%, #a78bfa 40%, #c084fc 70%, #f0abfc 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    filter: drop-shadow(0 0 30px rgba(167,139,250,0.4));
+  }
+
+  .trait-bar-track {
+    height: 6px;
+    border-radius: 9999px;
+    background: rgba(255,255,255,0.06);
+    overflow: hidden;
+    position: relative;
+  }
+
+  .trait-bar-fill {
+    height: 100%;
+    border-radius: 9999px;
+    background: linear-gradient(90deg, #7c6fff, #c084fc);
+    box-shadow: 0 0 12px rgba(124,111,255,0.4);
+    transition: width 1.2s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .trait-bar-fill-rose {
+    background: linear-gradient(90deg, #f472b6, #fb7185);
+    box-shadow: 0 0 12px rgba(244,114,182,0.4);
+  }
+
+  .trait-bar-fill-amber {
+    background: linear-gradient(90deg, #fbbf24, #f59e0b);
+    box-shadow: 0 0 12px rgba(251,191,36,0.4);
+  }
+
+  .trait-bar-fill-cyan {
+    background: linear-gradient(90deg, #22d3ee, #06b6d4);
+    box-shadow: 0 0 12px rgba(34,211,238,0.4);
+  }
+
+  /* ── Archetype card ── */
+  .archetype-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 24px;
+    background: linear-gradient(160deg, rgba(124,111,255,0.14) 0%, rgba(10,8,26,0.88) 100%);
+    border: 1px solid rgba(124,111,255,0.22);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 40px rgba(124,111,255,0.10);
+  }
+
+  /* ── Cognitive function badge ── */
+  .cog-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    font-family: 'Cinzel', serif;
+    font-size: 0.8rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    border: 1px solid rgba(124,111,255,0.3);
+    background: rgba(124,111,255,0.12);
+    color: #c4b5fd;
+    box-shadow: 0 0 16px rgba(124,111,255,0.2);
+  }
+
+  /* ── Rare find badge ── */
+  .rare-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.75rem;
+    border-radius: 999px;
+    background: linear-gradient(135deg, rgba(251,191,36,0.15), rgba(245,158,11,0.08));
+    border: 1px solid rgba(251,191,36,0.28);
+    color: #fcd34d;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    box-shadow: 0 0 20px rgba(251,191,36,0.12);
+  }
+
+  /* ── Orb glow ring ── */
+  @keyframes orbPulse {
+    0%, 100% { opacity: 0.6; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.04); }
+  }
+  .orb-glow-ring {
+    animation: orbPulse 4s ease-in-out infinite;
+  }
+
+  /* ── Breathing nebula ── */
+  @keyframes nebulaBreathe {
+    0%, 100% { opacity: 0.7; transform: scale(1); }
+    50%       { opacity: 1;   transform: scale(1.06); }
+  }
+  .nebula-breathe {
+    animation: nebulaBreathe 8s ease-in-out infinite;
+  }
+
+  /* ── Dashboard observatory cards ── */
+  .obs-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 20px;
+    background: linear-gradient(160deg, rgba(16,14,36,0.82) 0%, rgba(9,8,22,0.78) 100%);
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: 0 12px 36px rgba(0,0,0,0.38), inset 0 1px 0 rgba(255,255,255,0.04);
+    backdrop-filter: blur(28px) saturate(160%);
+    transition: border-color 0.3s ease, box-shadow 0.3s ease, transform 0.3s ease;
+  }
+
+  .obs-card:hover {
+    border-color: rgba(124,111,255,0.2);
+    box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 0 24px rgba(124,111,255,0.08);
+    transform: translateY(-2px);
+  }
+
+  /* ── Signal card (Discover) ── */
+  .signal-card {
+    position: relative;
+    overflow: hidden;
+    border-radius: 22px;
+    background: linear-gradient(160deg, rgba(14,12,32,0.84) 0%, rgba(8,7,20,0.80) 100%);
+    border: 1px solid rgba(255,255,255,0.07);
+    box-shadow: 0 14px 40px rgba(0,0,0,0.42);
+    backdrop-filter: blur(30px) saturate(165%);
+    transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .signal-card:hover {
+    border-color: rgba(124,111,255,0.24);
+    box-shadow: 0 20px 56px rgba(0,0,0,0.55), 0 0 32px rgba(124,111,255,0.10);
+    transform: translateY(-3px);
+  }
+
+  /* ── Waveform animation ── */
+  @keyframes waveform {
+    0%, 100% { transform: scaleY(0.4); }
+    50%       { transform: scaleY(1); }
+  }
+  .waveform-bar {
+    display: inline-block;
+    width: 3px;
+    border-radius: 2px;
+    background: currentColor;
+    animation: waveform 1.2s ease-in-out infinite;
+  }
+  .waveform-bar:nth-child(2) { animation-delay: 0.15s; }
+  .waveform-bar:nth-child(3) { animation-delay: 0.3s; }
+  .waveform-bar:nth-child(4) { animation-delay: 0.45s; }
+  .waveform-bar:nth-child(5) { animation-delay: 0.6s; }
 }

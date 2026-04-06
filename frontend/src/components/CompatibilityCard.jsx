@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react'
-import { motion } from 'framer-motion'
-import { Copy, Orbit, Sparkles, Stars, Wand2 } from 'lucide-react'
+import { Copy, Orbit, Sparkles, Stars, Wand2, HeartHandshake } from 'lucide-react'
 import DeferredSoulOrb from './DeferredSoulOrb'
 
 function MetricCard({ label, value, detail, accent }) {
@@ -77,7 +76,7 @@ function IdentityColumn({ profile, side, accent }) {
 
 function ShareCard({ result, userAName, userBName, shareHref }) {
   const [copied, setCopied] = useState(false)
-  const shareText = `${userAName} × ${userBName} · ${result.relationshipArchetype} · ${result.overallCompatibility}%`
+  const shareText = `${userAName} x ${userBName} - ${result.relationshipArchetype} - ${result.overallCompatibility}%`
 
   const copy = async () => {
     try {

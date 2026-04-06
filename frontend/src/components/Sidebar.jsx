@@ -9,17 +9,17 @@ import { ProviderBadge } from './MusicSourceCard'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
 
 const NAV = [
-  { section: 'Drift' },
-  { path: '/', icon: LayoutDashboard, label: 'Observatory', color: '#7C6FFF' },
-  { path: '/discover', icon: Compass, label: 'Drift', color: '#00D1FF' },
+  { section: 'Explore' },
+  { path: '/', icon: LayoutDashboard, label: 'Dashboard', color: '#7C6FFF' },
+  { path: '/discover', icon: Compass, label: 'Discover', color: '#00D1FF' },
   { path: '/galaxy', icon: Disc3, label: 'Galaxy', color: '#E040FB' },
-  { section: 'Within' },
-  { path: '/soulmate', icon: Heart, label: 'Dual Orbit', color: '#FF5DA2' },
-  { path: '/aesthetic', icon: Sparkles, label: 'Atmosphere', color: '#FBBF24' },
+  { section: 'Identity' },
+  { path: '/soulmate', icon: Heart, label: 'Soulmates', color: '#FF5DA2' },
+  { path: '/aesthetic', icon: Sparkles, label: 'Aesthetic', color: '#FBBF24' },
   { path: '/auralith', icon: Wand2, label: 'Auralith', color: '#C084FC' },
-  { path: '/analytics', icon: BarChart3, label: 'Signal Reading', color: '#2DD4BF' },
-  { path: '/identity', icon: Brain, label: 'Inner Music Self', color: '#60A5FA' },
-  { path: '/profile', icon: User, label: 'Sonic Self', color: '#A78BFA' },
+  { path: '/analytics', icon: BarChart3, label: 'Analytics', color: '#2DD4BF' },
+  { path: '/identity', icon: Brain, label: 'Music Identity', color: '#60A5FA' },
+  { path: '/profile', icon: User, label: 'Profile', color: '#A78BFA' },
 ]
 
 export default function Sidebar() {

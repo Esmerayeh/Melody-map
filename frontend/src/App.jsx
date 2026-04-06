@@ -38,7 +38,7 @@ function safeStorageGet(key) {
   }
 }
 
-// Spatial spring-physics page transitions — suggest depth between layers
+// Spatial spring-physics page transitions -- suggest depth between layers
 const pageVariants = {
   initial: { opacity: 0, y: 18, scale: 0.98, filter: 'blur(4px)' },
   enter:   {
@@ -223,6 +223,29 @@ function ExperienceBridge() {
   }, [loading, location.pathname, setLoadingState])
 
   useEffect(() => {
+    const bootPhase = !isAuthenticated
+      ? 'idle'
+      : (loading && !profile)
+        ? 'profileBootLoading'
+        : (error && !profile)
+          ? 'profileFailed'
+          : (!profile)
+            ? 'profileEmpty'
+            : (profile?.isDegraded)
+              ? 'profilePartial'
+              : 'profileReady'
+
+    const overallScore = profile?.confidence?.overall ?? 0
+    const tier = !profile
+      ? (error ? 'failed' : loading ? 'limited' : 'limited')
+      : overallScore >= 0.78
+        ? 'rich'
+        : overallScore >= 0.55
+          ? 'medium'
+          : overallScore >= 0.35
+            ? 'sparse'
+            : 'limited'
+
     setDataConfidence({
       overall: confidence?.labels?.overall || (loading ? 'tuning into your signal...' : 'soft signal'),
       analytics: confidence?.labels?.analytics || 'soft signal',
@@ -232,9 +255,12 @@ function ExperienceBridge() {
       degraded: Boolean(profile?.isDegraded || dataQuality?.degradedReasons?.length),
       hasAudioProfile: Boolean(dataQuality?.hasAudioProfile),
       profileReady: Boolean(profile),
+      tier,
+      bootPhase,
+      bootMessage: error || '',
       error: error || null,
     })
-  }, [confidence, dataQuality, error, loading, profile, setDataConfidence])
+  }, [confidence, dataQuality, error, isAuthenticated, loading, profile, setDataConfidence])
 
   return null
 }
@@ -297,7 +323,7 @@ export default function App() {
   const setLastfm       = useStore((s) => s.setLastfm)
   const logout          = useStore((s) => s.logout)
 
-  // Rehydrate auth state on mount — handles page refresh
+  // Rehydrate auth state on mount -- handles page refresh
   useEffect(() => {
     const spotifyToken = safeStorageGet('spotify_token')
     const spotifyExpiry = safeStorageGet('spotify_token_expiry')

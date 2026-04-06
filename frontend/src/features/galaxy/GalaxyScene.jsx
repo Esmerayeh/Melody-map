@@ -395,25 +395,31 @@ function RegionNebula({ region, model, galaxyMode, viewMode }) {
     .map((artistId) => model?.nodes?.find((node) => node.id === artistId))
     .filter(Boolean)
     .slice(0, 3)
-  const baseScale = clamp(4.8 + (region.coverage || 0) * 11, 4.8, 9.8)
+  const profileTier = model?.metadata?.profileTier || 'partial'
+  const tierScale = profileTier === 'rich' ? 1 : profileTier === 'medium' ? 0.85 : 0.7
+  const baseScale = clamp((4.4 + (region.coverage || 0) * 8.5) * tierScale, 3.6, 8.2)
   const visible = galaxyMode === 'universal' || galaxyMode === 'genre'
+  const centroid = region?.centroid || { x: 0, y: 0, z: 0 }
+  const centroidValid = Number.isFinite(centroid.x) && Number.isFinite(centroid.y) && Number.isFinite(centroid.z)
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
+    if (!centroidValid) return
     const t = clock.getElapsedTime()
     groupRef.current.rotation.z = t * 0.02 + region.coverage * 0.08
     groupRef.current.rotation.x = Math.sin(t * 0.07 + region.coverage * 8) * 0.05
     groupRef.current.position.set(
-      region.centroid.x + Math.sin(t * 0.03 + region.coverage * 10) * (motionState?.driftStrength || 0.18) * 0.35,
-      region.centroid.y + Math.cos(t * 0.028 + region.coverage * 13) * (motionState?.driftStrength || 0.18) * 0.22,
-      region.centroid.z - 1.2,
+      centroid.x + Math.sin(t * 0.03 + region.coverage * 10) * (motionState?.driftStrength || 0.18) * 0.35,
+      centroid.y + Math.cos(t * 0.028 + region.coverage * 13) * (motionState?.driftStrength || 0.18) * 0.22,
+      centroid.z - 1.2,
     )
   })
 
+  if (!centroidValid) return null
   if (!visible && !hovered && !selected && viewMode !== 'mood') return null
 
   return (
-    <group ref={groupRef} position={[region.centroid.x, region.centroid.y, region.centroid.z - 1.2]}>
+    <group ref={groupRef} position={[centroid.x, centroid.y, centroid.z - 1.2]}>
       <RegionParticles region={region} selected={selected} hovered={hovered} />
       {[1, 0.74, 0.48].map((factor, index) => (
         <mesh key={`${region.id}-${factor}`} scale={[baseScale * factor, baseScale * factor * (0.66 + index * 0.08), baseScale * factor]}>
@@ -484,15 +490,19 @@ function TasteCore({ core, model, galaxyMode }) {
     .filter(Boolean)
     .slice(0, 4)
 
+  const corePosition = core?.position || { x: 0, y: 0, z: 0 }
+  const coreValid = Number.isFinite(corePosition.x) && Number.isFinite(corePosition.y) && Number.isFinite(corePosition.z)
+
   useFrame(({ clock }) => {
     if (!groupRef.current) return
+    if (!coreValid) return
     const t = clock.getElapsedTime()
     groupRef.current.rotation.y = t * 0.12
     groupRef.current.rotation.z = Math.sin(t * 0.08) * 0.06
     groupRef.current.position.set(
-      core.position.x + Math.sin(t * 0.04) * (motionState?.driftStrength || 0.18) * 0.18,
-      core.position.y + Math.cos(t * 0.05) * (motionState?.driftStrength || 0.18) * 0.12,
-      core.position.z,
+      corePosition.x + Math.sin(t * 0.04) * (motionState?.driftStrength || 0.18) * 0.18,
+      corePosition.y + Math.cos(t * 0.05) * (motionState?.driftStrength || 0.18) * 0.12,
+      corePosition.z,
     )
     groupRef.current.scale.setScalar(
       1
@@ -501,10 +511,10 @@ function TasteCore({ core, model, galaxyMode }) {
     )
   })
 
-  if (!core?.position) return null
+  if (!coreValid) return null
 
   return (
-    <group ref={groupRef} position={[core.position.x, core.position.y, core.position.z]}>
+    <group ref={groupRef} position={[corePosition.x, corePosition.y, corePosition.z]}>
       {[1.7, 1.28, 0.94].map((factor, index) => (
         <mesh key={`${factor}`}>
           <sphereGeometry args={[factor, 28, 28]} />
@@ -704,6 +714,8 @@ function ConstellationLines({ model, originId }) {
 
 function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMoodRegions }) {
   const meshRef = useRef()
+  const profileTier = model?.metadata?.profileTier || 'partial'
+  const minCoverage = profileTier === 'rich' ? 0.08 : profileTier === 'medium' ? 0.14 : 0.22
 
   useFrame(({ clock }) => {
     if (!meshRef.current) return
@@ -719,9 +731,12 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
           <color attach="color" args={[colors[0]]} />
         </meshBasicMaterial>
       </mesh>
-      {(showMoodRegions || viewMode === 'mood' || viewMode === 'identity' || galaxyMode === 'genre') && regions.slice(0, 6).map((region) => (
-        <RegionNebula key={region.id} region={region} model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
-      ))}
+      {(showMoodRegions || viewMode === 'mood' || viewMode === 'identity' || galaxyMode === 'genre') && regions
+        .filter((region) => (region.coverage || 0) >= minCoverage)
+        .slice(0, 6)
+        .map((region) => (
+          <RegionNebula key={region.id} region={region} model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
+        ))}
     </>
   )
 }

@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE_URL = import.meta.env.VITE_API_URL || ''
+const BASE_URL = import.meta.env.VITE_API_URL || import.meta.env.VITE_API_BASE_URL || ''
 const isProduction = import.meta.env.PROD
 
 if (!BASE_URL && isProduction) {
@@ -61,7 +61,8 @@ async function withRetry(err) {
   const normalized = normalizeError(err)
   err.normalized = normalized
 
-  if (status === 401 && !config?.meta?.suppressAuthRedirect) {
+  const usesProviderToken = Boolean(config?.headers?.['X-Spotify-Token'] || config?.headers?.['X-Lastfm-Session'])
+  if (status === 401 && !config?.meta?.suppressAuthRedirect && !usesProviderToken) {
     localStorage.removeItem('token')
     localStorage.removeItem('userId')
     if (window.location.pathname !== '/login') {
@@ -106,9 +107,10 @@ export const recommendAPI = {
   get: (userId) => api.get(`/recommendations/${userId}`),
 }
 
-// Spotify API — passes spotify_token via custom header
+// Spotify API -- passes spotify_token via custom header
 const spotifyApi = axios.create({ baseURL: `${BASE_URL}/api` })
 spotifyApi.interceptors.request.use(async (config) => {
+  config.meta = { ...(config.meta || {}), suppressAuthRedirect: true }
   const token = localStorage.getItem('spotify_token')
   if (token) config.headers['X-Spotify-Token'] = token
   return attachRequestMetadata(config, spotifyApi)
@@ -127,9 +129,10 @@ export const spotifyAPI = {
   getRecommendations:  (params) => spotifyApi.get('/spotify/recommendations', { params }),
 }
 
-// Last.fm API — passes session key + username via custom headers
+// Last.fm API -- passes session key + username via custom headers
 const lastfmApi = axios.create({ baseURL: `${BASE_URL}/api` })
 lastfmApi.interceptors.request.use(async (config) => {
+  config.meta = { ...(config.meta || {}), suppressAuthRedirect: true }
   const session  = localStorage.getItem('lastfm_session')
   const username = localStorage.getItem('lastfm_username')
   if (session)  config.headers['X-Lastfm-Session']  = session
@@ -148,10 +151,10 @@ export const lastfmAPI = {
 }
 
 export const soulmateAPI = {
-  syncProfile: (data)    => api.post('/soulmate/profile', data),
+  syncProfile: (data)    => api.post('/soulmate/profile', data, { meta: { suppressAuthRedirect: true } }),
   getMyProfile:()        => api.get('/soulmate/profile/me', { meta: { suppressAuthRedirect: true } }),
-  getMatches:  ()        => api.get('/soulmate/matches'),
-  compare:     (uid_b)   => api.get(`/soulmate/compare/${uid_b}`),
+  getMatches:  ()        => api.get('/soulmate/matches', { meta: { suppressAuthRedirect: true } }),
+  compare:     (uid_b)   => api.get(`/soulmate/compare/${uid_b}`, { meta: { suppressAuthRedirect: true } }),
 }
 
 export const aestheticAPI = {

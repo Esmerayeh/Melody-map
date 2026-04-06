@@ -3,6 +3,12 @@ export const EMPTY_OBJECT = Object.freeze({
   type: null,
 })
 
+const safePosition = (position = {}) => ({
+  x: Number.isFinite(position.x) ? position.x : 0,
+  y: Number.isFinite(position.y) ? position.y : 0,
+  z: Number.isFinite(position.z) ? position.z : 0,
+})
+
 export function slugifyInteraction(value = '') {
   return String(value)
     .toLowerCase()
@@ -28,7 +34,7 @@ export function buildCoreSelection(model, profile) {
     type: 'core',
     label: model.metadata.core.label,
     color: model.metadata.core.color,
-    position: model.metadata.core.position,
+    position: safePosition(model.metadata.core.position || {}),
     metrics: {
       centrality: model.metadata.core.strength,
       anchorScore: model.metadata.core.strength,

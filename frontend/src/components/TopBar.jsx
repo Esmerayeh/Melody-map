@@ -6,15 +6,15 @@ import useStore from '../store/useStore'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
 
 const TOP_NAV = [
-  { to: '/', label: 'Observatory' },
-  { to: '/discover', label: 'Drift' },
+  { to: '/', label: 'Dashboard' },
+  { to: '/discover', label: 'Discover' },
   { to: '/galaxy', label: 'Galaxy' },
-  { to: '/soulmate', label: 'Dual Orbit' },
-  { to: '/aesthetic', label: 'Atmosphere' },
+  { to: '/soulmate', label: 'Soulmates' },
+  { to: '/aesthetic', label: 'Aesthetic' },
   { to: '/auralith', label: 'Auralith' },
-  { to: '/analytics', label: 'Signal Reading' },
-  { to: '/identity', label: 'Inner Music Self' },
-  { to: '/profile', label: 'Sonic Self' },
+  { to: '/analytics', label: 'Analytics' },
+  { to: '/identity', label: 'Music Identity' },
+  { to: '/profile', label: 'Profile' },
 ]
 
 export default function TopBar() {

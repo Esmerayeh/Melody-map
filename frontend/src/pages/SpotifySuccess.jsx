@@ -56,7 +56,7 @@ export default function SpotifySuccess() {
       setMessage(
         error === 'access_denied'
           ? 'You denied access to Spotify.'
-          : `Spotify error: ${error}${detail ? ` — ${detail}` : ''}`,
+          : `Spotify error: ${error}${detail ? ` -- ${detail}` : ''}`,
       )
       const timeoutId = redirectHome(3000)
       return () => {

@@ -9,6 +9,7 @@ import useMusicProfile from '../hooks/useMusicProfile'
 import { usePlaylists } from '../hooks/useMusicData'
 import useStore from '../store/useStore'
 import { auralithAPI } from '../services/api'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 
 const MODULES = [
   {
@@ -451,7 +452,7 @@ function ResultPanel({ module, result, loading, error, onRetry, profilePayload }
 
 export default function Auralith() {
   const [searchParams] = useSearchParams()
-  const { profile } = useMusicProfile()
+  const { profile, phase } = useMusicProfile()
   const { data: playlistsData } = usePlaylists()
   const activeProfile = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || 'your listening world')
   const profilePayload = useMemo(() => normalizeProfile(profile, playlistsData), [profile, playlistsData])
@@ -466,6 +467,41 @@ export default function Auralith() {
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+
+  if (phase === 'loading' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="Auralith is gathering your signal."
+        subtitle="We are tuning into your listening history before the interpreter settles."
+        detail="Hold steady."
+      />
+    )
+  }
+
+  if (phase === 'empty') {
+    return (
+      <ProfileBootPanel
+        variant="empty"
+        title="Connect a music source to awaken Auralith."
+        subtitle="The interpreter needs a listening signal to speak with precision."
+        detail="No signal is present yet."
+      />
+    )
+  }
+
+  if (phase === 'error' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="error"
+        title="Auralith could not reach your signal."
+        subtitle="The listening data is unavailable right now."
+        detail="Refresh once and the interpreter should return."
+        actionLabel="Reload Auralith"
+        onAction={() => window.location.reload()}
+      />
+    )
+  }
 
   useEffect(() => {
     const requestedModule = searchParams.get('mode')

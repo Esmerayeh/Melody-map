@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { mapAPI } from '../services/api'
 import useStore from '../store/useStore'
+import useMusicProfile from '../hooks/useMusicProfile'
 import useExperienceStore from '../store/useExperienceStore'
 import { buildGalaxyModeModel, buildGalaxyModel, buildLegacyGalaxyModel } from '../features/galaxy/galaxyBuilder'
 import GalaxyControls from '../features/galaxy/GalaxyControls'
@@ -11,6 +12,7 @@ import GalaxyInspector from '../features/galaxy/GalaxyInspector'
 import GalaxyLegend from '../features/galaxy/GalaxyLegend'
 import GalaxyScene from '../features/galaxy/GalaxyScene'
 import SoulResonancePanel from '../components/SoulResonancePanel'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 import { mapGalaxySelectionToResonance } from '../features/orb/resonanceEngine'
 import useGalaxyInteractionStore from '../features/galaxy/useGalaxyInteractionStore'
 import { resolveInteractionEntity, slugifyInteraction } from '../features/galaxy/interactionModel.js'
@@ -39,9 +41,45 @@ function ClusterOverlay({ cluster, region }) {
 
 export default function MusicMap() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const musicProfile = useStore((state) => state.musicProfile)
+  const { profile: profileSnapshot, loading: profileLoading, phase } = useMusicProfile({ autoFetch: false })
+  const musicProfile = profileSnapshot || useStore((state) => state.musicProfile)
   const cinemaMode = useStore((state) => state.cinemaMode)
   const setCinemaMode = useStore((state) => state.setCinemaMode)
+
+  if (phase === 'loading' && !musicProfile) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="The galaxy is assembling."
+        subtitle="We are plotting your core stars before the map ignites."
+        detail="Hold steady."
+      />
+    )
+  }
+
+  if (phase === 'error' && !musicProfile) {
+    return (
+      <ProfileBootPanel
+        variant="error"
+        title="The galaxy could not render."
+        subtitle="The listening data is not reachable right now."
+        detail="Refresh once and the map should return."
+        actionLabel="Reload the galaxy"
+        onAction={() => window.location.reload()}
+      />
+    )
+  }
+
+  if (phase === 'empty') {
+    return (
+      <ProfileBootPanel
+        variant="empty"
+        title="No listening signal yet."
+        subtitle="Connect a music source to reveal your galaxy."
+        detail="The map will appear once the signal arrives."
+      />
+    )
+  }
 
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
   const viewMode = useGalaxyInteractionStore((state) => state.viewMode)
@@ -101,6 +139,10 @@ export default function MusicMap() {
   const loadData = useCallback(async () => {
     setLoading(true)
     try {
+      if (profileLoading && !musicProfile) {
+        setModel(null)
+        return
+      }
       if (musicProfile?.topArtists?.length || musicProfile?.genres?.length) {
         setModel(buildGalaxyModel(musicProfile))
         setIsDemo(false)
@@ -123,7 +165,7 @@ export default function MusicMap() {
     } finally {
       setLoading(false)
     }
-  }, [musicProfile])
+  }, [musicProfile, profileLoading])
 
   useEffect(() => {
     loadData()
@@ -378,7 +420,7 @@ export default function MusicMap() {
 
   const subtitle = useMemo(() => {
     if (loading) return 'tuning into your signal...'
-    if (isDemo) return 'a borrowed sky for now — connect a music source to see your own'
+    if (isDemo) return 'a borrowed sky for now -- connect a music source to see your own'
     if (!activeModel) return 'the sky is still quiet'
 
     const density = activeModel.metadata?.modeDensity || activeModel.metadata?.density
@@ -387,7 +429,7 @@ export default function MusicMap() {
 
   const trustBanner = useMemo(() => {
     if (!activeModel) return null
-    if (isDemo) return 'this is only a borrowed sky — your own map arrives once your listening is connected.'
+    if (isDemo) return 'this is only a borrowed sky -- your own map arrives once your listening is connected.'
     if (activeModel.metadata?.source !== 'profile') return 'the full constellation has not settled yet, so some structures are still running on older signal.'
     if (activeModel.metadata?.profileTier === 'partial') return 'this galaxy is still forming. regions and bridges stay sparse on purpose.'
     if ((activeModel.metadata?.confidence?.galaxy?.score || 0) < 0.5) return 'the pattern is real, but still faint in places.'
@@ -421,6 +463,8 @@ export default function MusicMap() {
 
   const hoveredCluster = hoveredEntity.cluster || (hoveredEntity.node?.clusterId ? activeModel?.clusters?.find((cluster) => cluster.id === hoveredEntity.node.clusterId) : null)
   const hoveredRegion = hoveredEntity.region || (hoveredEntity.node?.regionLabel ? activeModel?.regions?.find((region) => region.label === hoveredEntity.node.regionLabel) : null)
+
+  const showBootPanel = phase === 'loading' && !musicProfile
 
   const scene = (
     <div className="relative h-full w-full overflow-hidden">
@@ -464,6 +508,17 @@ export default function MusicMap() {
           />
         </div>
       </div>
+    )
+  }
+
+  if (showBootPanel) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="The galaxy is still tuning in."
+        subtitle="We are gathering the first wave of listening signals before the map can breathe."
+        detail="This will settle in a few moments."
+      />
     )
   }
 

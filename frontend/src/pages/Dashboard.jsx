@@ -11,13 +11,14 @@ import HeroScene from '../components/HeroScene'
 import { getVibeName, extractPastelPalette } from '../services/vibeTheme'
 import VibeEmitter from '../components/VibeEmitter'
 import IdentityReveal from '../components/IdentityReveal'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../features/motion/motionTokens'
 
 const cleanCopy = (value = '') => value
-  .replace(/â€”/g, '—')
-  .replace(/â€¢/g, '•')
-  .replace(/Â·/g, '·')
-  .replace(/â†—/g, '↗')
+  .replace(/\u00e2\u20ac\u201d/g, '--')
+  .replace(/\u00e2\u20ac\u00a2/g, '*')
+  .replace(/\u00c2\u00b7/g, '-')
+  .replace(/\u00e2\u2020\u2014/g, '->')
 
 // ── Animated SVG Radar ─────────────────────────────────────────────────────────
 function AudioRadar({ features }) {
@@ -103,7 +104,10 @@ function TiltCard({ children, className = '' }) {
 
 // ── Stat orb ──────────────────────────────────────────────────────────────────
 function StatOrb({ icon: Icon, label, value, color, delay = 0 }) {
-  const displayValue = value === 'â€”' || value === '—' ? 'soft signal' : value
+  const normalizedValue = value == null ? '' : String(value)
+  const displayValue = normalizedValue === '--' || normalizedValue.includes('\u00e2') || normalizedValue.includes('\u2014')
+    ? 'soft signal'
+    : value
   return (
     <motion.div
       initial={{ opacity: 0, y: 20, scale: 0.9 }}
@@ -174,7 +178,7 @@ function TrackRow({ track, rank }) {
       </div>
       {track.spotify_url && (
         <a href={track.spotify_url} target="_blank" rel="noopener noreferrer"
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-green-400 shrink-0">↗</a>
+          className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-green-400 shrink-0">{'->'}</a>
       )}
     </motion.div>
   )
@@ -188,7 +192,7 @@ function IdentityCard({ metrics, genres }) {
   const genreStr = genres.map((g) => g.genre).join(' ')
 
   let personality = 'Sonic Explorer'
-  let description = 'Your taste defies categories — you roam freely across genres, moods, and eras.'
+  let description = 'Your taste defies categories -- you roam freely across genres, moods, and eras.'
   let traits = ['eclectic', 'open-minded']
   let accentColor = '#7C6FFF'
 
@@ -198,19 +202,19 @@ function IdentityCard({ metrics, genres }) {
     traits = ['introspective', 'atmospheric', 'nocturnal']
   } else if (e != null && e > 0.65 && metrics.tempoAvg != null && metrics.tempoAvg > 120) {
     personality = 'Electric Wanderer'; accentColor = '#FBBF24'
-    description = 'You chase energy and movement — your music is kinetic, charged, and always in motion.'
+    description = 'You chase energy and movement -- your music is kinetic, charged, and always in motion.'
     traits = ['energetic', 'restless', 'adventurous']
   } else if (v != null && e != null && v > 0.6 && e < 0.55) {
     personality = 'Velvet Romantic'; accentColor = '#f472b6'
-    description = 'Warm, soulful, and deeply emotional — you feel music in your chest.'
+    description = 'Warm, soulful, and deeply emotional -- you feel music in your chest.'
     traits = ['emotional', 'warm', 'soulful']
   } else if (genreStr.includes('electronic') || genreStr.includes('techno')) {
     personality = 'Neon Architect'; accentColor = '#00D1FF'
-    description = 'You build worlds with sound — electronic, precise, and futuristic.'
+    description = 'You build worlds with sound -- electronic, precise, and futuristic.'
     traits = ['analytical', 'futuristic', 'precise']
   } else if (genreStr.includes('indie') || genreStr.includes('folk')) {
     personality = 'Golden Nostalgist'; accentColor = '#FBBF24'
-    description = 'You live in warm memories — your music smells like old film and summer afternoons.'
+    description = 'You live in warm memories -- your music smells like old film and summer afternoons.'
     traits = ['nostalgic', 'warm', 'reflective']
   }
 
@@ -263,7 +267,7 @@ export default function Dashboard() {
   const setTimeRange         = useStore((s) => s.setMusicProfileTimeRange)
   const isConnected          = spotifyConnected || lastfmConnected
 
-  const { profile, loading, error, refetch, timeRange, confidence, dataQuality } = useMusicProfile()
+  const { profile, loading, error, refetch, timeRange, confidence, dataQuality, phase } = useMusicProfile()
 
   const [showReveal, setShowReveal] = useState(false)
 
@@ -294,6 +298,43 @@ export default function Dashboard() {
       colors.forEach((color, i) => root.style.setProperty(`--pastel-${i}`, color))
     })
   }, [tracks])
+
+  if (phase === 'loading' && !profile && isConnected) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="The observatory is tuning in."
+        subtitle="We are gathering your listening signal before the room fills in."
+        detail="Hold steady."
+      />
+    )
+  }
+
+  if (phase === 'error' && !profile && isConnected) {
+    return (
+      <ProfileBootPanel
+        variant="error"
+        title="The observatory could not read your signal."
+        subtitle="The listening data is not reachable right now."
+        detail="Refresh once and the room should return."
+        actionLabel="Reload the observatory"
+        onAction={() => window.location.reload()}
+      />
+    )
+  }
+
+  if (phase === 'empty' && isConnected) {
+    return (
+      <ProfileBootPanel
+        variant="empty"
+        title="The observatory is still quiet."
+        subtitle="Your listening signal has not settled into a full profile yet."
+        detail="Try syncing again in a moment."
+        actionLabel="Refresh the signal"
+        onAction={refetch}
+      />
+    )
+  }
 
   return (
     <div className="cosmic-page">
@@ -386,7 +427,7 @@ export default function Dashboard() {
           {profile?.isDegraded && (
             <div className="flex flex-wrap gap-2 text-[11px] text-amber-300/80">
               <span>partial signal</span>
-              <span>•</span>
+              <span>-</span>
               <span>
                 {dataQuality?.degradedReasons?.[0] === 'spotify_audio_features_unavailable'
                   ? 'Spotify audio features are unavailable, so the deeper read stays quiet instead of pretending.'
@@ -396,19 +437,19 @@ export default function Dashboard() {
           )}
           <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
             <span>{dataQuality?.topTracksCount || tracks.length || 0} tracks in reach</span>
-            <span>•</span>
+            <span>-</span>
             <span>{dataQuality?.audioFeaturesCount || 0}/{dataQuality?.audioFeaturesRequested || 0} tracks carried a deep signal</span>
-            <span>•</span>
+            <span>-</span>
             <span>signal reading: {analyticsConfidence}</span>
-            <span>•</span>
+            <span>-</span>
             <span>inner reading: {identityConfidence}</span>
           </div>
 
           {/* Stat orbs */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '—'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
-            <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '—'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
-            <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '—'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
+            <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
+            <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '--'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
+            <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '--'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
             <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : 'soft signal'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
           </div>
 

@@ -9,6 +9,7 @@ import { aestheticAPI, spotifyAPI, lastfmAPI, pinterestAPI } from '../services/a
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import VibeEmitter from '../components/VibeEmitter'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 
 import toast from 'react-hot-toast'
 
@@ -422,7 +423,49 @@ export default function MusicAesthetic() {
   const setAestheticState = useStore((s) => s.setAestheticState)
 
   // Pull from central profile store — avoids redundant Spotify calls
-  const { profile } = useMusicProfile({ autoFetch: true })
+  const { profile, phase } = useMusicProfile({ autoFetch: true })
+  const hasSupportingSignals = Boolean(
+    aesthetic?.supportingSignals?.genreEvidence?.length
+      || aesthetic?.supportingSignals?.artistEvidence?.length
+      || aesthetic?.supportingSignals?.audioEvidence?.length
+      || aesthetic?.supportingSignals?.discoveryEvidence?.length
+      || aesthetic?.eraInfluence?.dominant?.length
+  )
+
+  if (phase === 'loading' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="The atmosphere is gathering."
+        subtitle="We are shaping your aesthetic field from the listening signal."
+        detail="This will settle shortly."
+      />
+    )
+  }
+
+  if (phase === 'empty') {
+    return (
+      <ProfileBootPanel
+        variant="empty"
+        title="Connect a music source to reveal your aesthetic."
+        subtitle="Once the listening signal arrives, the mood shrine will appear."
+        detail="No signal is present yet."
+      />
+    )
+  }
+
+  if (phase === 'error' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="error"
+        title="The aesthetic field could not load."
+        subtitle="The listening data is not reachable right now."
+        detail="Refresh once and the atmosphere should return."
+        actionLabel="Reload the atmosphere"
+        onAction={() => window.location.reload()}
+      />
+    )
+  }
 
   // ── Build taste profile — prefer central profile, fallback to direct fetch ──
   const buildProfile = useCallback(async () => {
@@ -758,7 +801,9 @@ export default function MusicAesthetic() {
                         {aesthetic?.confidence?.label || 'soft signal'}
                       </span>
                     </div>
-                    <p className="text-sm text-gray-300 leading-relaxed mb-4">{aesthetic.explanation}</p>
+                    <p className="text-sm text-gray-300 leading-relaxed mb-4">
+                      {aesthetic?.explanation || 'The atmosphere is still forming, but the outline of its gravity is visible.'}
+                    </p>
                     {aesthetic.blendExplanation && (
                       <p className="text-xs text-gray-500 leading-relaxed">{aesthetic.blendExplanation}</p>
                     )}
@@ -782,13 +827,16 @@ export default function MusicAesthetic() {
                         <p><span className="text-gray-500">Voices:</span> {aesthetic.supportingSignals.artistEvidence.join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.audioEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Signal:</span> {aesthetic.supportingSignals.audioEvidence.join(' · ')}</p>
+                        <p><span className="text-gray-500">Signal:</span> {aesthetic.supportingSignals.audioEvidence.join(' - ')}</p>
                       )}
                       {aesthetic.eraInfluence?.dominant?.length > 0 && (
                         <p><span className="text-gray-500">Era pull:</span> {aesthetic.eraInfluence.dominant.map((item) => item.era).join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.discoveryEvidence?.length > 0 && (
                         <p><span className="text-gray-500">Discovery drift:</span> {aesthetic.supportingSignals.discoveryEvidence.join(', ')}</p>
+                      )}
+                      {!hasSupportingSignals && (
+                        <p className="text-gray-500">The atmosphere is still forming. Give the signal another pass and we will surface the strongest influences.</p>
                       )}
                     </div>
                   </motion.div>
@@ -811,7 +859,7 @@ export default function MusicAesthetic() {
 
                 {activeTab === 'board' && (
                   <>
-                    <p className="text-xs text-gray-600 mb-4">{aesthetic.images?.length || 0} frames · move gently for parallax</p>
+                    <p className="text-xs text-gray-600 mb-4">{aesthetic.images?.length || 0} frames - move gently for parallax</p>
                     <CosmicMoodboard images={aesthetic.images || []} palette={aesthetic.palette} />
                   </>
                 )}
@@ -824,7 +872,7 @@ export default function MusicAesthetic() {
                       </div>
                     )}
                     {!pinterestLoading && pinterestPins?.length === 0 && (
-                      <p className="text-gray-500 text-sm text-center py-12">nothing surfaced there yet — try shaping the atmosphere again.</p>
+                      <p className="text-gray-500 text-sm text-center py-12">nothing surfaced there yet -- try shaping the atmosphere again.</p>
                     )}
                     {!pinterestLoading && pinterestPins?.length > 0 && (
                       <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">

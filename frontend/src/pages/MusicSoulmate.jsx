@@ -11,6 +11,7 @@ import MusicSourceCard from '../components/MusicSourceCard'
 import CompatibilityCard from '../components/CompatibilityCard'
 import SoulmateMap from '../components/SoulmateMap'
 import VibeEmitter from '../components/VibeEmitter'
+import ProfileBootPanel from '../components/ProfileBootPanel'
 import { computeSoulmateCompatibility } from '../utils/soulmateEngine'
 
 function parseSoulmateIdentifier(input) {
@@ -107,9 +108,17 @@ function InviteLink({ publicSlug }) {
 
 export default function MusicSoulmate() {
   const { identifier } = useParams()
-  const { profile, loading: profileLoading } = useMusicProfile()
+  const { profile, loading: profileLoading, phase, readiness } = useMusicProfile()
   const musicProvider = useStore((state) => state.musicProvider)
   const vibeFeatures = useStore((state) => state.vibeFeatures)
+
+  const hasAppToken = (() => {
+    try {
+      return Boolean(window.localStorage.getItem('token'))
+    } catch {
+      return false
+    }
+  })()
 
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
@@ -125,7 +134,7 @@ export default function MusicSoulmate() {
   const normalizedIdentifier = useMemo(() => parseSoulmateIdentifier(identifier), [identifier])
 
   useEffect(() => {
-    if (!musicProvider) return
+    if (!musicProvider || !hasAppToken) return
     let cancelled = false
     soulmateAPI.getMyProfile()
       .then(({ data }) => {
@@ -137,11 +146,15 @@ export default function MusicSoulmate() {
     return () => {
       cancelled = true
     }
-  }, [musicProvider])
+  }, [hasAppToken, musicProvider])
 
   const syncProfile = useCallback(async () => {
     if (!musicProvider) {
       toast.error('connect a music source first')
+      return
+    }
+    if (!hasAppToken) {
+      toast.error('sign in to melody map to sync your orbit')
       return
     }
     setSyncing(true)
@@ -211,11 +224,16 @@ export default function MusicSoulmate() {
       setSynced(true)
       toast.success('your orbit is in sync')
     } catch (error) {
-      toast.error('something slipped through the static')
+      const status = error?.response?.status
+      if (status === 401) {
+        toast.error('sign in to sync this orbit')
+      } else {
+        toast.error('something slipped through the static')
+      }
     } finally {
       setSyncing(false)
     }
-  }, [musicProvider, profile])
+  }, [hasAppToken, musicProvider, profile])
 
   const loadMatches = useCallback(async () => {
     setLoadingMatches(true)
@@ -230,12 +248,16 @@ export default function MusicSoulmate() {
   }, [])
 
   useEffect(() => {
-    if (synced) {
+    if (synced && hasAppToken) {
       loadMatches()
     }
-  }, [synced, loadMatches])
+  }, [hasAppToken, synced, loadMatches])
 
   const handleSelect = useCallback(async (match) => {
+    if (!hasAppToken) {
+      toast.error('sign in to explore a full comparison')
+      return
+    }
     setSelected(match)
     setComparison(null)
     setComparisonLoading(true)
@@ -247,7 +269,7 @@ export default function MusicSoulmate() {
     } finally {
       setComparisonLoading(false)
     }
-  }, [])
+  }, [hasAppToken])
 
   useEffect(() => {
     if (!normalizedIdentifier || !profile || profileLoading) return
@@ -291,6 +313,41 @@ export default function MusicSoulmate() {
     }
   }, [myPublicSlug, myUsername, normalizedIdentifier, profile, profileLoading])
 
+  if (phase === 'loading' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="loading"
+        title="Holding the dual orbit."
+        subtitle="We are pulling your listening field into alignment before the comparison ritual begins."
+        detail="This should settle shortly."
+      />
+    )
+  }
+
+  if (phase === 'error' && !profile) {
+    return (
+      <ProfileBootPanel
+        variant="error"
+        title="The orbit failed to load."
+        subtitle="We could not reach your listening profile just yet."
+        detail="Refresh once and the signal should return."
+        actionLabel="Reload the orbit"
+        onAction={() => window.location.reload()}
+      />
+    )
+  }
+
+  if (phase === 'empty') {
+    return (
+      <ProfileBootPanel
+        variant="empty"
+        title="Connect a music source to compare soulmates."
+        subtitle="The compatibility ritual begins once your listening signal is present."
+        detail="No signal is present yet."
+      />
+    )
+  }
+
   return (
     <div className="cosmic-page space-y-6">
       <motion.section initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="noire-panel relative overflow-hidden rounded-[34px] p-6 lg:p-8">
@@ -311,7 +368,19 @@ export default function MusicSoulmate() {
         </div>
       )}
 
-      {musicProvider && (
+      {musicProvider && !hasAppToken && (
+        <div className="noire-action-card rounded-[28px] p-5">
+          <p className="section-label mb-2">Soulmates needs a Melody Map account</p>
+          <p className="text-sm text-slate-400">
+            Your Spotify signal is connected, but the soulmate vault requires a signed Melody Map session to store and compare orbits.
+          </p>
+          <Link to="/login" className="noire-chip mt-4 inline-flex px-4 py-2 text-xs text-white">
+            Sign in to sync
+          </Link>
+        </div>
+      )}
+
+      {musicProvider && hasAppToken && (
         <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
           <InviteLink publicSlug={myPublicSlug} />
           <div className="noire-action-card rounded-[28px] p-5">
@@ -333,6 +402,12 @@ export default function MusicSoulmate() {
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {musicProvider && hasAppToken && !readiness?.soulmate && (
+        <div className="noire-panel-soft rounded-[24px] p-5 text-sm text-slate-400">
+          The soulmate field is still forming. You can sync now, but the overlap will deepen once more listening data settles.
         </div>
       )}
 
@@ -363,7 +438,7 @@ export default function MusicSoulmate() {
         </div>
       )}
 
-      {synced && (
+      {synced && hasAppToken && (
         <div className="grid gap-6 lg:grid-cols-[340px_minmax(0,1fr)]">
           <aside className="space-y-4">
             <div className="flex items-center gap-2">
