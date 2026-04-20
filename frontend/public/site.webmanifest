@@ -1,0 +1,26 @@
+{
+  "name": "Melody Map",
+  "short_name": "Melody Map",
+  "description": "AI-powered music discovery, taste visualization, and aesthetic moodboards.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0B0B12",
+  "theme_color": "#0B0B12",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/brand/melody-map-brand.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
