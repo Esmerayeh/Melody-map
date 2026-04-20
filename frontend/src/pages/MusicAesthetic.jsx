@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect, useMemo } from 'react'
-import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion'
+import { motion, AnimatePresence, useMotionValue, useTransform, useSpring, useReducedMotion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import {
   Sparkles, RefreshCw, Download, Share2, ExternalLink,
@@ -24,12 +24,18 @@ function confidenceTone(label) {
 
 // ── Parallax mouse tracker ─────────────────────────────────────────────────────
 function useParallax() {
+  const reduceMotion = useReducedMotion()
   const mouseX = useMotionValue(0)
   const mouseY = useMotionValue(0)
   const springX = useSpring(mouseX, { stiffness: 40, damping: 20 })
   const springY = useSpring(mouseY, { stiffness: 40, damping: 20 })
 
   useEffect(() => {
+    if (reduceMotion) {
+      mouseX.set(0)
+      mouseY.set(0)
+      return undefined
+    }
     const handler = (e) => {
       const cx = window.innerWidth / 2
       const cy = window.innerHeight / 2
@@ -38,24 +44,24 @@ function useParallax() {
     }
     window.addEventListener('mousemove', handler)
     return () => window.removeEventListener('mousemove', handler)
-  }, [mouseX, mouseY])
+  }, [mouseX, mouseY, reduceMotion])
 
   return { springX, springY }
 }
 
 // ── Floating particle background ──────────────────────────────────────────────
-function CosmicBackground({ palette }) {
+function CosmicBackground({ palette, lowPower = false }) {
   const particles = useMemo(() =>
-    Array.from({ length: 18 }, (_, i) => ({
+    Array.from({ length: lowPower ? 10 : 18 }, (_, i) => ({
       id: i,
       color: palette[i % palette.length] || '#6366f1',
       x: 5 + (i * 17 + 11) % 90,
       y: 5 + (i * 23 + 7) % 90,
       size: 3 + (i % 5) * 2,
-      duration: 7 + (i % 6) * 2,
+      duration: (lowPower ? 10 : 7) + (i % 6) * 2,
       delay: (i % 5) * 0.8,
       drift: 15 + (i % 4) * 10,
-    })), [palette])
+    })), [lowPower, palette])
 
   return (
     <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
@@ -86,6 +92,7 @@ function CosmicBackground({ palette }) {
 function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
   const [loaded, setLoaded] = useState(false)
   const [zoomed, setZoomed] = useState(false)
+  const reduceMotion = useReducedMotion()
 
   // Parallax depth — center images move less
   const depth = isCenter ? 0.02 : 0.06 + (index % 3) * 0.02
@@ -102,15 +109,15 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
     <>
       <motion.div
         style={{ x: px, y: py }}
-        animate={{ y: floatY }}
-        transition={{ duration: floatDuration, repeat: Infinity, ease: 'easeInOut', delay: index * 0.3 }}
+        animate={reduceMotion ? undefined : { y: floatY }}
+        transition={reduceMotion ? undefined : { duration: floatDuration, repeat: Infinity, ease: 'easeInOut', delay: index * 0.3 }}
         className="relative group"
       >
         <motion.div
           initial={{ opacity: 0, scale: 0.8 }}
           animate={{ opacity: loaded ? 1 : 0, scale: loaded ? 1 : 0.8 }}
           transition={{ duration: 0.6, delay: index * 0.05 }}
-          whileHover={{ scale: 1.06, zIndex: 20 }}
+          whileHover={reduceMotion ? undefined : { scale: 1.06, zIndex: 20 }}
           className={`relative rounded-2xl overflow-hidden cursor-pointer shadow-2xl ${
             isCenter ? 'ring-2 ring-white/20' : 'ring-1 ring-white/8'
           }`}
@@ -135,7 +142,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <div className="absolute bottom-0 left-0 right-0 p-3 translate-y-2 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300">
             <p className="text-xs text-white font-medium truncate">{img.description}</p>
-            <p className="text-xs text-white/50 truncate">📷 {img.photographer}</p>
+            <p className="text-xs text-white/50 truncate">Photo {img.photographer}</p>
           </div>
           {/* Zoom icon */}
           <div className="absolute top-2 left-2 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -183,7 +190,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
               <div className="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-black/80 to-transparent">
                 <p className="text-sm text-white">{img.description}</p>
                 <div className="flex items-center justify-between mt-1">
-                  <p className="text-xs text-white/60">📷 {img.photographer}</p>
+                  <p className="text-xs text-white/60">Photo {img.photographer}</p>
                   <a href={img.unsplash_url} target="_blank" rel="noopener noreferrer"
                     className="text-xs text-indigo-300 hover:text-indigo-200 flex items-center gap-1">
                     View on Unsplash <ExternalLink className="w-3 h-3" />
@@ -428,6 +435,7 @@ export default function MusicAesthetic() {
 
   // Pull from central profile store — avoids redundant Spotify calls
   const { profile, phase, readiness, tier } = useMusicProfile({ autoFetch: true })
+  const lowPower = tier === 'sparse' || tier === 'limited'
   const hasSupportingSignals = Boolean(
     aesthetic?.supportingSignals?.genreEvidence?.length
       || aesthetic?.supportingSignals?.artistEvidence?.length
@@ -647,7 +655,7 @@ export default function MusicAesthetic() {
 
   return (
     <div className="relative min-h-screen bg-[#080b1a] text-white overflow-x-hidden">
-      {aesthetic && <CosmicBackground palette={aesthetic.palette} />}
+      {aesthetic && <CosmicBackground palette={aesthetic.palette} lowPower={lowPower} />}
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
 

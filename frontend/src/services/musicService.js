@@ -12,45 +12,29 @@ function safeStorageGet(key) {
   }
 }
 
-function hasSpotifyToken() {
-  return !!safeStorageGet('spotify_token')
-}
-
-function hasLastfmSession() {
-  return !!safeStorageGet('lastfm_session')
-}
-
 function getProvider() {
   const explicit = safeStorageGet('music_provider')
-  if (explicit === 'spotify' && hasSpotifyToken()) return 'spotify'
-  if (explicit === 'lastfm' && hasLastfmSession()) return 'lastfm'
-  if (hasSpotifyToken()) return 'spotify'
-  if (hasLastfmSession()) return 'lastfm'
+  if (explicit === 'spotify') return 'spotify'
+  if (explicit === 'lastfm') return 'lastfm'
   return null
 }
 
 function getTruthProvider() {
-  if (hasSpotifyToken()) return 'spotify'
-  if (hasLastfmSession()) return 'lastfm'
-  return null
+  return getProvider()
 }
 
 export const musicService = {
-  /** Returns 'spotify', 'lastfm', or null */
   getProvider,
   getTruthProvider,
 
   isConnected() {
-    const p = getProvider()
-    if (p === 'spotify') return hasSpotifyToken()
-    if (p === 'lastfm') return hasLastfmSession()
-    return false
+    return Boolean(getProvider())
   },
 
   async getProfile() {
     const p = getProvider()
     if (p === 'spotify') return (await spotifyAPI.getProfile()).data
-    if (p === 'lastfm')  return (await lastfmAPI.getProfile()).data
+    if (p === 'lastfm') return (await lastfmAPI.getProfile()).data
     return null
   },
 
@@ -86,7 +70,6 @@ export const musicService = {
       const { data } = await spotifyAPI.getPlaylists()
       return data
     }
-    // Last.fm has no playlist concept — return empty
     return []
   },
 
@@ -99,7 +82,6 @@ export const musicService = {
     return []
   },
 
-  /** Spotify-only: audio features for map visualization */
   async getAudioFeatures(trackIds) {
     const p = getProvider()
     if (p === 'spotify' && trackIds?.length) {
@@ -109,7 +91,6 @@ export const musicService = {
     return []
   },
 
-  /** Last.fm-only: similar artists for recommendations */
   async getSimilarArtists(artist) {
     const p = getProvider()
     if (p === 'lastfm' && artist) {

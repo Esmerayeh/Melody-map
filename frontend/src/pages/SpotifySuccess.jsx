@@ -2,15 +2,8 @@ import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Music2, CheckCircle, XCircle, Loader2 } from 'lucide-react'
 import useStore from '../store/useStore'
-import { spotifyAPI } from '../services/api'
-
-function safeStoreValue(key, value) {
-  try {
-    window.localStorage.setItem(key, value)
-  } catch {
-    // Ignore storage failures so auth success can still continue.
-  }
-}
+import { authAPI, spotifyAPI } from '../services/api'
+import { logClientEvent } from '../services/observability'
 
 function safeSessionFlag(key, value) {
   try {
@@ -27,12 +20,12 @@ function unwrapApiData(payload) {
 
 /**
  * Landing page after Spotify OAuth redirect.
- * URL format: /spotify-success?token=...&refresh_token=...&expires_in=3600
+ * URL format: /spotify-success?auth_code=...&expires_in=3600
  *             /spotify-success?error=access_denied
  */
 export default function SpotifySuccess() {
   const navigate = useNavigate()
-  const setSpotifyToken = useStore((s) => s.setSpotifyToken)
+  const setSpotifyConnected = useStore((s) => s.setSpotifyConnected)
   const setSpotifyProfile = useStore((s) => s.setSpotifyProfile)
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState('')
@@ -40,9 +33,11 @@ export default function SpotifySuccess() {
   useEffect(() => {
     let cancelled = false
     const params = new URLSearchParams(window.location.search)
-    const token = params.get('token')
-    const refreshToken = params.get('refresh_token')
+    const authCode = params.get('auth_code')
     const error = params.get('error')
+    if (window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
 
     const redirectHome = (delay = 900) => window.setTimeout(() => {
       if (!cancelled) {
@@ -52,6 +47,7 @@ export default function SpotifySuccess() {
 
     if (error) {
       const detail = params.get('detail') || ''
+      logClientEvent('spotify_auth_failed', { error, detail }, 'warn')
       setStatus('error')
       setMessage(
         error === 'access_denied'
@@ -65,9 +61,10 @@ export default function SpotifySuccess() {
       }
     }
 
-    if (!token) {
+    if (!authCode) {
+      logClientEvent('spotify_auth_missing_code', {}, 'warn')
       setStatus('error')
-      setMessage('No token received from Spotify.')
+      setMessage('No secure exchange code received from Spotify.')
       const timeoutId = redirectHome(3000)
       return () => {
         cancelled = true
@@ -75,30 +72,42 @@ export default function SpotifySuccess() {
       }
     }
 
-    setSpotifyToken(token, refreshToken)
-    safeSessionFlag('post_login_bootstrap', 'spotify')
-
-    const expiresIn = parseInt(params.get('expires_in') || '3600', 10)
-    safeStoreValue('spotify_token_expiry', String(Date.now() + expiresIn * 1000))
-
-    spotifyAPI.getProfile()
+    let timeoutId
+    authAPI.exchangeSpotify(authCode)
+      .then(({ data }) => {
+        if (cancelled) return
+        const payload = unwrapApiData(data)
+        if (!payload?.connected) {
+          throw new Error('Spotify secure exchange failed.')
+        }
+        setSpotifyConnected({ connected: true })
+        safeSessionFlag('post_login_bootstrap', 'spotify')
+        return spotifyAPI.getProfile()
+      })
       .then(({ data }) => {
         if (cancelled) return
         const profile = unwrapApiData(data)
         if (profile && typeof profile === 'object') {
           setSpotifyProfile(profile)
+          setSpotifyConnected({ connected: true, profile })
         }
+        setStatus('success')
+        timeoutId = redirectHome(900)
       })
-      .catch(() => {})
-
-    setStatus('success')
-    const timeoutId = redirectHome(900)
+      .catch((err) => {
+        if (cancelled) return
+        const message = err?.response?.data?.error?.message || err?.message || 'Spotify token exchange failed.'
+        logClientEvent('spotify_auth_exchange_failed', { message }, 'warn')
+        setStatus('error')
+        setMessage(message)
+        timeoutId = redirectHome(3000)
+      })
 
     return () => {
       cancelled = true
-      window.clearTimeout(timeoutId)
+      if (timeoutId) window.clearTimeout(timeoutId)
     }
-  }, [navigate, setSpotifyProfile, setSpotifyToken])
+  }, [navigate, setSpotifyConnected, setSpotifyProfile])
 
   return (
     <div className="min-h-screen flex items-center justify-center">

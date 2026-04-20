@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from flask import jsonify
+from flask import jsonify, current_app
 
 
 def api_success(data=None, status: int = 200, **meta):
@@ -46,6 +46,18 @@ def api_error(
         payload["warnings"] = warnings
     if limited_signal is not None:
         payload["limitedSignal"] = limited_signal
+    try:
+        current_app.logger.warning(
+            "api_error",
+            extra={
+                "code": payload["error"]["code"],
+                "message": message,
+                "status": status,
+                "limitedSignal": limited_signal,
+            },
+        )
+    except Exception:
+        pass
     return jsonify(payload), status
 
 

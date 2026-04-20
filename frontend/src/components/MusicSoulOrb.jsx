@@ -90,7 +90,7 @@ function OrbAura({ palette, behavior, hovered }) {
   )
 }
 
-function OrbRing({ radius, color, opacity, behavior, axis = [0, 0, 0], rotationOffset = 0, broken = false, stretch = [1, 1, 1] }) {
+function OrbRing({ radius, color, opacity, behavior, axis = [0, 0, 0], rotationOffset = 0, broken = false, stretch = [1, 1, 1], lowPower = false }) {
   const ringRef = useRef()
 
   useFrame(({ clock }) => {
@@ -106,7 +106,7 @@ function OrbRing({ radius, color, opacity, behavior, axis = [0, 0, 0], rotationO
   return (
     <group ref={ringRef} rotation={axis}>
       <mesh rotation={[Math.PI / 2.25, 0, 0]}>
-        <torusGeometry args={[radius, 0.014, 14, broken ? 92 : 164, broken ? Math.PI * 1.62 : Math.PI * 2]} />
+        <torusGeometry args={[radius, 0.014, lowPower ? 10 : 14, broken ? (lowPower ? 64 : 92) : (lowPower ? 110 : 164), broken ? Math.PI * 1.62 : Math.PI * 2]} />
         <meshBasicMaterial color={color} transparent opacity={opacity} />
       </mesh>
     </group>
@@ -160,7 +160,7 @@ function OrbParticleHalo({ count, color, accent, behavior, lowPower = false }) {
   )
 }
 
-function OrbCore({ presentation, hovered }) {
+function OrbCore({ presentation, hovered, lowPower = false }) {
   const outerShellRef = useRef()
   const coreRef = useRef()
   const nucleusRef = useRef()
@@ -238,27 +238,27 @@ function OrbCore({ presentation, hovered }) {
   return (
     <group>
       <mesh ref={outerShellRef}>
-        <sphereGeometry args={[1.08, 72, 72]} />
+        <sphereGeometry args={[1.08, lowPower ? 36 : 72, lowPower ? 36 : 72]} />
         <soulOrbShellMaterial ref={shellMaterialRef} transparent depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
 
       <mesh ref={coreRef}>
-        <icosahedronGeometry args={[0.86, 8]} />
+        <icosahedronGeometry args={[0.86, lowPower ? 6 : 8]} />
         <soulOrbPlasmaMaterial ref={plasmaMaterialRef} transparent depthWrite={false} />
       </mesh>
 
       <mesh>
-        <sphereGeometry args={[0.74, 48, 48]} />
+        <sphereGeometry args={[0.74, lowPower ? 28 : 48, lowPower ? 28 : 48]} />
         <soulOrbPlasmaMaterial ref={coreMaterialRef} transparent depthWrite={false} />
       </mesh>
 
       <mesh ref={nucleusRef}>
-        <sphereGeometry args={[0.22, 28, 28]} />
+        <sphereGeometry args={[0.22, lowPower ? 16 : 28, lowPower ? 16 : 28]} />
         <meshBasicMaterial color="#fff4ff" transparent opacity={0.36 + presentation.shader.focusIntensity * 0.14} />
       </mesh>
 
       <mesh scale={[0.48, 0.48, 0.48]}>
-        <sphereGeometry args={[1, 20, 20]} />
+        <sphereGeometry args={[1, lowPower ? 12 : 20, lowPower ? 12 : 20]} />
         <meshBasicMaterial color={palette.ring} transparent opacity={0.22 + presentation.shader.focusIntensity * 0.1} />
       </mesh>
     </group>
@@ -286,10 +286,10 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false }) {
 
   return (
     <group ref={groupRef}>
-      <OrbCore presentation={presentation} hovered={hovered} />
-      <OrbRing radius={1.42} color={presentation.palette.ring} opacity={0.22} behavior={presentation.behavior} axis={[1.05, 0.18, 0.12]} stretch={[1.24, 0.82, 1.08]} />
-      <OrbRing radius={1.62} color={presentation.palette.glow} opacity={0.18} behavior={presentation.behavior} axis={[1.2, 0.56, 0.46]} stretch={[1.38, 0.78, 1.18]} broken rotationOffset={0.9} />
-      <OrbRing radius={1.86} color={presentation.palette.shell} opacity={0.12} behavior={presentation.behavior} axis={[0.94, -0.38, -0.18]} stretch={[1.58, 0.68, 1.32]} />
+      <OrbCore presentation={presentation} hovered={hovered} lowPower={lowPower} />
+      <OrbRing radius={1.42} color={presentation.palette.ring} opacity={0.22} behavior={presentation.behavior} axis={[1.05, 0.18, 0.12]} stretch={[1.24, 0.82, 1.08]} lowPower={lowPower} />
+      <OrbRing radius={1.62} color={presentation.palette.glow} opacity={0.18} behavior={presentation.behavior} axis={[1.2, 0.56, 0.46]} stretch={[1.38, 0.78, 1.18]} broken rotationOffset={0.9} lowPower={lowPower} />
+      <OrbRing radius={1.86} color={presentation.palette.shell} opacity={0.12} behavior={presentation.behavior} axis={[0.94, -0.38, -0.18]} stretch={[1.58, 0.68, 1.32]} lowPower={lowPower} />
       <OrbParticleHalo
         count={Math.max(6, presentation.behavior.satelliteCount * 4)}
         color={presentation.palette.glow}
@@ -303,7 +303,7 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false }) {
 
 function OrbCanvas({ presentation, hovered, lowPower = false }) {
   const { palette, behavior, threads } = presentation
-  const bloomIntensity = 0.72 + behavior.glowIntensity * 0.76 + (hovered ? 0.08 : 0)
+  const bloomIntensity = 0.6 + behavior.glowIntensity * (lowPower ? 0.35 : 0.76) + (hovered ? 0.08 : 0)
   const maxDpr = typeof window === 'undefined' ? 1.5 : Math.min(1.5, window.devicePixelRatio || 1.5)
   const dpr = lowPower ? [1, 1] : [1, maxDpr]
 
@@ -425,6 +425,15 @@ export default function MusicSoulOrb(props) {
           style={{ width: size, height: size }}
         >
           <OrbAura palette={presentation.palette} behavior={presentation.behavior} hovered={hovered} />
+          {lowPower && (
+            <div
+              className="pointer-events-none absolute inset-[4%] rounded-full"
+              style={{
+                background: `radial-gradient(circle, ${presentation.palette.glow}28 0%, ${presentation.palette.core}14 38%, transparent 70%)`,
+                filter: 'blur(20px)',
+              }}
+            />
+          )}
           <div
             className="pointer-events-none absolute inset-[6%] rounded-full"
             style={{

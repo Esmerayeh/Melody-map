@@ -1,18 +1,32 @@
-"""Proxy endpoints that call Spotify Web API on behalf of the frontend."""
+"""Proxy endpoints that call Spotify Web API using secure provider cookies."""
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request
 
+from routes.spotify_auth import _refresh_spotify_token
 from services.spotify_proxy_service import spotify_proxy_service
-from utils.api import api_error
+from utils.api import api_error, api_success_legacy
+from utils.provider_cookies import SPOTIFY_ACCESS_COOKIE, SPOTIFY_REFRESH_COOKIE, get_cookie
 
 spotify_data_bp = Blueprint('spotify_data', __name__)
 
 def _token_from_request() -> str:
-    return request.headers.get('X-Spotify-Token') or request.headers.get('Authorization', '')
+    return get_cookie(request, SPOTIFY_ACCESS_COOKIE) or request.headers.get('Authorization', '')
 
 
 def _get(path, params=None):
     result = spotify_proxy_service.get(_token_from_request(), path, params)
+    if result.status == 401:
+        refresh_token = get_cookie(request, SPOTIFY_REFRESH_COOKIE)
+        if refresh_token:
+            try:
+                refresh_response = _refresh_spotify_token(refresh_token)
+                refresh_response.raise_for_status()
+                refreshed = refresh_response.json()
+                refreshed_token = refreshed.get('access_token')
+                if refreshed_token:
+                    result = spotify_proxy_service.get(refreshed_token, path, params)
+            except Exception:
+                pass
     if not result.ok:
         return None, api_error(
             result.error_message or 'Spotify request failed',
@@ -23,12 +37,16 @@ def _get(path, params=None):
     return result.data or {}, None
 
 
+def _success(payload):
+    return api_success_legacy(payload)
+
+
 @spotify_data_bp.route('/spotify/me')
 def get_profile():
     data, err = _get('/me')
     if err:
         return err
-    return jsonify({
+    return _success({
         'id':        data.get('id'),
         'name':      data.get('display_name'),
         'email':     data.get('email'),
@@ -60,7 +78,7 @@ def get_top_tracks():
             'duration_ms': item.get('duration_ms', 0),
             'spotify_url': item['external_urls'].get('spotify'),
         })
-    return jsonify(tracks)
+    return _success(tracks)
 
 
 @spotify_data_bp.route('/spotify/top-artists')
@@ -81,7 +99,7 @@ def get_top_artists():
             'image':      item['images'][0]['url'] if item.get('images') else None,
             'spotify_url':item['external_urls'].get('spotify'),
         })
-    return jsonify(artists)
+    return _success(artists)
 
 
 @spotify_data_bp.route('/spotify/playlists')
@@ -103,7 +121,7 @@ def get_playlists():
             'public':      item.get('public', False),
             'spotify_url': item['external_urls'].get('spotify'),
         })
-    return jsonify(playlists)
+    return _success(playlists)
 
 
 @spotify_data_bp.route('/spotify/audio-features', methods=['POST'])
@@ -111,7 +129,7 @@ def get_audio_features():
     payload = request.get_json(silent=True) or {}
     track_ids = payload.get('track_ids', [])
     if not track_ids:
-        return jsonify([])
+        return _success([])
     ids_str   = ','.join(track_ids[:100])
     data, err = _get('/audio-features', {'ids': ids_str})
     if err:
@@ -131,7 +149,7 @@ def get_audio_features():
             'loudness':         f.get('loudness', 0),
             'speechiness':      f.get('speechiness', 0),
         })
-    return jsonify(features)
+    return _success(features)
 
 
 @spotify_data_bp.route('/spotify/recently-played')
@@ -160,7 +178,7 @@ def get_recently_played():
             'spotify_url': track['external_urls'].get('spotify'),
             'played_at':   item.get('played_at'),
         })
-    return jsonify(tracks)
+    return _success(tracks)
 
 
 @spotify_data_bp.route('/spotify/saved-tracks')
@@ -188,7 +206,7 @@ def get_saved_tracks():
             'spotify_url': track['external_urls'].get('spotify'),
             'added_at':    item.get('added_at'),
         })
-    return jsonify(tracks)
+    return _success(tracks)
 
 
 @spotify_data_bp.route('/spotify/recommendations')
@@ -200,7 +218,7 @@ def get_recommendations():
     limit        = min(int(request.args.get('limit', 25)), 100)
 
     if not seed_artists and not seed_tracks and not seed_genres:
-        return jsonify({'error': 'At least one seed required'}), 400
+        return api_error('At least one seed required', 400, code='SPOTIFY_SEED_REQUIRED')
 
     # Spotify requires total seeds <= 5
     params = {'limit': limit}
@@ -232,7 +250,7 @@ def get_recommendations():
             'duration_ms': item.get('duration_ms', 0),
             'spotify_url': item['external_urls'].get('spotify'),
         })
-    return jsonify(tracks)
+    return _success(tracks)
 
 
 @spotify_data_bp.route('/spotify/search')
@@ -241,7 +259,7 @@ def search_tracks():
     q     = request.args.get('q', '').strip()
     limit = min(int(request.args.get('limit', 10)), 50)
     if not q:
-        return jsonify({'tracks': {'items': []}})
+        return _success({'tracks': {'items': []}})
 
     data, err = _get('/search', {'q': q, 'type': 'track', 'limit': limit})
     if err:
@@ -263,4 +281,4 @@ def search_tracks():
             'external_urls': item.get('external_urls', {}),
             'duration_ms':   item.get('duration_ms', 0),
         })
-    return jsonify({'tracks': {'items': tracks}})
+    return _success({'tracks': {'items': tracks}})

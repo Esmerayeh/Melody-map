@@ -1,11 +1,12 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
-import { Music2, Mail, Lock, User, Loader2 } from "lucide-react"
+import { Mail, Lock, User, Loader2 } from "lucide-react"
 import toast from "react-hot-toast"
 import { authAPI } from "../services/api"
 import useStore from "../store/useStore"
 import useBackendWake from "../hooks/useBackendWake"
+import { BrandBackdrop, BrandMark, BrandWatermark, BrandWordmark } from "../components/brand/BrandSystem"
 
 function Particles() {
   const canvasRef = useRef(null)
@@ -45,6 +46,7 @@ export default function Login() {
   const [form, setForm] = useState({ username: "", email: "", password: "" })
   const navigate = useNavigate()
   const setUser  = useStore((s) => s.setUser)
+  const setSessionToken = useStore((s) => s.setSessionToken)
   const { waking, wake } = useBackendWake()
 
   const handleSubmit = async (e) => {
@@ -54,6 +56,7 @@ export default function Login() {
       const { data } = await fn(form)
       localStorage.setItem("token", data.token)
       localStorage.setItem("userId", data.user_id)
+      setSessionToken(data.token)
       setUser({ id: data.user_id })
       toast.success(isLogin ? "Welcome back!" : "Account created!")
       navigate("/")
@@ -63,19 +66,24 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen flex overflow-hidden bg-surface">
+    <div className="min-h-screen flex overflow-hidden bg-surface relative">
+      <BrandBackdrop opacity={0.28} />
       <div className="hidden lg:flex flex-col justify-between w-1/2 relative p-12 overflow-hidden"
         style={{ background: "linear-gradient(135deg, #0d0d1a 0%, #151528 100%)" }}>
         <Particles />
+        <BrandWatermark className="absolute right-[-10%] top-[6%] w-[34rem]" opacity={0.1} rotate={6} />
         <div className="absolute top-1/3 left-1/4 w-72 h-72 bg-brand-purple/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-brand-pink/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-purple to-brand-pink flex items-center justify-center shadow-glow-sm">
-            <Music2 className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-lg font-bold text-gradient">Melody Map</span>
+        <div className="relative z-10">
+          <BrandWordmark />
         </div>
         <div className="relative z-10">
+          <div className="mb-6 flex items-center gap-4">
+            <BrandMark size={112} mode="orb" />
+            <div className="max-w-xs text-sm leading-relaxed text-slate-400">
+              The uploaded sigil now anchors the login, splash, and shell experience as the core visual identity.
+            </div>
+          </div>
           <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
             className="text-5xl font-black text-white leading-tight mb-4">
             Your music,<br /><span className="text-gradient">visualized.</span>
@@ -101,9 +109,7 @@ export default function Login() {
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
           className="w-full max-w-sm relative">
           <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-purple to-brand-pink flex items-center justify-center">
-              <Music2 className="w-4 h-4 text-white" />
-            </div>
+            <BrandMark size={34} />
             <span className="text-base font-bold text-gradient">Melody Map</span>
           </div>
           <h2 className="text-2xl font-bold text-white mb-1">{isLogin ? "Welcome back" : "Create account"}</h2>

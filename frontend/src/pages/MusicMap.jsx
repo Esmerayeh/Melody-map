@@ -17,6 +17,7 @@ import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import { mapGalaxySelectionToResonance } from '../features/orb/resonanceEngine'
 import useGalaxyInteractionStore from '../features/galaxy/useGalaxyInteractionStore'
 import { resolveInteractionEntity, slugifyInteraction } from '../features/galaxy/interactionModel.js'
+import { BrandBackdrop, BrandConstellation, BrandMark, BrandWatermark } from '../components/brand/BrandSystem'
 
 const DEMO_NODES = [
   { _id: 'demo-1', title: 'Only Shallow', artist: 'My Bloody Valentine', genres: ['shoegaze'], popularity: 80, sonic_color: 'hsl(198, 85%, 44%)', map_coords_3d: { x: -2, y: 4, z: -1 } },
@@ -120,6 +121,7 @@ export default function MusicMap() {
   const [loading, setLoading] = useState(true)
   const [isDemo, setIsDemo] = useState(false)
   const [isCoarsePointer, setIsCoarsePointer] = useState(false)
+  const [lowPower, setLowPower] = useState(false)
 
   const resolveFocusPosition = useCallback((ids = []) => {
     if (!model) return null
@@ -206,6 +208,32 @@ export default function MusicMap() {
     media.addListener(update)
     return () => media.removeListener(update)
   }, [])
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return undefined
+    const reduceMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')
+    const update = () => {
+      const deviceMemory = Number(navigator?.deviceMemory || 8)
+      const cores = Number(navigator?.hardwareConcurrency || 8)
+      const shouldReduce = tier === 'sparse'
+        || tier === 'limited'
+        || isCoarsePointer
+        || deviceMemory <= 4
+        || cores <= 4
+        || Boolean(reduceMotion?.matches)
+      setLowPower(shouldReduce)
+    }
+    update()
+    if (reduceMotion?.addEventListener) {
+      reduceMotion.addEventListener('change', update)
+      return () => reduceMotion.removeEventListener('change', update)
+    }
+    if (reduceMotion?.addListener) {
+      reduceMotion.addListener(update)
+      return () => reduceMotion.removeListener(update)
+    }
+    return undefined
+  }, [isCoarsePointer, tier])
 
   const activeModel = useMemo(
     () => buildGalaxyModeModel(model, galaxyMode),
@@ -433,7 +461,7 @@ export default function MusicMap() {
     if (!activeModel) return 'the sky is still quiet'
 
     const density = activeModel.metadata?.modeDensity || activeModel.metadata?.density
-    return `${galaxyMode} mode • ${density?.nodes || activeModel.nodes.length} visible bodies • ${density?.edges || activeModel.edges?.length || 0} links • ${activeModel.metadata?.profileTier || 'canonical'} profile`
+    return `${galaxyMode} mode - ${density?.nodes || activeModel.nodes.length} visible bodies - ${density?.edges || activeModel.edges?.length || 0} links - ${activeModel.metadata?.profileTier || 'canonical'} profile`
   }, [activeModel, galaxyMode, isDemo, loading])
 
   const trustBanner = useMemo(() => {
@@ -449,7 +477,7 @@ export default function MusicMap() {
     if (!activeModel || isDemo) return null
     const density = activeModel.metadata?.modeDensity || activeModel.metadata?.density
     if (!density) return null
-    return `${density.anchors || density.clusters || 0} anchors • ${density.artistStars || density.nodes || 0} visible bodies • ${density.trackSatellites || 0} satellites • ${density.regions || 0} nebulae`
+    return `${density.anchors || density.clusters || 0} anchors - ${density.artistStars || density.nodes || 0} visible bodies - ${density.trackSatellites || 0} satellites - ${density.regions || 0} nebulae`
   }, [activeModel, isDemo])
 
   const controlProps = {
@@ -480,7 +508,10 @@ export default function MusicMap() {
     <div className="relative h-full w-full overflow-hidden">
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(120,255,206,0.14),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(194,120,255,0.18),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(255,184,120,0.16),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(255,193,120,0.12),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(132,153,255,0.14),transparent_24%),linear-gradient(180deg,#050713_0%,#050610_48%,#03040b_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.02)_0%,transparent_18%,transparent_82%,rgba(255,255,255,0.02)_100%)] opacity-70" />
-      <GalaxyScene model={activeModel} sparseMode={sparseMode} />
+      {lowPower && (
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_60%_40%,rgba(143,117,255,0.08),transparent_40%),radial-gradient(circle_at_30%_70%,rgba(242,141,223,0.06),transparent_45%)]" />
+      )}
+      <GalaxyScene model={activeModel} sparseMode={sparseMode} quality={{ lowPower }} />
       {isCoarsePointer && !loading && (
         <div className="pointer-events-none absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[#090d1f]/72 px-4 py-2 text-[11px] text-gray-200 shadow-[0_18px_40px_rgba(3,4,15,0.35)] backdrop-blur-xl">
           Touch a star, nebula, bridge, or the core to see what it reveals. Touch it again to let it go.
@@ -535,9 +566,13 @@ export default function MusicMap() {
   return (
     <div className="mx-auto max-w-[1440px] p-6">
       <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gradient">Galaxy</h1>
-          <p className="mt-0.5 text-sm text-gray-400">{subtitle}</p>
+        <div className="flex items-start gap-4">
+          <BrandMark size={58} />
+          <div>
+            <p className="page-header-kicker mb-2">Home observatory</p>
+            <h1 className="text-2xl font-bold text-gradient">Galaxy</h1>
+            <p className="mt-0.5 text-sm text-gray-400">{subtitle}</p>
+          </div>
         </div>
         <GalaxyControls
           {...controlProps}
@@ -545,7 +580,10 @@ export default function MusicMap() {
         />
       </div>
 
-      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#040610] shadow-[0_30px_120px_rgba(2,4,12,0.6)]" style={{ height: 680 }}>
+      <div className="brand-panel living-grid relative overflow-hidden shadow-[0_30px_120px_rgba(2,4,12,0.6)]" style={{ height: 680 }}>
+        <BrandBackdrop opacity={0.3} />
+        <BrandConstellation className="opacity-70" />
+        <BrandWatermark className="absolute left-1/2 top-1/2 w-[34rem] -translate-x-1/2 -translate-y-1/2" opacity={0.06} rotate={0} />
         {loading ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="flex flex-col items-center gap-3">
@@ -576,7 +614,7 @@ export default function MusicMap() {
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
-        <SoulResonancePanel profile={musicProfile} model={activeModel} />
+      <SoulResonancePanel profile={musicProfile} model={activeModel} lowPower={lowPower} />
 
         <div>
           <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-300">

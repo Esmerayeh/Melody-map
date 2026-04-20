@@ -4,6 +4,7 @@ import { Search, Bell } from 'lucide-react'
 import { motion, AnimatePresence } from 'framer-motion'
 import useStore from '../store/useStore'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
+import { BrandMark } from './brand/BrandSystem'
 
 const TOP_NAV = [
   { to: '/', label: 'Dashboard' },
@@ -40,9 +41,12 @@ export default function TopBar() {
         }}
       >
         <div className="flex-1 max-w-sm relative">
+          <div className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 opacity-80">
+            <BrandMark size={18} mode="orb" muted />
+          </div>
           <Search
-            className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors duration-300"
-            style={{ color: focused ? '#8f75ff' : 'rgba(174,166,201,0.55)' }}
+            className="absolute left-8.5 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors duration-300"
+            style={{ color: focused ? '#d7cbff' : 'rgba(174,166,201,0.55)' }}
           />
           <input
             type="text"
@@ -51,7 +55,7 @@ export default function TopBar() {
             onChange={(e) => setQuery(e.target.value)}
             onFocus={() => setFocused(true)}
             onBlur={() => setFocused(false)}
-            className="w-full pl-9 pr-4 py-2.5 rounded-2xl text-sm outline-none transition-all duration-300 noire-input"
+            className="orb-input w-full pl-14 pr-4 py-2.5 rounded-2xl text-sm outline-none transition-all duration-300"
             style={{
               background: focused ? 'rgba(143,117,255,0.08)' : 'rgba(255,255,255,0.035)',
               border: `1px solid ${focused ? 'rgba(143,117,255,0.38)' : 'rgba(255,255,255,0.07)'}`,

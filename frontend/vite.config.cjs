@@ -1,11 +1,14 @@
-import { defineConfig } from 'vite'
-import react from '@vitejs/plugin-react'
+const react = require('@vitejs/plugin-react')
+const { defineConfig } = require('vite')
 
-export default defineConfig({
+module.exports = defineConfig({
   plugins: [react()],
+  resolve: {
+    preserveSymlinks: true,
+  },
   server: {
     port: 3000,
-    // Listen on all interfaces — ensures both 127.0.0.1 and localhost reach this server.
+    // Listen on all interfaces - ensures both 127.0.0.1 and localhost reach this server.
     // The Spotify callback goes directly to Flask (port 5000), not through Vite.
     host: '0.0.0.0',
     proxy: {
@@ -17,6 +20,6 @@ export default defineConfig({
         target: 'http://127.0.0.1:5000',
         changeOrigin: true,
       },
-    }
-  }
+    },
+  },
 })

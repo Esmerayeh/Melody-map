@@ -1,13 +1,10 @@
-"""
-Last.fm data proxy endpoints.
-All routes expect header:  X-Lastfm-Session: <session_key>
-                           X-Lastfm-User:    <username>
-"""
+"""Last.fm data proxy endpoints backed by HTTP-only provider cookies."""
 
 import requests
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request
 
-from utils.api import api_error
+from utils.api import api_error, api_success_legacy
+from utils.provider_cookies import LASTFM_SESSION_COOKIE, LASTFM_USERNAME_COOKIE, get_cookie
 
 lastfm_data_bp = Blueprint('lastfm_data', __name__)
 
@@ -15,10 +12,10 @@ LASTFM_API = 'https://ws.audioscrobbler.com/2.0/'
 
 
 def _ctx():
-    """Extract session key, username, and api_key from request headers."""
+    """Extract session key, username, and api_key from provider cookies."""
     from config import Config
-    session  = request.headers.get('X-Lastfm-Session', '')
-    username = request.headers.get('X-Lastfm-User', '')
+    session = get_cookie(request, LASTFM_SESSION_COOKIE) or ''
+    username = get_cookie(request, LASTFM_USERNAME_COOKIE) or ''
     return session, username, Config.lastfm_api_key
 
 
@@ -49,6 +46,10 @@ def _get(method, extra=None):
         return None, api_error('Last.fm request failed', 502, code='LASTFM_REQUEST_FAILED', details={'reason': str(e)})
 
 
+def _success(payload):
+    return api_success_legacy(payload)
+
+
 @lastfm_data_bp.route('/lastfm/me')
 def get_profile():
     """Get Last.fm user profile."""
@@ -56,7 +57,7 @@ def get_profile():
     if err:
         return err
     u = data.get('user', {})
-    return jsonify({
+    return _success({
         'id':        u.get('name'),
         'name':      u.get('realname') or u.get('name'),
         'username':  u.get('name'),
@@ -92,7 +93,7 @@ def get_top_tracks():
             'spotify_url': None,
             'lastfm_url': item.get('url'),
         })
-    return jsonify(tracks)
+    return _success(tracks)
 
 
 @lastfm_data_bp.route('/lastfm/top-artists')
@@ -117,7 +118,7 @@ def get_top_artists():
             'image':      image,
             'lastfm_url': item.get('url'),
         })
-    return jsonify(artists)
+    return _success(artists)
 
 
 @lastfm_data_bp.route('/lastfm/recent-tracks')
@@ -140,7 +141,7 @@ def get_recent_tracks():
             'now_playing': bool(item.get('@attr', {}).get('nowplaying')),
             'lastfm_url': item.get('url'),
         })
-    return jsonify(tracks)
+    return _success(tracks)
 
 
 @lastfm_data_bp.route('/lastfm/similar-artists')
@@ -173,7 +174,7 @@ def get_similar_artists():
             'image': image,
             'lastfm_url': item.get('url'),
         })
-    return jsonify(similar)
+    return _success(similar)
 
 
 @lastfm_data_bp.route('/lastfm/artist-tags')
@@ -197,4 +198,4 @@ def get_artist_tags():
         return api_error('Last.fm request failed', 502, code='LASTFM_REQUEST_FAILED', details={'reason': str(e)})
 
     tags = [t['name'] for t in data.get('toptags', {}).get('tag', [])[:5]]
-    return jsonify(tags)
+    return _success(tags)

@@ -26,12 +26,13 @@
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.32",
     "tailwindcss": "^3.3.6",
+    "terser": "^5.31.1",
     "vite": "^5.0.8"
   },
   "scripts": {
     "dev": "vite",
-    "build": "node ./scripts/vite-build.mjs",
+    "build": "node ./node_modules/vite/bin/vite.js build",
     "preview": "vite preview",
-    "test": "node tests/routeSanity.test.js; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node tests/galaxyInteraction.test.js"
+    "test": "node ./tests/all.test.js"
   }
 }

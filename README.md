@@ -2,7 +2,7 @@
 
 **Your music, understood. Not just played.**
 
-Melody Map is an AI-powered music identity engine that transforms your listening history into a living portrait of who you are. It doesn't just recommend songs — it builds a psychological and aesthetic model of your taste, then renders it visually, emotionally, and analytically.
+Melody Map is an AI-powered music identity engine that transforms your listening history into a living portrait of who you are. It doesn't just recommend songs -- it builds a psychological and aesthetic model of your taste, then renders it visually, emotionally, and analytically.
 
 Connect Spotify or Last.fm. Watch your identity emerge.
 
@@ -22,25 +22,25 @@ The result is a system that feels less like a dashboard and more like a mirror.
 
 ### Music Identity System
 
-The personality engine (`personalityEngine.js`) scores your listening data against six archetypes — Dreamy, Nostalgic, Chaotic, Romantic, Melancholic, and Cosmic — using weighted audio feature formulas. Each archetype has a distinct scoring function built from `energy`, `valence`, `acousticness`, `instrumentalness`, and `tempo`.
+The personality engine (`personalityEngine.js`) scores your listening data against six archetypes -- Dreamy, Nostalgic, Chaotic, Romantic, Melancholic, and Cosmic -- using weighted audio feature formulas. Each archetype has a distinct scoring function built from `energy`, `valence`, `acousticness`, `instrumentalness`, and `tempo`.
 
 On top of that, a Music MBTI is computed across four axes:
-- **I/E** — acousticness + inverse danceability → introversion signal
-- **N/S** — genre diversity across your top artists → intuition vs sensing
-- **T/F** — instrumentalness + inverse valence → thinking vs feeling
-- **J/P** — popularity spread across your artist list → judging vs perceiving
+- **I/E** -- acousticness + inverse danceability -> introversion signal
+- **N/S** -- genre diversity across your top artists -> intuition vs sensing
+- **T/F** -- instrumentalness + inverse valence -> thinking vs feeling
+- **J/P** -- popularity spread across your artist list -> judging vs perceiving
 
 This produces one of 16 types, each with a named identity (e.g. INFP = "The Dream Listener", ENTP = "The Genre Disruptor").
 
-All computation runs once in `useMusicProfile.js` and is cached in Zustand — no duplicate work across pages.
+All computation runs once in `useMusicProfile.js` and is cached in Zustand -- no duplicate work across pages.
 
 ### Identity Reveal
 
-The `IdentityReveal` component delivers a cinematic reveal of your music identity — personality archetype, MBTI type, emotional profile, and a dynamically generated description. It's designed to feel like a moment, not a data dump.
+The `IdentityReveal` component delivers a cinematic reveal of your music identity -- personality archetype, MBTI type, emotional profile, and a dynamically generated description. It's designed to feel like a moment, not a data dump.
 
 ### Music Galaxy
 
-The `/galaxy` route renders your top artists and genres as a 3D node graph using React Three Fiber. Artists are positioned in 3D space based on their audio feature coordinates — energy on Y, valence on X, danceability on Z — and clustered by genre. Node size scales with artist popularity. Genre nodes orbit at calculated radii; artist nodes cluster around their primary genre.
+The `/galaxy` route renders your top artists and genres as a 3D node graph using React Three Fiber. Artists are positioned in 3D space based on their audio feature coordinates -- energy on Y, valence on X, danceability on Z -- and clustered by genre. Node size scales with artist popularity. Genre nodes orbit at calculated radii; artist nodes cluster around their primary genre.
 
 The galaxy data is built server-side in `music_profile_builder.py` via `_build_galaxy_nodes()`.
 
@@ -55,7 +55,7 @@ The galaxy data is built server-side in `music_profile_builder.py` via `_build_g
 - Surface distortion softness ← `acousticness`
 - Bloom brightness ← `valence`
 
-MBTI type maps to a motion preset — INFP pulses slowly and softly, ENFP blazes fast and bright, INTJ rotates with tight precision. The orb also generates an artistic label like "Soft chaos in minor key" or "Electric fracture at full volume" from your archetype + MBTI combination.
+MBTI type maps to a motion preset -- INFP pulses slowly and softly, ENFP blazes fast and bright, INTJ rotates with tight precision. The orb also generates an artistic label like "Soft chaos in minor key" or "Electric fracture at full volume" from your archetype + MBTI combination.
 
 Built with `@react-three/fiber`, `MeshDistortMaterial`, and `@react-three/postprocessing` Bloom.
 
@@ -65,41 +65,31 @@ The backend `DiscoverEngine` (`discover_engine.py`) generates personalized playl
 
 Each playlist concept includes a title, description, "why it fits you" message, mood tags, aesthetic tags, era tags, seed artists, and Spotify search queries. The frontend resolves real tracks via the Spotify API.
 
-A **Harmonic Mood Vector** is computed for each session — a named aesthetic descriptor like "Liminal Space Nostalgia" or "Neon Petrichor Highway" derived from genre + audio feature cross-referencing.
+A **Harmonic Mood Vector** is computed for each session -- a named aesthetic descriptor like "Liminal Space Nostalgia" or "Neon Petrichor Highway" derived from genre + audio feature cross-referencing.
 
-**Serendipity mode** inverts the algorithm — it selects archetypes from the outer edges of your taste embedding, surfacing music you didn't know you loved.
+**Serendipity mode** inverts the algorithm -- it selects archetypes from the outer edges of your taste embedding, surfacing music you didn't know you loved.
 
 ### Soulmate System
 
-`SoulmateEngine` (`soulmate_engine.py`) computes taste compatibility between two users using a weighted scoring model:
+`SoulmateEngine` (`soulmate_engine.py`) computes taste compatibility between two users using a weighted, multi-dimensional model (artist overlap, genre overlap, audio feature harmony, discovery potential, and tension). The backend is the single source of truth for compatibility scoring and narratives. The frontend only renders what the backend returns.
 
-| Dimension | Weight | Method |
-|-----------|--------|--------|
-| Artist overlap | 40% | Jaccard similarity |
-| Genre overlap | 25% | Jaccard similarity |
-| Audio features | 20% | Cosine similarity |
-| Track overlap | 10% | Jaccard similarity |
-| Vibe proximity | 5% | Energy + valence distance |
-
-Final score is 0–100. The engine also builds a **constellation graph** — a node/link structure mapping shared and exclusive artists between two profiles, used to render the soulmate visualization.
-
-The frontend `computeAdvancedCompatibility()` in `personalityEngine.js` runs a parallel client-side version with genre (35%), artist (35%), and audio (30%) weights, plus sub-scores for mood alignment, discovery match, and listening era match.
+Final score is 0-100. The engine also builds a **constellation graph** -- a node/link structure mapping shared and exclusive artists between two profiles, used to render the soulmate visualization.
 
 ### Aesthetic Engine
 
 `aesthetic_engine.py` converts your music taste into a full visual aesthetic profile:
 
-- **Aesthetic name** — a 2–3 word poetic label (e.g. "Midnight Cassette", "Neon Dreamscape") seeded by your genre + energy + valence
-- **Color palette** — 5 hex colors derived from genre-specific palettes or audio feature ranges
-- **Vibe description** — a sentence like "Your music taste feels electric, melancholic, and deeply atmospheric, washed in reverb and haze"
-- **Aesthetic tags** — up to 18 visual search terms (e.g. "neon fog", "rainy window", "vintage film photography") used to query the Pinterest API
-- **Hyper-specific vibe classifier** — maps energy/valence/tempo to 18 named vibe labels with accent colors (e.g. "Rainy Window Solitude #90e0ef", "Neon Euphoria Rush #ff6ec7")
-- **Poetic persona** — a full Music Identity Report with tagline and narrative paragraph
-- **Shared aesthetic** — for soulmate pairs, generates a combined aesthetic name and vibe description
+- **Aesthetic name** -- a 2-3 word poetic label (e.g. "Midnight Cassette", "Neon Dreamscape") seeded by your genre + energy + valence
+- **Color palette** -- 5 hex colors derived from genre-specific palettes or audio feature ranges
+- **Vibe description** -- a sentence like "Your music taste feels electric, melancholic, and deeply atmospheric, washed in reverb and haze"
+- **Aesthetic tags** -- up to 18 visual search terms (e.g. "neon fog", "rainy window", "vintage film photography") used to query the Pinterest API
+- **Hyper-specific vibe classifier** -- maps energy/valence/tempo to 18 named vibe labels with accent colors (e.g. "Rainy Window Solitude #90e0ef", "Neon Euphoria Rush #ff6ec7")
+- **Poetic persona** -- a full Music Identity Report with tagline and narrative paragraph
+- **Shared aesthetic** -- for soulmate pairs, generates a combined aesthetic name and vibe description
 
 ### Auralith
 
-Auralith is the AI reasoning layer within Melody Map. It lives at `/auralith` and is registered as a blueprint (`routes/auralith.py`) under the `/api` prefix. It processes your music taste data to generate deeper insights, narrative identity reports, and AI-driven responses about your listening patterns — going beyond what the rule-based engines can express.
+Auralith is the AI reasoning layer within Melody Map. It lives at `/auralith` and is registered as a blueprint (`routes/auralith.py`) under the `/api` prefix. It processes your music taste data to generate deeper insights, narrative identity reports, and AI-driven responses about your listening patterns -- going beyond what the rule-based engines can express.
 
 ---
 
@@ -112,47 +102,47 @@ User
  │         │
  │         ▼
  │   Flask Backend (Render)
- │   ├── routes/spotify_auth.py   — OAuth flow, token exchange
- │   ├── routes/lastfm_auth.py    — Last.fm session auth
- │   ├── routes/music_profile.py  — /api/music-profile
- │   ├── routes/discover.py       — /api/discover
- │   ├── routes/soulmate.py       — /api/soulmate
- │   ├── routes/aesthetic.py      — /api/aesthetic
- │   ├── routes/pinterest_aesthetic.py — Pinterest API queries
- │   ├── routes/auralith.py       — /api/auralith (AI layer)
- │   ├── services/music_profile_builder.py — Spotify data aggregation
- │   ├── ml/aesthetic_engine.py   — Visual identity generation
- │   ├── ml/discover_engine.py    — Playlist concept generation
- │   ├── ml/soulmate_engine.py    — Compatibility scoring
- │   └── MongoDB (Atlas)          — Users, profiles, playlists
+ │   ├── routes/spotify_auth.py   -- OAuth flow, token exchange
+ │   ├── routes/lastfm_auth.py    -- Last.fm session auth
+ │   ├── routes/music_profile.py  -- /api/music-profile
+ │   ├── routes/discover.py       -- /api/discover
+ │   ├── routes/soulmate.py       -- /api/soulmate
+ │   ├── routes/aesthetic.py      -- /api/aesthetic
+ │   ├── routes/pinterest_aesthetic.py -- Pinterest API queries
+ │   ├── routes/auralith.py       -- /api/auralith (AI layer)
+ │   ├── services/music_profile_builder.py -- Spotify data aggregation
+ │   ├── ml/aesthetic_engine.py   -- Visual identity generation
+ │   ├── ml/discover_engine.py    -- Playlist concept generation
+ │   ├── ml/soulmate_engine.py    -- Compatibility scoring (canonical)
+ │   └── MongoDB (Atlas)          -- Users, profiles, playlists
  │
  ▼
 React Frontend (Vercel)
- ├── useMusicProfile.js    — Single fetch, normalize, cache in Zustand
- ├── personalityEngine.js  — MBTI + archetype computation (client-side)
- ├── MusicSoulOrb.jsx      — Living 3D identity orb (R3F)
- ├── MusicMap / Galaxy     — 3D artist/genre visualization
- ├── Discover              — Playlist concepts + Spotify resolution
- ├── MusicSoulmate         — Compatibility scoring + constellation
- ├── MusicAesthetic        — Visual identity + Pinterest board
- └── Auralith              — AI identity layer
+ ├── useMusicProfile.js    -- Single fetch, normalize, cache in Zustand
+ ├── personalityEngine.js  -- MBTI + archetype computation (client-side)
+ ├── MusicSoulOrb.jsx      -- Living 3D identity orb (R3F)
+ ├── MusicMap / Galaxy     -- 3D artist/genre visualization
+ ├── Discover              -- Playlist concepts + Spotify resolution
+ ├── MusicSoulmate         -- Compatibility rendering + constellation
+ ├── MusicAesthetic        -- Visual identity + Pinterest board
+ └── Auralith              -- AI identity layer
 ```
 
-**Data flow:** User authenticates → backend fetches Spotify data → `music_profile_builder.py` aggregates artists, tracks, audio features, genres, galaxy nodes, analytics → normalized profile cached in Zustand via `useMusicProfile` → all pages read from that single source → personality + MBTI computed once on the client → passed as props to visual components.
+**Data flow:** User authenticates -> backend fetches Spotify data -> `music_profile_builder.py` aggregates artists, tracks, audio features, genres, galaxy nodes, analytics -> normalized profile cached in Zustand via `useMusicProfile` -> all pages read from that single source -> personality + MBTI computed once on the client -> passed as props to visual components.
 
 ---
 
 ## Key Systems Deep Dive
 
-**`useMusicProfile`** is the single source of truth for all music data. It fetches `/api/music-profile` once, normalizes the response to guarantee consistent field names, computes `personality` and `mbti` via `personalityEngine.js`, then stores everything in Zustand. Every page reads from the store — no duplicate API calls, no prop drilling.
+**`useMusicProfile`** is the single source of truth for all music data. It fetches `/api/music-profile` once, normalizes the response to guarantee consistent field names, computes `personality` and `mbti` via `personalityEngine.js`, then stores everything in Zustand. Every page reads from the store -- no duplicate API calls, no prop drilling.
 
-**`personalityEngine.js`** is a pure-function module. `computePersonality(audioFeatures)` scores all six archetypes and returns the top 3 with normalized percentages. `computeMBTI(profile)` derives all four MBTI axes from audio features, genre diversity, artist popularity spread, and track data. `computeAdvancedCompatibility(profileA, profileB)` runs a full compatibility report with six sub-scores.
+**`personalityEngine.js`** is a pure-function module. `computePersonality(audioFeatures)` scores all six archetypes and returns the top 3 with normalized percentages. `computeMBTI(profile)` derives all four MBTI axes from audio features, genre diversity, artist popularity spread, and track data. Compatibility scoring is handled by the backend and is not recomputed in the client.
 
-**Recommendation logic** in `DiscoverEngine` uses a scoring function that weights energy/valence range match (70%) and genre overlap (30%) to rank archetypes. The top 3 are always included; remaining slots are randomly sampled from the rest for variety. Serendipity mode inverts this — it anchors one familiar archetype and fills the rest from the lowest-scoring (most different) options.
+**Recommendation logic** in `DiscoverEngine` uses a scoring function that weights energy/valence range match (70%) and genre overlap (30%) to rank archetypes. The top 3 are always included; remaining slots are randomly sampled from the rest for variety. Serendipity mode inverts this -- it anchors one familiar archetype and fills the rest from the lowest-scoring (most different) options.
 
-**Compatibility scoring** in `SoulmateEngine` uses Jaccard similarity for set-based dimensions (artists, genres, tracks) and cosine similarity for the audio feature vector. The vibe dimension uses a simple energy + valence distance. All five scores are weighted and summed to produce a 0–100 match score.
+**Compatibility scoring** in `SoulmateEngine` uses Jaccard similarity for set-based dimensions (artists, genres, tracks) and cosine similarity for the audio feature vector. The vibe dimension uses a simple energy + valence distance. All scores are weighted and summed to produce a 0-100 match score.
 
-**Aesthetic pipeline:** `music_profile_builder.py` builds `aestheticTags` from genre→tag mappings and audio feature ranges. The frontend sends these to `aesthetic_engine.py` which generates the aesthetic name, palette, vibe description, and Pinterest search queries. The `classify_vibe()` function maps the exact energy/valence/tempo coordinates to one of 18 named vibe labels with accent colors.
+**Aesthetic pipeline:** `music_profile_builder.py` builds `aestheticTags` from genre->tag mappings and audio feature ranges. The frontend sends these to `aesthetic_engine.py` which generates the aesthetic name, palette, vibe description, and Pinterest search queries. The `classify_vibe()` function maps the exact energy/valence/tempo coordinates to one of 18 named vibe labels with accent colors.
 
 ---
 
@@ -161,28 +151,28 @@ React Frontend (Vercel)
 **Frontend**
 - React 18 + Vite
 - Tailwind CSS
-- Framer Motion — page transitions, component animations
-- React Three Fiber + Three.js + `@react-three/drei` + `@react-three/postprocessing` — 3D orb, galaxy
-- Zustand — global state
-- TanStack Query — server state
-- Recharts — analytics charts
-- D3 — data visualization utilities
-- Axios — HTTP client
-- html2canvas — aesthetic board export
+- Framer Motion -- page transitions, component animations
+- React Three Fiber + Three.js + `@react-three/drei` + `@react-three/postprocessing` -- 3D orb, galaxy
+- Zustand -- global state
+- TanStack Query -- server state
+- Recharts -- analytics charts
+- D3 -- data visualization utilities
+- Axios -- HTTP client
+- html2canvas -- aesthetic board export
 
 **Backend**
 - Python + Flask
 - Flask-PyMongo + MongoDB Atlas
-- scikit-learn — KNN, PCA, clustering (similarity + recommendation engines)
-- NumPy + SciPy — audio feature vectors
-- PyJWT + bcrypt — auth
-- Gunicorn — production server
+- scikit-learn -- KNN, PCA, clustering (similarity + recommendation engines)
+- NumPy + SciPy -- audio feature vectors
+- PyJWT + bcrypt -- auth
+- Gunicorn -- production server
 
 **APIs**
-- Spotify Web API — top artists, tracks, audio features, OAuth
-- Last.fm API — scrobble history, top artists/tracks
-- Pinterest API — aesthetic board image queries
-- Unsplash API — aesthetic imagery
+- Spotify Web API -- top artists, tracks, audio features, OAuth
+- Last.fm API -- scrobble history, top artists/tracks
+- Pinterest API -- aesthetic board image queries
+- Unsplash API -- aesthetic imagery
 
 ---
 
@@ -336,11 +326,11 @@ melody-map/
 
 ## UI
 
-Dark background (`#0d0d14` surface), pastel gradients in purple, pink, and blue. Every page uses spring-physics transitions via Framer Motion — pages enter with a slight upward drift and blur-to-focus effect.
+Dark background (`#0d0d14` surface), pastel gradients in purple, pink, and blue. Every page uses spring-physics transitions via Framer Motion -- pages enter with a slight upward drift and blur-to-focus effect.
 
 The galaxy is a deep-space 3D environment with glowing artist nodes. The soul orb pulses and breathes in real time. The aesthetic board renders as a mood board of visual tags. The soulmate constellation maps two users' shared and exclusive artists as a star graph.
 
-The vibe theme system (`vibeTheme.js`) dynamically updates CSS custom properties based on your audio features — the entire UI shifts color temperature as your profile loads.
+The vibe theme system (`vibeTheme.js`) dynamically updates CSS custom properties based on your audio features -- the entire UI shifts color temperature as your profile loads.
 
 ---
 
@@ -366,7 +356,7 @@ The system treats music taste as a multi-dimensional identity signal, not a play
 - Real-time listening sync via Spotify webhooks
 - Mobile app (React Native)
 - Social soulmate matching across registered users
-- Time-range identity drift — show how your personality has shifted over months
+- Time-range identity drift -- show how your personality has shifted over months
 - Export identity card as shareable image (html2canvas foundation already in place)
 
 ---

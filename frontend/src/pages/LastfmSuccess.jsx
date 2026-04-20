@@ -1,43 +1,72 @@
 import React, { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Flame, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { authAPI } from '../services/api'
 import useStore from '../store/useStore'
 
 /**
  * Landing page after Last.fm OAuth redirect.
- * URL: /lastfm-success?session=SESSION_KEY&username=USERNAME
+ * URL: /lastfm-success?auth_code=EXCHANGE_CODE
  *      /lastfm-success?error=...
  */
 export default function LastfmSuccess() {
-  const navigate    = useNavigate()
-  const setLastfm   = useStore((s) => s.setLastfm)
-  const [status, setStatus]   = useState('loading')
+  const navigate = useNavigate()
+  const setLastfmConnected = useStore((s) => s.setLastfmConnected)
+  const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState('')
 
   useEffect(() => {
-    const params   = new URLSearchParams(window.location.search)
-    const session  = params.get('session')
-    const username = params.get('username')
-    const error    = params.get('error')
+    let cancelled = false
+    let timeoutId
+    const params = new URLSearchParams(window.location.search)
+    const authCode = params.get('auth_code')
+    const error = params.get('error')
+    if (window.location.search) {
+      window.history.replaceState({}, '', window.location.pathname)
+    }
 
     if (error) {
       setStatus('error')
       setMessage(decodeURIComponent(error))
-      setTimeout(() => navigate('/'), 3000)
-      return
+      timeoutId = window.setTimeout(() => navigate('/'), 3000)
+      return () => window.clearTimeout(timeoutId)
     }
 
-    if (!session || !username) {
+    if (!authCode) {
       setStatus('error')
-      setMessage('No session received from Last.fm.')
-      setTimeout(() => navigate('/'), 3000)
-      return
+      setMessage('No secure exchange code received from Last.fm.')
+      timeoutId = window.setTimeout(() => navigate('/'), 3000)
+      return () => window.clearTimeout(timeoutId)
     }
 
-    setLastfm(session, username)
-    setStatus('success')
-    setTimeout(() => navigate('/'), 1500)
-  }, [navigate, setLastfm])
+    authAPI.exchangeLastfm(authCode)
+      .then(({ data }) => {
+        if (cancelled) return
+        const payload = data?.data && typeof data.data === 'object' ? data.data : data
+        const username = payload?.username
+        if (!payload?.connected || !username) {
+          throw new Error('No session received from Last.fm.')
+        }
+        setLastfmConnected({ connected: true, username })
+        setStatus('success')
+        timeoutId = window.setTimeout(() => navigate('/'), 1500)
+      })
+      .catch((err) => {
+        if (cancelled) return
+        const nextMessage =
+          err?.response?.data?.error?.message ||
+          err?.message ||
+          'Last.fm token exchange failed.'
+        setStatus('error')
+        setMessage(nextMessage)
+        timeoutId = window.setTimeout(() => navigate('/'), 3000)
+      })
+
+    return () => {
+      cancelled = true
+      if (timeoutId) window.clearTimeout(timeoutId)
+    }
+  }, [navigate, setLastfmConnected])
 
   return (
     <div className="min-h-screen flex items-center justify-center">

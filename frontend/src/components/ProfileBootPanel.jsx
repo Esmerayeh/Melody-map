@@ -1,4 +1,7 @@
 import { Loader2 } from 'lucide-react'
+import { motion } from 'framer-motion'
+import { MOTION_TOKENS } from '../features/motion/motionTokens'
+import { BrandMark, BrandWatermark } from './brand/BrandSystem'
 
 const TONES = {
   loading: {
@@ -40,13 +43,25 @@ export default function ProfileBootPanel({
 
   return (
     <div className="flex min-h-[50vh] items-center justify-center px-6">
-      <div className="noire-panel w-full max-w-2xl rounded-[28px] p-8 text-center">
+      <motion.div
+        initial={{ opacity: 0, y: 10, scale: 0.98 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={MOTION_TOKENS.panel}
+        className="boot-panel noire-panel w-full max-w-2xl rounded-[28px] p-8 text-center"
+        style={{ '--boot-glow': tone.glow }}
+        data-variant={variant}
+      >
+        <BrandWatermark className="absolute inset-x-auto right-[-6%] top-[-10%] w-72" opacity={0.08} rotate={8} />
+        <div className="boot-orb" />
+        <div className="mx-auto mb-4 flex w-fit items-center justify-center">
+          <BrandMark size={84} muted={variant !== 'loading'} />
+        </div>
         <p className="page-header-kicker mb-2" style={{ color: tone.glow }}>{tone.kicker}</p>
         <h2 className="text-2xl font-semibold text-white">{title}</h2>
         {subtitle && <p className="mt-3 text-sm text-gray-400">{subtitle}</p>}
         {detail && <p className="mt-4 text-xs uppercase tracking-[0.22em] text-gray-500">{detail}</p>}
         {variant === 'loading' && (
-          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400">
+          <div className="mt-6 flex items-center justify-center gap-2 text-xs text-slate-400" aria-live="polite">
             <Loader2 className="h-4 w-4 animate-spin text-brand-purple" />
             <span>holding the shell open while the profile settles</span>
           </div>
@@ -61,7 +76,7 @@ export default function ProfileBootPanel({
             {actionLabel}
           </button>
         )}
-      </div>
+      </motion.div>
     </div>
   )
 }

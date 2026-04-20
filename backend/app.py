@@ -248,6 +248,25 @@ def register_routes(app: Flask) -> None:
             logger.error({"event": "login_error", "error": str(exc)})
             return api_error("Login failed", 500, code="LOGIN_FAILED")
 
+    @app.route("/api/auth/providers/status", methods=["GET"])
+    def provider_status():
+        from utils.provider_cookies import (
+            LASTFM_SESSION_COOKIE,
+            LASTFM_USERNAME_COOKIE,
+            SPOTIFY_ACCESS_COOKIE,
+            get_cookie,
+        )
+
+        spotify_connected = bool(get_cookie(request, SPOTIFY_ACCESS_COOKIE))
+        lastfm_connected = bool(get_cookie(request, LASTFM_SESSION_COOKIE))
+        return api_success({
+            "spotify": {"connected": spotify_connected},
+            "lastfm": {
+                "connected": lastfm_connected,
+                "username": get_cookie(request, LASTFM_USERNAME_COOKIE) if lastfm_connected else None,
+            },
+        })
+
     @app.route("/api/map/generate", methods=["POST"])
     @require_auth
     def generate_map():

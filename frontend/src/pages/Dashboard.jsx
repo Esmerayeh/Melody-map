@@ -8,6 +8,9 @@ import MusicSourceCard from '../components/MusicSourceCard'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import DeferredSoulOrb from '../components/DeferredSoulOrb'
 import HeroScene from '../components/HeroScene'
+import MelodyIntroModal from '../components/MelodyIntroModal'
+import MelodyMapRoadmap from '../components/MelodyMapRoadmap'
+import QuickStartGuide from '../components/QuickStartGuide'
 import { getVibeName, extractPastelPalette } from '../services/vibeTheme'
 import VibeEmitter from '../components/VibeEmitter'
 import IdentityReveal from '../components/IdentityReveal'
@@ -266,11 +269,18 @@ export default function Dashboard() {
   const lastfmConnected      = useStore((s) => s.lastfmConnected)
   const username             = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || 'there')
   const setTimeRange         = useStore((s) => s.setMusicProfileTimeRange)
+  const demoModeEnabled      = useStore((s) => s.demoModeEnabled)
+  const setDemoModeEnabled   = useStore((s) => s.setDemoModeEnabled)
+  const introDismissed       = useStore((s) => s.introDismissed)
+  const setIntroDismissed    = useStore((s) => s.setIntroDismissed)
   const isConnected          = spotifyConnected || lastfmConnected
 
   const { profile, loading, error, refetch, timeRange, confidence, dataQuality, phase, readiness, tier } = useMusicProfile()
 
   const [showReveal, setShowReveal] = useState(false)
+  const isDemoProfile = profile?.provider === 'demo'
+  const hasSignal = isConnected || isDemoProfile
+  const showIntro = !introDismissed
 
   const features = profile?.audioFeatures || {}
   const artists  = profile?.topArtists    || []
@@ -330,7 +340,7 @@ export default function Dashboard() {
     },
   })
 
-  if (boot.blocked && isConnected) {
+  if (boot.blocked && hasSignal) {
     return (
       <ProfileBootPanel
         variant={boot.variant}
@@ -345,6 +355,14 @@ export default function Dashboard() {
 
   return (
     <div className="cosmic-page">
+      <MelodyIntroModal
+        open={showIntro}
+        onClose={() => setIntroDismissed(true)}
+        onEnableDemo={() => {
+          setDemoModeEnabled(true)
+          setIntroDismissed(true)
+        }}
+      />
       {/* Hero greeting */}
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
         transition={MOTION_TOKENS.focusSettle} className="mb-8">
@@ -409,28 +427,59 @@ export default function Dashboard() {
         )}
       </motion.div>
 
-      {!isConnected && (
-        <div className="max-w-lg">
-          <p className="text-gray-400 text-sm mb-4">Connect a music source and the room begins to fill in.</p>
+      <QuickStartGuide isConnected={hasSignal} />
+
+      {!hasSignal && (
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,rgba(10,12,25,0.84),rgba(7,8,18,0.76))] p-6 backdrop-blur-2xl">
+            <p className="page-header-kicker mb-3">No signal yet</p>
+            <h2 className="text-2xl font-semibold text-white">Start with a live connection or step into the demo listener.</h2>
+            <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate-400">
+              The fastest way to understand Melody Map is to open one complete profile. If your own listening data is not connected yet,
+              launch the demo and explore the Galaxy, Soul Orb, and Auralith as a fully awake system.
+            </p>
+            <div className="mt-5 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setDemoModeEnabled(true)}
+                className="orb-button rounded-2xl px-4 py-3 text-sm font-semibold text-white"
+              >
+                Enter demo profile
+              </button>
+              <button
+                type="button"
+                onClick={() => setIntroDismissed(false)}
+                className="rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-medium text-white transition-colors hover:bg-white/[0.07]"
+              >
+                View quick intro
+              </button>
+            </div>
+          </div>
           <MusicSourceCard />
         </div>
       )}
 
-      {isConnected && loading && (
+      {isDemoProfile && (
+        <div className="rounded-[24px] border border-amber-300/20 bg-amber-200/10 px-4 py-3 text-sm text-amber-100 backdrop-blur-xl">
+          You are exploring Melody Map with the demo listener. Connect Spotify or Last.fm whenever you want to replace this with your real signal.
+        </div>
+      )}
+
+      {hasSignal && loading && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           className="flex flex-col items-center justify-center py-20 gap-4">
           <VibeEmitter bpm={120} size={72} label="tuning into your signal..." />
         </motion.div>
       )}
 
-      {isConnected && error && (
+      {hasSignal && error && (
         <div className="text-center py-12 text-gray-400">
           <p className="mb-3">something slipped through the static.</p>
           <button onClick={refetch} className="text-sm text-indigo-400 hover:text-indigo-300">Try again</button>
         </div>
       )}
 
-      {isConnected && !loading && profile && (
+      {hasSignal && !loading && profile && (
         <div className="space-y-6">
           {profile?.isDegraded && (
             <div className="flex flex-wrap gap-2 text-[11px] text-amber-300/80">
@@ -625,6 +674,8 @@ export default function Dashboard() {
               ))}
             </div>
           </motion.div>
+
+          <MelodyMapRoadmap />
 
           <div className="flex justify-end">
             <button onClick={refetch} disabled={loading}

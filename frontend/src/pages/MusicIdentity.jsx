@@ -155,7 +155,7 @@ export default function MusicIdentity() {
                   label={trait.label || trait.id || 'Trait'}
                   value={pct(trait.pct)}
                   color={trait.color || '#7c6fff'}
-                  icon={trait.emoji || '✦'}
+                  icon={trait.emoji || '*'}
                   delay={index * 0.1}
                 />
               )) : (
@@ -212,7 +212,7 @@ export default function MusicIdentity() {
                 label={band.label || 'Signal band'}
                 pct={pct(band.pct)}
                 color={band.color || '#7c6fff'}
-                icon={band.icon || '✧'}
+                icon={band.icon || '*'}
                 delay={index * 0.12}
               />
             ))}

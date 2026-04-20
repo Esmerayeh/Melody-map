@@ -6,7 +6,7 @@ import { mapGalaxyModeToResonance, mapGalaxySelectionToResonance } from '../feat
 import { resolveInteractionEntity } from '../features/galaxy/interactionModel.js'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
 
-export default function SoulResonancePanel({ profile, model }) {
+export default function SoulResonancePanel({ profile, model, lowPower = false }) {
   const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
   const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
@@ -95,6 +95,7 @@ export default function SoulResonancePanel({ profile, model }) {
           resonance={resonance}
           size={210}
           showLabels
+          lowPower={lowPower}
         />
 
         <motion.div

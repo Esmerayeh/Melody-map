@@ -2,7 +2,7 @@ import React, { useEffect } from 'react'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useStore from '../store/useStore'
-import { spotifyAPI } from '../services/api'
+import { authAPI, spotifyAPI } from '../services/api'
 import useBackendWake from '../hooks/useBackendWake'
 
 // Spotify green brand color
@@ -30,8 +30,10 @@ export default function SpotifyConnect({ variant = 'button' }) {
   }
 
   const handleDisconnect = () => {
-    disconnectSpotify()
-    toast.success('Spotify disconnected')
+    authAPI.disconnectSpotify().finally(() => {
+      disconnectSpotify()
+      toast.success('Spotify disconnected')
+    })
   }
 
   if (spotifyConnected && spotifyProfile) {

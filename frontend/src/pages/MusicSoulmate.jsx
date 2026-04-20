@@ -4,6 +4,7 @@ import { HeartHandshake, Link2, RefreshCw, Sparkles, Users } from 'lucide-react'
 import { motion } from 'framer-motion'
 import toast from 'react-hot-toast'
 import { soulmateAPI } from '../services/api'
+import { logClientEvent } from '../services/observability'
 import { musicService } from '../services/musicService'
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
@@ -112,14 +113,7 @@ export default function MusicSoulmate() {
   const { profile, loading: profileLoading, phase, readiness, tier } = useMusicProfile()
   const musicProvider = useStore((state) => state.musicProvider)
   const vibeFeatures = useStore((state) => state.vibeFeatures)
-
-  const hasAppToken = (() => {
-    try {
-      return Boolean(window.localStorage.getItem('token'))
-    } catch {
-      return false
-    }
-  })()
+  const hasAppToken = useStore((state) => state.isAuthenticated)
 
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
@@ -226,6 +220,7 @@ export default function MusicSoulmate() {
       toast.success('your orbit is in sync')
     } catch (error) {
       const status = error?.response?.status
+      logClientEvent('soulmate_sync_failed', { status }, 'warn')
       if (status === 401) {
         toast.error('sign in to sync this orbit')
       } else {

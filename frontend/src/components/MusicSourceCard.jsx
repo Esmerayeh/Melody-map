@@ -2,6 +2,7 @@ import React from 'react'
 import { CheckCircle, Loader2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import useStore from '../store/useStore'
+import { authAPI } from '../services/api'
 import useBackendWake from '../hooks/useBackendWake'
 
 const SpotifyIcon = () => (
@@ -16,10 +17,15 @@ const LastfmIcon = () => (
   </svg>
 )
 
-/**
- * Compact provider status badge for the Navbar.
- * Full-size card for the dashboard/discover page.
- */
+async function disconnectProvider(action, fallback, message) {
+  try {
+    await action()
+  } finally {
+    fallback()
+    toast.success(message)
+  }
+}
+
 export function ProviderBadge() {
   const { musicProvider, spotifyProfile, lastfmUsername, disconnectSpotify, disconnectLastfm } = useStore()
 
@@ -35,8 +41,12 @@ export function ProviderBadge() {
           {spotifyProfile?.name || 'Spotify'}
         </span>
         <CheckCircle className="w-3.5 h-3.5 text-green-400" />
-        <button onClick={() => { disconnectSpotify(); toast.success('Spotify disconnected') }}
-          className="text-gray-500 hover:text-gray-300 text-xs transition-colors">×</button>
+        <button
+          onClick={() => disconnectProvider(authAPI.disconnectSpotify, disconnectSpotify, 'Spotify disconnected')}
+          className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+        >
+          ×
+        </button>
       </div>
     )
   }
@@ -49,8 +59,12 @@ export function ProviderBadge() {
           {lastfmUsername}
         </span>
         <CheckCircle className="w-3.5 h-3.5 text-red-400" />
-        <button onClick={() => { disconnectLastfm(); toast.success('Last.fm disconnected') }}
-          className="text-gray-500 hover:text-gray-300 text-xs transition-colors">×</button>
+        <button
+          onClick={() => disconnectProvider(authAPI.disconnectLastfm, disconnectLastfm, 'Last.fm disconnected')}
+          className="text-gray-500 hover:text-gray-300 text-xs transition-colors"
+        >
+          ×
+        </button>
       </div>
     )
   }
@@ -58,11 +72,8 @@ export function ProviderBadge() {
   return null
 }
 
-/**
- * Full music source selection card — shown when no provider is connected.
- */
 export default function MusicSourceCard({ compact = false }) {
-  const { musicProvider, spotifyConnected, lastfmConnected, disconnectSpotify, disconnectLastfm } = useStore()
+  const { musicProvider, disconnectSpotify, disconnectLastfm } = useStore()
   const { waking, wake } = useBackendWake()
 
   const handleSpotify = () => {
@@ -73,7 +84,6 @@ export default function MusicSourceCard({ compact = false }) {
     wake(`${import.meta.env.VITE_API_URL || ''}/auth/lastfm/login`)
   }
 
-  // Already connected — show status
   if (musicProvider) {
     return (
       <div className={`bg-white/3 border border-white/8 rounded-2xl ${compact ? 'p-4' : 'p-6'}`}>
@@ -91,8 +101,12 @@ export default function MusicSourceCard({ compact = false }) {
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-400" />
-              <button onClick={() => { disconnectSpotify(); toast.success('Spotify disconnected') }}
-                className="text-xs text-gray-500 hover:text-red-400 transition-colors">Disconnect</button>
+              <button
+                onClick={() => disconnectProvider(authAPI.disconnectSpotify, disconnectSpotify, 'Spotify disconnected')}
+                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+              >
+                Disconnect
+              </button>
             </div>
           </div>
         )}
@@ -109,8 +123,12 @@ export default function MusicSourceCard({ compact = false }) {
             </div>
             <div className="flex items-center gap-2">
               <CheckCircle className="w-4 h-4 text-green-400" />
-              <button onClick={() => { disconnectLastfm(); toast.success('Last.fm disconnected') }}
-                className="text-xs text-gray-500 hover:text-red-400 transition-colors">Disconnect</button>
+              <button
+                onClick={() => disconnectProvider(authAPI.disconnectLastfm, disconnectLastfm, 'Last.fm disconnected')}
+                className="text-xs text-gray-500 hover:text-red-400 transition-colors"
+              >
+                Disconnect
+              </button>
             </div>
           </div>
         )}
@@ -118,37 +136,30 @@ export default function MusicSourceCard({ compact = false }) {
     )
   }
 
-  // Not connected — show illustrated zero-state
   return (
     <div className={`bg-white/3 border border-white/8 rounded-2xl overflow-hidden ${compact ? 'p-4' : 'p-6'}`}>
-      {/* Illustration */}
       {!compact && (
         <div className="flex justify-center mb-5">
           <svg width="160" height="100" viewBox="0 0 160 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-            {/* Galaxy rings */}
             <ellipse cx="80" cy="50" rx="70" ry="28" stroke="rgba(124,111,255,0.15)" strokeWidth="1" />
             <ellipse cx="80" cy="50" rx="50" ry="18" stroke="rgba(244,114,182,0.12)" strokeWidth="1" />
-            {/* Stars */}
-            {[[20,20],[140,18],[60,12],[110,80],[30,72],[150,60],[80,8],[45,88]].map(([x,y],i) => (
+            {[[20, 20], [140, 18], [60, 12], [110, 80], [30, 72], [150, 60], [80, 8], [45, 88]].map(([x, y], i) => (
               <circle key={i} cx={x} cy={y} r={1.5 + (i % 3) * 0.8} fill={i % 2 === 0 ? '#7c6fff' : '#f472b6'} opacity={0.5 + (i % 4) * 0.12} />
             ))}
-            {/* Center glow */}
             <circle cx="80" cy="50" r="12" fill="rgba(124,111,255,0.12)" />
-            <circle cx="80" cy="50" r="6"  fill="rgba(124,111,255,0.25)" />
+            <circle cx="80" cy="50" r="6" fill="rgba(124,111,255,0.25)" />
             <circle cx="80" cy="50" r="2.5" fill="#7c6fff" />
-            {/* Orbit dots */}
-            <circle cx="30"  cy="50" r="3" fill="#f472b6" opacity="0.7" />
+            <circle cx="30" cy="50" r="3" fill="#f472b6" opacity="0.7" />
             <circle cx="130" cy="50" r="3" fill="#7c6fff" opacity="0.7" />
-            <circle cx="80"  cy="22" r="2.5" fill="#fbbf24" opacity="0.6" />
-            <circle cx="80"  cy="78" r="2.5" fill="#34d399" opacity="0.6" />
+            <circle cx="80" cy="22" r="2.5" fill="#fbbf24" opacity="0.6" />
+            <circle cx="80" cy="78" r="2.5" fill="#34d399" opacity="0.6" />
           </svg>
         </div>
       )}
 
-      {/* Vibe preview skeletons */}
       {!compact && (
         <div className="flex gap-2 mb-5 overflow-hidden">
-          {['Midnight Highway Echoes', 'Velvet Afternoon Drift', 'Neon Euphoria Rush'].map((label, i) => (
+          {['Midnight Highway Echoes', 'Velvet Afternoon Drift', 'Neon Euphoria Rush'].map((label) => (
             <div key={label} className="flex-1 min-w-0 rounded-xl p-2.5 border border-white/6 bg-white/2">
               <div className="skeleton h-2 w-full mb-2 rounded" />
               <div className="skeleton h-2 w-3/4 rounded" />
@@ -161,10 +172,11 @@ export default function MusicSourceCard({ compact = false }) {
       <p className="text-xs text-gray-500 uppercase tracking-wider mb-1">Connect a Music Source</p>
       <p className="text-gray-400 text-sm mb-4">Link your account to populate your music universe with real data.</p>
       <div className="grid grid-cols-2 gap-3">
-        {/* Spotify */}
-        <button onClick={handleSpotify}
+        <button
+          onClick={handleSpotify}
           disabled={waking}
-          className="flex flex-col items-center gap-2 p-4 bg-[#1DB954]/8 hover:bg-[#1DB954]/15 border border-[#1DB954]/20 hover:border-[#1DB954]/50 rounded-xl text-[#1DB954] transition-all group disabled:opacity-70">
+          className="flex flex-col items-center gap-2 p-4 bg-[#1DB954]/8 hover:bg-[#1DB954]/15 border border-[#1DB954]/20 hover:border-[#1DB954]/50 rounded-xl text-[#1DB954] transition-all group disabled:opacity-70"
+        >
           <div className="w-10 h-10 rounded-xl bg-[#1DB954]/15 group-hover:bg-[#1DB954]/25 flex items-center justify-center transition-all">
             {waking ? <Loader2 className="w-5 h-5 animate-spin" /> : <SpotifyIcon />}
           </div>
@@ -174,10 +186,11 @@ export default function MusicSourceCard({ compact = false }) {
           </div>
         </button>
 
-        {/* Last.fm */}
-        <button onClick={handleLastfm}
+        <button
+          onClick={handleLastfm}
           disabled={waking}
-          className="flex flex-col items-center gap-2 p-4 bg-red-500/8 hover:bg-red-500/15 border border-red-500/20 hover:border-red-500/50 rounded-xl text-red-400 transition-all group disabled:opacity-70">
+          className="flex flex-col items-center gap-2 p-4 bg-red-500/8 hover:bg-red-500/15 border border-red-500/20 hover:border-red-500/50 rounded-xl text-red-400 transition-all group disabled:opacity-70"
+        >
           <div className="w-10 h-10 rounded-xl bg-red-500/15 group-hover:bg-red-500/25 flex items-center justify-center transition-all">
             {waking ? <Loader2 className="w-5 h-5 animate-spin" /> : <LastfmIcon />}
           </div>

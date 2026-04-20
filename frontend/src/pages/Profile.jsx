@@ -15,7 +15,10 @@ import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicSourceCard from '../components/MusicSourceCard'
 import ProfileBootPanel from '../components/ProfileBootPanel'
+import DeferredSoulOrb from '../components/DeferredSoulOrb'
+import { AssetUsageMap, BrandBackdrop, BrandConstellation, BrandMark, BrandWatermark } from '../components/brand/BrandSystem'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
+import { useRouteReadiness } from '../hooks/useRouteReadiness'
 
 function StatusChip({ tone = 'violet', children, icon: Icon }) {
   const styles = {
@@ -60,7 +63,7 @@ export default function Profile() {
   const logout = useStore((s) => s.logout)
   const navigate = useNavigate()
 
-  const { profile: musicProfile, phase } = useMusicProfile({ autoFetch: true })
+  const { profile: musicProfile, phase, readiness, tier } = useMusicProfile({ autoFetch: true })
   const profile = musicProfile?.userProfile || null
 
   const handleLogout = () => {
@@ -68,26 +71,45 @@ export default function Profile() {
     navigate('/login')
   }
 
-  if (phase === 'loading' && !musicProfile) {
-    return (
-      <ProfileBootPanel
-        variant="loading"
-        title="Your presence is tuning in."
-        subtitle="We are gathering your profile signal."
-        detail="Hold steady."
-      />
-    )
-  }
+  const boot = useRouteReadiness({
+    phase,
+    profile: musicProfile,
+    readiness,
+    tier,
+    require: { profile: true },
+    copy: {
+      loading: {
+        title: 'Your presence is tuning in.',
+        subtitle: 'We are gathering your profile signal.',
+        detail: 'Hold steady.',
+      },
+      error: {
+        title: 'We could not load your presence.',
+        subtitle: 'The listening profile is not reachable right now.',
+        detail: 'Refresh once and your profile should return.',
+      },
+      empty: {
+        title: 'Connect a music source to open your presence.',
+        subtitle: 'Your profile appears once a listening signal is connected.',
+        detail: 'No signal is present yet.',
+      },
+      sparse: {
+        title: 'Sparse signal mode.',
+        subtitle: 'Your profile will deepen as more listening data lands.',
+        detail: 'This is intentional, not an error.',
+      },
+    },
+  })
 
-  if (phase === 'error' && !musicProfile) {
+  if (boot.blocked) {
     return (
       <ProfileBootPanel
-        variant="error"
-        title="We could not load your presence."
-        subtitle="The listening profile is not reachable right now."
-        detail="Refresh once and your profile should return."
-        actionLabel="Reload the profile"
-        onAction={() => window.location.reload()}
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the profile' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
       />
     )
   }
@@ -122,35 +144,57 @@ export default function Profile() {
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={MOTION_TOKENS.focusSettle}
-        className="mb-2"
+        className="mb-2 flex items-start gap-4"
       >
-        <p className="page-header-kicker mb-2">The Presence</p>
-        <h1 className="page-header-title">Profile</h1>
-        <p className="page-header-copy mt-3">A quieter card for the person at the center of the constellation.</p>
+        <BrandMark size={56} />
+        <div>
+          <p className="page-header-kicker mb-2">The Presence</p>
+          <h1 className="page-header-title">Profile</h1>
+          <p className="page-header-copy mt-3">A quieter chamber for the person at the center of the constellation.</p>
+        </div>
       </motion.div>
 
       <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.04 }}
-        className="noire-orb-panel overflow-hidden p-8"
+        className="brand-panel living-grid overflow-hidden p-8"
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(168,132,255,0.14),transparent_28%),radial-gradient(circle_at_18%_82%,rgba(244,114,182,0.08),transparent_24%)]" />
+        <BrandBackdrop opacity={0.26} />
+        <BrandConstellation className="opacity-60" />
+        <BrandWatermark className="absolute right-[-4%] top-[-10%] w-[28rem]" opacity={0.08} rotate={10} />
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start">
-          <div className="relative shrink-0">
-            <div className="absolute inset-[-6px] rounded-[28px] bg-[radial-gradient(circle,rgba(167,139,250,0.24),transparent_64%)] blur-2xl" />
+          <div className="relative flex shrink-0 flex-col items-center gap-3">
+            <DeferredSoulOrb
+              size={190}
+              personality={musicProfile?.personality}
+              personalityMeta={musicProfile?.personalityMeta}
+              mbti={mbti}
+              mbtiMeta={musicProfile?.mbtiMeta}
+              audioFeatures={musicProfile?.audioFeatures}
+              analyticsMetrics={metrics}
+              confidence={musicProfile?.confidence}
+              dataQuality={musicProfile?.dataQuality}
+              genres={musicProfile?.genres}
+              topArtists={musicProfile?.topArtists}
+              resonance={{ label: personality }}
+              lowPower={tier === 'sparse' || tier === 'limited'}
+            />
+            <div className="flex items-center gap-2 rounded-full border border-white/10 bg-black/30 px-3 py-1 text-[11px] uppercase tracking-[0.22em] text-white/55">
+              <BrandMark size={18} muted />
+              Soul orb chamber
+            </div>
             {avatar ? (
               <img
                 src={avatar}
                 alt={displayName}
-                className="relative z-10 h-24 w-24 rounded-[24px] object-cover border border-white/10 shadow-[0_0_32px_rgba(124,111,255,0.18)]"
+                className="h-16 w-16 rounded-[18px] border border-white/10 object-cover shadow-[0_0_24px_rgba(124,111,255,0.16)]"
               />
             ) : (
-              <div className="relative z-10 flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(124,111,255,0.24),rgba(255,93,162,0.14))] text-4xl font-semibold text-white shadow-[0_0_32px_rgba(124,111,255,0.16)]">
+              <div className="flex h-16 w-16 items-center justify-center rounded-[18px] border border-white/10 bg-[linear-gradient(135deg,rgba(124,111,255,0.24),rgba(255,93,162,0.14))] text-2xl font-semibold text-white shadow-[0_0_24px_rgba(124,111,255,0.16)]">
                 {displayName[0]?.toUpperCase()}
               </div>
             )}
-            {isConnected && <div className="absolute -bottom-1 -right-1 z-20 h-5 w-5 rounded-full border-2 border-[#090814] bg-emerald-400" />}
           </div>
 
           <div className="min-w-0 flex-1">
@@ -180,6 +224,13 @@ export default function Profile() {
                 ))}
               </div>
             )}
+
+            <div className="mt-5 rounded-[22px] border border-white/10 bg-black/20 px-4 py-3 backdrop-blur-xl">
+              <p className="text-[11px] uppercase tracking-[0.24em] text-white/40">Presence note</p>
+              <p className="mt-2 text-sm leading-relaxed text-slate-300">
+                The orb reflects your current listening self. The outer galaxy shows your map, while this chamber holds the identity signal at the center.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -236,7 +287,15 @@ export default function Profile() {
       <motion.section
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ ...MOTION_TOKENS.panel, delay: 0.16 }}
+        transition={{ ...MOTION_TOKENS.panel, delay: 0.14 }}
+      >
+        <AssetUsageMap />
+      </motion.section>
+
+      <motion.section
+        initial={{ opacity: 0, y: 18 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ ...MOTION_TOKENS.panel, delay: 0.18 }}
         className="noire-panel-soft border border-rose-400/10 p-6"
       >
         <h3 className="mb-4 text-sm font-semibold text-rose-300">Session</h3>

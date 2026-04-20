@@ -11,6 +11,8 @@ import { musicService } from '../services/musicService'
 import useStore from '../store/useStore'
 import { buildGenreList, PROFILE_SCHEMA_VERSION } from '../services/profileAdapters.js'
 import { normalizeProfileResponse } from '../services/dataAdapters'
+import { logClientEvent } from '../services/observability'
+import { buildDemoProfile } from '../services/demoProfile'
 
 function mapLastfmPeriod(timeRange) {
   if (timeRange === 'short_term') return '1month'
@@ -107,32 +109,39 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
   const musicProfileLoading = useStore((s) => s.musicProfileLoading)
   const musicProfileError = useStore((s) => s.musicProfileError)
   const timeRange = useStore((s) => s.musicProfileTimeRange)
+  const demoModeEnabled = useStore((s) => s.demoModeEnabled)
   const setMusicProfile = useStore((s) => s.setMusicProfile)
   const setLoading = useStore((s) => s.setMusicProfileLoading)
   const setError = useStore((s) => s.setMusicProfileError)
   const setVibeFeatures = useStore((s) => s.setVibeFeatures)
   const setSonicIdentity = useStore((s) => s.setSonicIdentity)
+  const clearMusicProfile = useStore((s) => s.clearMusicProfile)
 
   const fetchingRef = useRef(false)
+  const requestIdRef = useRef(0)
 
   const doFetch = useCallback(async (force = false) => {
     const truthProvider = spotifyConnected
       ? 'spotify'
       : (musicProvider || musicService.getTruthProvider())
 
-    if (!spotifyConnected && !lastfmConnected) return
+    if (!spotifyConnected && !lastfmConnected && !demoModeEnabled) return
     const cachedProvider = musicProfile?.provider || null
     const shouldRefetchForProvider = Boolean(truthProvider && cachedProvider && cachedProvider !== truthProvider)
     if (musicProfile && !force && !shouldRefetchForProvider) return
     if (fetchingRef.current) return
 
     fetchingRef.current = true
+    requestIdRef.current += 1
+    const requestId = requestIdRef.current
     setLoading(true)
     setError(null)
 
     try {
       let rawProfile
-      if (truthProvider === 'lastfm') {
+      if (!spotifyConnected && !lastfmConnected && demoModeEnabled) {
+        rawProfile = buildDemoProfile()
+      } else if (truthProvider === 'lastfm') {
         rawProfile = await buildLastfmProfile(timeRange)
       } else {
         const res = await musicProfileAPI.get({ time_range: timeRange, limit: 50 })
@@ -143,6 +152,7 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
         throw new Error(normalized.warnings?.[0] || 'Failed to load music profile')
       }
       const profile = normalized.data
+      if (requestId !== requestIdRef.current) return
       setMusicProfile(profile)
 
       const af = profile.audioFeatures || {}
@@ -163,10 +173,19 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
       }
     } catch (err) {
       const msg = err?.response?.data?.error || err.message || 'Failed to load music profile'
-      setError(msg)
+      logClientEvent('profile_boot_failed', {
+        message: msg,
+        provider: truthProvider,
+        timeRange,
+      }, 'warn')
+      if (requestId === requestIdRef.current) {
+        setError(msg)
+      }
     } finally {
-      setLoading(false)
-      fetchingRef.current = false
+      if (requestId === requestIdRef.current) {
+        setLoading(false)
+        fetchingRef.current = false
+      }
     }
   }, [
     spotifyConnected,
@@ -179,7 +198,18 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
     setError,
     setVibeFeatures,
     setSonicIdentity,
+    clearMusicProfile,
+    demoModeEnabled,
   ])
+
+  useEffect(() => {
+    if (spotifyConnected || lastfmConnected || demoModeEnabled) return
+    if (musicProfile?.provider === 'demo') {
+      clearMusicProfile()
+      setError(null)
+      setLoading(false)
+    }
+  }, [spotifyConnected, lastfmConnected, demoModeEnabled, musicProfile, clearMusicProfile, setError, setLoading])
 
   useEffect(() => {
     if (autoFetch) doFetch()

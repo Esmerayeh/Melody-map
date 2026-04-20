@@ -1,12 +1,13 @@
 import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
-  Music2, LayoutDashboard, Compass, Disc3,
+  LayoutDashboard, Compass, Disc3,
   Heart, Sparkles, BarChart3, LogOut, User, Wand2, Brain,
 } from 'lucide-react'
 import useStore from '../store/useStore'
 import { ProviderBadge } from './MusicSourceCard'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
+import { BrandWordmark } from './brand/BrandSystem'
 
 const NAV = [
   { section: 'Explore' },
@@ -45,21 +46,10 @@ export default function Sidebar() {
       />
       <div className="absolute inset-y-0 right-0 w-px pointer-events-none bg-gradient-to-b from-transparent via-white/10 to-transparent" />
 
-      <div className="flex items-center gap-3 px-5 h-16 border-b border-white/[0.05] shrink-0 relative z-10">
-        <motion.div
-          whileHover={{ scale: 1.08, rotate: 5 }}
-          transition={MOTION_TOKENS.hoverIn}
-          className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0"
-          style={{ background: 'linear-gradient(135deg, #8f75ff, #cf90ff)', boxShadow: '0 0 22px rgba(143,117,255,0.28)' }}
-        >
-          <Music2 className="w-4 h-4 text-white" />
+      <div className="px-5 h-16 border-b border-white/[0.05] shrink-0 relative z-10 flex items-center">
+        <motion.div whileHover={{ scale: 1.02, x: 1 }} transition={MOTION_TOKENS.hoverIn}>
+          <BrandWordmark compact />
         </motion.div>
-        <div className="min-w-0">
-          <span className="block text-[1.08rem] tracking-[0.22em] text-[#f3eeff]" style={{ fontFamily: 'Cinzel, serif' }}>
-            Melody Map
-          </span>
-          <span className="block text-[10px] uppercase tracking-[0.34em] text-white/30 mt-0.5">Noir-core atlas</span>
-        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-5 space-y-0.5 relative z-10">

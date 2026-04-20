@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { clearSpotifyStorage } from '../services/spotifySession'
 
 function getStorage() {
   try {
@@ -56,52 +57,72 @@ function getStoredJson(key, fallback = null) {
 
 const useStore = create((set) => ({
   user: null,
-  isAuthenticated: !!(
-    getStoredValue('token') ||
-    getStoredValue('spotify_token') ||
-    getStoredValue('lastfm_session')
-  ),
+  sessionToken: getStoredValue('token') || null,
+  isAuthenticated: !!getStoredValue('token'),
 
-  spotifyToken: getStoredValue('spotify_token') || null,
+  spotifyToken: null,
   spotifyProfile: null,
-  spotifyConnected: !!getStoredValue('spotify_token'),
+  spotifyConnected: false,
 
-  lastfmSession: getStoredValue('lastfm_session') || null,
-  lastfmUsername: getStoredValue('lastfm_username') || null,
-  lastfmConnected: !!getStoredValue('lastfm_session'),
+  lastfmSession: null,
+  lastfmUsername: null,
+  lastfmConnected: false,
 
   musicProvider: getStoredValue('music_provider') || null,
+  providerConnected: false,
+  demoModeEnabled: getStoredValue('melodymap_demo_mode') === 'true',
+  introDismissed: getStoredValue('melodymap_intro_dismissed') === 'true',
+  auralithSessions: getStoredJson('melodymap_auralith_sessions', []),
+  auralithDrafts: getStoredJson('melodymap_auralith_drafts', {}),
+  auralithActiveModuleId: getStoredValue('melodymap_auralith_active_module') || null,
 
   selectedSong: null,
 
   cinemaMode: false,
   setCinemaMode: (val) => set({ cinemaMode: val }),
 
-  setUser: (user) => set({ user, isAuthenticated: true }),
+  setUser: (user) => set({ user, isAuthenticated: !!getStoredValue('token'), sessionToken: getStoredValue('token') || null }),
+
+  setSessionToken: (token) => {
+    if (token) {
+      setStoredValue('token', token)
+      set({ sessionToken: token, isAuthenticated: true })
+    } else {
+      removeStoredValue('token')
+      set({ sessionToken: null, isAuthenticated: false })
+    }
+  },
+
+  clearSession: () => {
+    removeStoredValue('token')
+    removeStoredValue('userId')
+    set({ user: null, sessionToken: null, isAuthenticated: false })
+  },
 
   logout: () => {
     ;[
       'token',
       'userId',
-      'spotify_token',
-      'spotify_refresh_token',
-      'spotify_token_expiry',
-      'lastfm_session',
-      'lastfm_username',
       'music_provider',
       'music_profile_time_range',
       'vibe_features',
       'sonic_identity',
       'aesthetic_state',
       'emotional_cluster',
+      'melodymap_auralith_sessions',
+      'melodymap_auralith_drafts',
+      'melodymap_auralith_active_module',
     ].forEach(removeStoredValue)
 
+    clearSpotifyStorage()
     set({
       user: null,
       isAuthenticated: false,
+      sessionToken: null,
       spotifyToken: null,
       spotifyProfile: null,
       spotifyConnected: false,
+      providerConnected: false,
       lastfmSession: null,
       lastfmUsername: null,
       lastfmConnected: false,
@@ -113,56 +134,152 @@ const useStore = create((set) => ({
       sonicIdentity: null,
       aestheticState: null,
       emotionalCluster: null,
+      auralithSessions: [],
+      auralithDrafts: {},
+      auralithActiveModuleId: null,
     })
   },
 
-  setSpotifyToken: (token, refreshToken) => {
-    setStoredValue('spotify_token', token)
+  setSpotifyConnected: ({ connected = false, profile = null } = {}) => {
+    if (!connected) {
+      const nextProvider = getStoredValue('music_provider') === 'spotify' ? null : getStoredValue('music_provider')
+      if (!nextProvider) removeStoredValue('music_provider')
+      clearSpotifyStorage()
+      set({
+        spotifyToken: null,
+        spotifyProfile: profile,
+        spotifyConnected: false,
+        providerConnected: Boolean(nextProvider),
+        musicProvider: nextProvider,
+      })
+      return
+    }
+
     setStoredValue('music_provider', 'spotify')
-    if (refreshToken) setStoredValue('spotify_refresh_token', refreshToken)
-    set({ spotifyToken: token, spotifyConnected: true, musicProvider: 'spotify', isAuthenticated: true })
+    set({
+      spotifyToken: null,
+      spotifyProfile: profile,
+      spotifyConnected: true,
+      musicProvider: 'spotify',
+      providerConnected: true,
+    })
   },
 
   setSpotifyProfile: (profile) => set({ spotifyProfile: profile }),
 
   disconnectSpotify: () => {
-    removeStoredValue('spotify_token')
-    removeStoredValue('spotify_refresh_token')
     const provider = getStoredValue('music_provider')
     if (provider === 'spotify') {
       removeStoredValue('music_provider')
-      set({ spotifyToken: null, spotifyProfile: null, spotifyConnected: false, musicProvider: null })
+      set({
+        spotifyToken: null,
+        spotifyProfile: null,
+        spotifyConnected: false,
+        musicProvider: null,
+        providerConnected: false,
+      })
     } else {
-      set({ spotifyToken: null, spotifyProfile: null, spotifyConnected: false })
+      set({
+        spotifyToken: null,
+        spotifyProfile: null,
+        spotifyConnected: false,
+        providerConnected: Boolean(getStoredValue('music_provider')),
+      })
     }
+    clearSpotifyStorage()
   },
 
-  setLastfm: (session, username) => {
-    setStoredValue('lastfm_session', session)
-    setStoredValue('lastfm_username', username)
+  setLastfmConnected: ({ connected = false, username = null } = {}) => {
+    if (!connected) {
+      const nextProvider = getStoredValue('music_provider') === 'lastfm' ? null : getStoredValue('music_provider')
+      if (!nextProvider) removeStoredValue('music_provider')
+      set({
+        lastfmSession: null,
+        lastfmUsername: username,
+        lastfmConnected: false,
+        musicProvider: nextProvider,
+        providerConnected: Boolean(nextProvider),
+      })
+      return
+    }
+
     setStoredValue('music_provider', 'lastfm')
     set({
-      lastfmSession: session,
+      lastfmSession: null,
       lastfmUsername: username,
       lastfmConnected: true,
       musicProvider: 'lastfm',
-      isAuthenticated: true,
+      providerConnected: true,
     })
   },
 
   disconnectLastfm: () => {
-    removeStoredValue('lastfm_session')
-    removeStoredValue('lastfm_username')
     const provider = getStoredValue('music_provider')
     if (provider === 'lastfm') {
       removeStoredValue('music_provider')
-      set({ lastfmSession: null, lastfmUsername: null, lastfmConnected: false, musicProvider: null })
+      set({
+        lastfmSession: null,
+        lastfmUsername: null,
+        lastfmConnected: false,
+        musicProvider: null,
+        providerConnected: false,
+      })
     } else {
-      set({ lastfmSession: null, lastfmUsername: null, lastfmConnected: false })
+      set({
+        lastfmSession: null,
+        lastfmUsername: null,
+        lastfmConnected: false,
+        providerConnected: Boolean(getStoredValue('music_provider')),
+      })
     }
   },
 
   setSelectedSong: (song) => set({ selectedSong: song }),
+
+  setDemoModeEnabled: (enabled) => {
+    if (enabled) setStoredValue('melodymap_demo_mode', 'true')
+    else removeStoredValue('melodymap_demo_mode')
+    set({ demoModeEnabled: !!enabled })
+  },
+
+  setIntroDismissed: (dismissed) => {
+    if (dismissed) setStoredValue('melodymap_intro_dismissed', 'true')
+    else removeStoredValue('melodymap_intro_dismissed')
+    set({ introDismissed: !!dismissed })
+  },
+
+  setAuralithActiveModuleId: (moduleId) => {
+    if (moduleId) setStoredValue('melodymap_auralith_active_module', moduleId)
+    else removeStoredValue('melodymap_auralith_active_module')
+    set({ auralithActiveModuleId: moduleId || null })
+  },
+
+  setAuralithDraft: (moduleId, value) => set((state) => {
+    const nextDrafts = {
+      ...(state.auralithDrafts || {}),
+      [moduleId]: value,
+    }
+    setStoredValue('melodymap_auralith_drafts', JSON.stringify(nextDrafts))
+    return { auralithDrafts: nextDrafts }
+  }),
+
+  saveAuralithSession: (session) => set((state) => {
+    const previous = Array.isArray(state.auralithSessions) ? state.auralithSessions : []
+    const nextSessions = [session, ...previous.filter((entry) => entry?.id !== session?.id)].slice(0, 12)
+    setStoredValue('melodymap_auralith_sessions', JSON.stringify(nextSessions))
+    return { auralithSessions: nextSessions }
+  }),
+
+  removeAuralithSession: (sessionId) => set((state) => {
+    const nextSessions = (state.auralithSessions || []).filter((entry) => entry?.id !== sessionId)
+    setStoredValue('melodymap_auralith_sessions', JSON.stringify(nextSessions))
+    return { auralithSessions: nextSessions }
+  }),
+
+  clearAuralithSessions: () => {
+    removeStoredValue('melodymap_auralith_sessions')
+    set({ auralithSessions: [] })
+  },
 
   aestheticState: getStoredJson('aesthetic_state', null),
   setAestheticState: (state) => {

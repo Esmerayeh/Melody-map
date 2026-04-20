@@ -1,25 +1,25 @@
 """
-Music Profile route
--------------------
-GET  /api/music-profile   — build and return a complete music profile
-                            from the user's Spotify data.
+Music Profile route.
+
+GET /api/music-profile builds and returns a complete music profile
+from the user's Spotify data.
 
 Query params:
   time_range  short_term | medium_term (default) | long_term
-  limit       1–50 (default 50)
+  limit       1-50 (default 50)
 
-Headers:
-  X-Spotify-Token   <spotify_access_token>
-
-Response: see music_profile_builder.build_music_profile()
+Auth:
+  Prefers the secure Spotify provider cookie set during OAuth exchange.
+  Falls back to Authorization for local compatibility.
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request
 
 from middleware.rate_limit import rate_limit
 from services.music_profile_builder import build_music_profile
 from utils.api import api_error, api_success_legacy
 from utils.logger import logger
+from utils.provider_cookies import SPOTIFY_ACCESS_COOKIE, get_cookie
 
 music_profile_bp = Blueprint('music_profile', __name__)
 
@@ -28,11 +28,11 @@ music_profile_bp = Blueprint('music_profile', __name__)
 @rate_limit(max_requests=30, window_seconds=60)
 def get_music_profile():
     token = (
-        request.headers.get('X-Spotify-Token') or
-        request.headers.get('Authorization', '').replace('Bearer ', '').strip()
+        get_cookie(request, SPOTIFY_ACCESS_COOKIE)
+        or request.headers.get('Authorization', '').replace('Bearer ', '').strip()
     )
     if not token:
-        return api_error('Spotify token required (X-Spotify-Token header)', 401, code='SPOTIFY_TOKEN_REQUIRED')
+        return api_error('Spotify connection required', 401, code='SPOTIFY_TOKEN_REQUIRED')
 
     time_range = request.args.get('time_range', 'medium_term')
     if time_range not in ('short_term', 'medium_term', 'long_term'):
@@ -61,6 +61,13 @@ def get_music_profile():
             profileTier=profile_tier,
             warnings=warnings,
         )
-    except Exception as e:
-        logger.error({'event': 'music_profile_build_failed', 'error': str(e), 'time_range': time_range, 'limit': limit})
+    except Exception as exc:
+        logger.error(
+            {
+                'event': 'music_profile_build_failed',
+                'error': str(exc),
+                'time_range': time_range,
+                'limit': limit,
+            }
+        )
         return api_error('Music profile generation failed', 500, code='MUSIC_PROFILE_BUILD_FAILED')
