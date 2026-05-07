@@ -4,55 +4,47 @@ __pycache__/
 *$py.class
 *.so
 .Python
+.pytest_cache/
+.coverage
+*.egg-info/
+build/
+dist/
+
+# Python environments
 venv/
 env/
 ENV/
-.venv
-pip-log.txt
-pip-delete-this-directory.txt
-.pytest_cache/
-*.egg-info/
-dist/
-build/
+.venv/
 
-# Node
+# Node and frontend artifacts
 node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
-dist/
-build/
+frontend/.npm-cache/
+frontend/dist/
+mobile/node_modules/
 
-# Environment
+# Environment and local config
 .env
 .env.*
 .env.local
 .env.production
 *.local
 
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.DS_Store
-
-# Logs
+# Logs and runtime output
 logs/
 *.log
 analysis_frames/
-frontend/.npm-cache/
+coverage/
 
-# Database
+# Databases and local storage
 *.db
 *.sqlite
 *.sqlite3
-.coverage
-coverage/
 
-# ML / generated runtime artifacts
+# Generated ML and data artifacts
 backend/mlruns/
 backend/data/models/
 backend/data/indexes/
@@ -62,6 +54,13 @@ temp/
 *.tmp
 *.temp
 
-# OS
-Thumbs.db
+# Editors and IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
 .DS_Store
+Thumbs.db

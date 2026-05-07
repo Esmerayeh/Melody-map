@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Dashboard screenshot placeholder">
+  <defs>
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#070b18"/>
+      <stop offset="50%" stop-color="#151b34"/>
+      <stop offset="100%" stop-color="#241a3c"/>
+    </linearGradient>
+    <linearGradient id="panel" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.16"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.05"/>
+    </linearGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#bg)"/>
+  <circle cx="1020" cy="130" r="170" fill="#9f7aea" opacity="0.24"/>
+  <circle cx="220" cy="610" r="190" fill="#67e8f9" opacity="0.14"/>
+  <rect x="72" y="64" rx="28" ry="28" width="1136" height="592" fill="url(#panel)" stroke="#ffffff" stroke-opacity="0.15"/>
+  <text x="120" y="160" fill="#f6f1ff" font-size="54" font-family="Segoe UI, Arial, sans-serif">Dashboard Screenshot Placeholder</text>
+  <text x="120" y="214" fill="#c8c4de" font-size="26" font-family="Segoe UI, Arial, sans-serif">Replace with the premium home or identity screen.</text>
+  <rect x="120" y="276" rx="24" ry="24" width="320" height="240" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="476" y="276" rx="24" ry="24" width="320" height="240" fill="#ffffff" fill-opacity="0.08"/>
+  <rect x="832" y="276" rx="24" ry="24" width="328" height="240" fill="#ffffff" fill-opacity="0.08"/>
+  <text x="120" y="598" fill="#d7d2e7" font-size="22" font-family="Segoe UI, Arial, sans-serif">Suggested capture: dashboard hero, soul orb, and identity modules.</text>
+</svg>

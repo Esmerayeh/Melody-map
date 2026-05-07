@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720" viewBox="0 0 1280 720" role="img" aria-label="Galaxy screenshot placeholder">
+  <defs>
+    <radialGradient id="space" cx="50%" cy="50%" r="70%">
+      <stop offset="0%" stop-color="#1d2146"/>
+      <stop offset="60%" stop-color="#0d1023"/>
+      <stop offset="100%" stop-color="#05070f"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="720" fill="url(#space)"/>
+  <g opacity="0.85">
+    <circle cx="640" cy="360" r="90" fill="#c084fc" opacity="0.35"/>
+    <circle cx="640" cy="360" r="16" fill="#f9e2ff"/>
+    <circle cx="450" cy="260" r="24" fill="#7dd3fc"/>
+    <circle cx="830" cy="270" r="28" fill="#f9a8d4"/>
+    <circle cx="520" cy="500" r="20" fill="#c4b5fd"/>
+    <circle cx="890" cy="470" r="18" fill="#93c5fd"/>
+    <line x1="640" y1="360" x2="450" y2="260" stroke="#8b9cf8" stroke-opacity="0.45"/>
+    <line x1="640" y1="360" x2="830" y2="270" stroke="#f0abfc" stroke-opacity="0.45"/>
+    <line x1="640" y1="360" x2="520" y2="500" stroke="#c4b5fd" stroke-opacity="0.45"/>
+    <line x1="640" y1="360" x2="890" y2="470" stroke="#7dd3fc" stroke-opacity="0.45"/>
+  </g>
+  <text x="94" y="132" fill="#f6f1ff" font-size="56" font-family="Segoe UI, Arial, sans-serif">Galaxy Screenshot Placeholder</text>
+  <text x="94" y="188" fill="#c8c4de" font-size="26" font-family="Segoe UI, Arial, sans-serif">Replace with the production galaxy view showing clusters, depth, and interaction.</text>
+  <text x="94" y="630" fill="#d7d2e7" font-size="22" font-family="Segoe UI, Arial, sans-serif">Suggested capture: zoomed galaxy hero with hovered node and active constellation edges.</text>
+</svg>
