@@ -1,0 +1,20 @@
+name: Canary Release Policy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  canary-plan:
+    name: Canary Release Plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Emit canary checklist
+        run: |
+          echo "Canary release contract for Melody Map:"
+          echo "1. Deploy next-gen API to staging"
+          echo "2. Run smoke tests against /api/session/bootstrap and /api/jobs"
+          echo "3. Promote a small traffic slice"
+          echo "4. Observe error rate, auth latency, cache hit rate"
+          echo "5. Roll back immediately on regression"

@@ -1,620 +1,267 @@
-import { useEffect, useMemo, useState } from 'react'
-import { motion, AnimatePresence } from 'framer-motion'
-import { Link, useSearchParams } from 'react-router-dom'
-import {
-  Sparkles, Wand2, AudioLines, Brain, FileSearch, Compass, HeartHandshake,
-  ArrowRight, Loader2, RotateCcw, Disc3, Waves, Radio,
-} from 'lucide-react'
+import { useMemo, useState, useEffect } from 'react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Brain, Compass, Loader2, Radio, Sparkles, Wand2 } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { auralithAPI, recommendationEventsAPI } from '../services/api'
 import useMusicProfile from '../hooks/useMusicProfile'
-import { usePlaylists } from '../hooks/useMusicData'
 import useStore from '../store/useStore'
-import { auralithAPI } from '../services/api'
+import useLiveTasteSignal from '../hooks/useLiveTasteSignal'
 import ProfileBootPanel from '../components/ProfileBootPanel'
+import { buildRecommendationEvent } from '../lib/recommendationTracking'
+import AtmosphereBackground from '../components/premium/AtmosphereBackground'
+import AuraCard from '../components/premium/AuraCard'
+import HaloButton from '../components/premium/HaloButton'
+import ShimmerDivider from '../components/premium/ShimmerDivider'
+import NebulaLoader from '../components/premium/NebulaLoader'
 
 const MODULES = [
-  {
-    id: 'playlist',
-    label: 'Playlist Generator',
-    eyebrow: 'Flagship Sequence',
-    endpoint: 'generatePlaylist',
-    icon: Wand2,
-    description: 'Shape a mood into a sequence that feels emotionally true to your listening history.',
-    placeholder: 'A winter train ride after saying too little',
-    helper: 'Describe a scene, mood, memory, or emotional weather.',
-    examples: ['dreamy shoegaze winter night', 'soft-focus songs with midnight glow', 'music for walking home after missing someone'],
-    buildPayload: (value, profile) => ({ prompt: value, limit: 8, profile }),
-  },
-  {
-    id: 'taste',
-    label: 'Music Taste Analyzer',
-    eyebrow: 'Listening Portrait',
-    endpoint: 'analyzeTaste',
-    icon: Brain,
-    description: 'Read the patterns behind your choices, not just the labels attached to them.',
-    placeholder: 'Frank Ocean\nBeach House\nRadiohead',
-    helper: 'Drop in songs or artists, one per line.',
-    examples: ['Frank Ocean\nBeach House\nRadiohead', 'Mitski\nFKA twigs\nJames Blake', 'Phoebe Bridgers\nSlowdive\nBon Iver'],
-    buildPayload: (value, profile) => ({ seeds: value.split('\n').map((item) => item.trim()).filter(Boolean), profile }),
-  },
-  {
-    id: 'explainer',
-    label: 'Song Explainer',
-    eyebrow: 'Deep Listen',
-    endpoint: 'explainSong',
-    icon: FileSearch,
-    description: 'Unpack why a song lands emotionally, from texture and pacing to the pressure it creates.',
-    placeholder: 'Nights - Frank Ocean',
-    helper: 'Use a title, or a title with artist.',
-    examples: ['Nights - Frank Ocean', 'Teardrop - Massive Attack', 'Reckoner - Radiohead'],
-    buildPayload: (value, profile) => ({ prompt: value, profile }),
-  },
-  {
-    id: 'critic',
-    label: 'Playlist Critic',
-    eyebrow: 'Flow Review',
-    endpoint: 'critiquePlaylist',
-    icon: AudioLines,
-    description: 'Test whether a playlist actually moves with intention or only looks cohesive on paper.',
-    placeholder: 'Space Song - Beach House\nK. - Cigarettes After Sex\nTeardrop - Massive Attack',
-    helper: 'Paste playlist tracks, one per line.',
-    examples: ['Space Song - Beach House\nK. - Cigarettes After Sex\nTeardrop - Massive Attack', 'Nights - Frank Ocean\nRetrograde - James Blake\nCellophane - FKA twigs'],
-    buildPayload: (value, profile) => ({ songs: value.split('\n').map((item) => item.trim()).filter(Boolean), profile }),
-  },
-  {
-    id: 'concept',
-    label: 'Concept-to-Playlist',
-    eyebrow: 'Atmosphere Translation',
-    endpoint: 'conceptPlaylist',
-    icon: Compass,
-    description: 'Translate an image, memory, or fragment into a world of sound with emotional contour.',
-    placeholder: 'what 3am feels like after heartbreak',
-    helper: 'Speak in scenes, abstractions, or fragments.',
-    examples: ['what 3am feels like after heartbreak', 'the first warm night after a long winter', 'music for disappearing into city lights'],
-    buildPayload: (value, profile) => ({ prompt: value, limit: 8, profile }),
-  },
+  { id: 'playlist', label: 'Playlist Generator', icon: Wand2, prompt: 'dreamy shoegaze winter night', mode: 'playlist' },
+  { id: 'taste', label: 'Taste Analyzer', icon: Brain, prompt: 'Frank Ocean\nBeach House\nRadiohead', mode: 'analyze' },
+  { id: 'explainer', label: 'Song Explainer', icon: Compass, prompt: 'Nights - Frank Ocean', mode: 'explain' },
+  { id: 'concept', label: 'Concept Sequence', icon: Sparkles, prompt: 'music for disappearing into city lights', mode: 'concept' },
 ]
 
-function pickNames(items = [], keys = ['name', 'title']) {
-  return items.map((item) => {
-    if (typeof item === 'string') return item
-    for (const key of keys) {
-      if (item?.[key]) return item[key]
-    }
-    return null
-  }).filter(Boolean)
-}
-
-function normalizeProfile(profile, playlists) {
+function normalizeProfile(profile) {
   if (!profile) return null
-
-  const moodPreference = profile.analyticsMetrics?.mood
-  const topTracks = (profile.topTracks || []).slice(0, 8)
-  const recentlyPlayed = (profile.recentlyPlayed || []).slice(0, 8)
-  const savedTracks = (profile.savedTracks || []).slice(0, 8)
-
   return {
-    genres: (profile.genres || []).map((item) => item.genre || item).filter(Boolean).slice(0, 8),
-    topArtists: pickNames(profile.topArtists || []),
-    topTracks: pickNames(topTracks, ['title', 'name']),
-    recentlyPlayed: pickNames(recentlyPlayed, ['title', 'name']),
-    likedSongs: pickNames(savedTracks.length ? savedTracks : topTracks.slice(0, 5), ['title', 'name']),
-    savedPlaylists: pickNames((playlists || []).slice(0, 6)),
-    favoriteArtists: pickNames((profile.topArtists || []).slice(0, 5)),
-    moodPreferences: [moodPreference, ...(profile.aestheticTags || []).slice(0, 3)].filter(Boolean),
-    aestheticTags: (profile.aestheticTags || []).slice(0, 8),
+    topArtists: profile.topArtists || [],
+    topTracks: profile.topTracks || [],
+    genres: profile.genres || [],
     audioFeatures: profile.audioFeatures || {},
     analyticsMetrics: profile.analyticsMetrics || {},
-    personality: profile.personality || '',
-    mbti: profile.mbti || '',
-    userProfile: profile.userProfile || null,
+    personality: profile.personality || [],
+    mbti: profile.mbti || {},
     timeRange: profile.timeRange || 'medium_term',
   }
 }
 
-function HeroMeter({ label, value, color }) {
+function OracleResult({ result }) {
+  if (!result) return null
   return (
-    <div className="rounded-[24px] p-4 glass-card">
-      <p className="section-label mb-2">{label}</p>
-      <p className="text-sm font-semibold text-white" style={{ color }}>{value}</p>
-    </div>
-  )
-}
-
-function ContextBanner({ profilePayload, playlistCount }) {
-  const connected = Boolean(profilePayload)
-  const hasDeepContext = Boolean(
-    profilePayload?.topArtists?.length ||
-    profilePayload?.topTracks?.length ||
-    profilePayload?.recentlyPlayed?.length ||
-    profilePayload?.savedPlaylists?.length
-  )
-
-  return (
-    <div className="rounded-[24px] p-4 border border-white/8 bg-white/[0.03]">
-      <div className="flex items-start gap-3">
-        <HeartHandshake className="w-4 h-4 text-brand-pink mt-0.5 shrink-0" />
-        <div className="min-w-0">
-          <p className="text-sm font-medium text-white">
-            {connected ? 'Your listening context is present' : 'Prompt-first drift'}
-          </p>
-          <p className="text-xs text-slate-500 leading-relaxed mt-2">
-            {hasDeepContext
-              ? `Auralith is holding your top artists, songs, recent listening, atmospheres, and ${playlistCount} saved playlists while it answers.`
-              : 'Auralith can still begin from a feeling alone, and it will fold in Melody Map context the moment your profile is ready.'}
-          </p>
+    <AuraCard className="p-5" accent="cyan">
+      <p className="section-label mb-2 text-cyan-200">Retrieved memory</p>
+      <p className="text-lg font-semibold text-white">{result.answer}</p>
+      <p className="mt-3 text-sm text-slate-400">{result.explanation}</p>
+      <div className="mt-5 rounded-[22px] border border-white/8 bg-black/20 p-4">
+        <div className="flex items-center justify-between gap-4">
+          <p className="text-sm font-semibold text-white">Listening memories</p>
+          <p className="text-xs text-slate-500">confidence {Math.round((result.confidence?.score || 0) * 100)}%</p>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function Composer({ module, value, onChange, onExample, onSubmit, loading }) {
-  return (
-    <section className="glass-card rounded-[32px] p-6 lg:p-7 relative overflow-hidden">
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{
-          background: 'radial-gradient(ellipse at top right, rgba(124,111,255,0.14), transparent 40%), radial-gradient(ellipse at bottom left, rgba(255,93,162,0.08), transparent 42%)',
-        }}
-      />
-      <div className="relative z-10">
-        <div className="flex items-start justify-between gap-4">
-          <div className="max-w-2xl">
-            <p className="section-label mb-2" style={{ color: '#FBBF24' }}>{module.eyebrow}</p>
-            <h2 className="text-3xl lg:text-[2rem] font-black text-white">{module.label}</h2>
-            <p className="text-slate-400 text-sm mt-3 leading-relaxed">{module.description}</p>
-          </div>
-          <span className="pill">{loading ? 'Listening' : 'Ready'}</span>
-        </div>
-
-        <div className="flex flex-wrap gap-2 mt-6">
-          {module.examples.map((example) => (
-            <button
-              key={example}
-              type="button"
-              onClick={() => onExample(example)}
-              className="px-3 py-1.5 rounded-full text-xs text-slate-300 bg-white/5 border border-white/8 hover:border-brand-purple/30 hover:text-white hover:bg-white/[0.08] transition-all"
-            >
-              {example}
-            </button>
+        <div className="mt-4 space-y-3">
+          {(result.retrieved_memories || []).map((memory, index) => (
+            <details key={`${memory.chunk_id || memory.title}-${index}`} className="rounded-[18px] border border-white/6 bg-white/[0.03] p-3">
+              <summary className="cursor-pointer text-sm font-medium text-white">
+                {memory.title} <span className="ml-2 text-xs text-slate-500">[{memory.source_type}]</span>
+              </summary>
+              <p className="mt-3 text-sm text-slate-300">{memory.content}</p>
+            </details>
           ))}
         </div>
-
-        <div className="mt-6 rounded-[26px] border border-white/8 bg-white/[0.03] overflow-hidden">
-          <div className="flex items-center justify-between px-5 py-4 border-b border-white/6 text-[11px] uppercase tracking-[0.22em] text-slate-500">
-            <span>Composer</span>
-            <span>listening-aware</span>
-          </div>
-          <textarea
-            value={value}
-            onChange={(event) => onChange(event.target.value)}
-            placeholder={module.placeholder}
-            rows={7}
-            className="w-full bg-transparent text-white placeholder:text-slate-600 px-5 py-5 outline-none resize-y min-h-[210px]"
-          />
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 px-5 py-4 border-t border-white/6">
-            <span className="text-sm text-slate-500">{module.helper}</span>
-            <button
-              type="button"
-              onClick={onSubmit}
-              disabled={loading}
-              className="inline-flex items-center justify-center gap-2 px-5 py-3 rounded-2xl text-sm font-semibold text-white shadow-lg transition-all disabled:opacity-70 btn-glow"
-              style={{ background: 'linear-gradient(135deg, #7C6FFF, #FF5DA2)' }}
-            >
-              {loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-              {loading ? 'Listening closely...' : 'Send into Auralith'}
-            </button>
-          </div>
-        </div>
       </div>
-    </section>
+    </AuraCard>
   )
 }
 
-function SongCard({ song, index }) {
-  return (
-    <motion.article
-      initial={{ opacity: 0, y: 12 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: index * 0.04 }}
-      className="rounded-[24px] p-4 glass-hover"
-    >
-      <div className="flex items-start gap-3 mb-3">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold shrink-0"
-          style={{ background: 'rgba(124,111,255,0.16)', color: '#c4b5fd' }}
-        >
-          {String(index + 1).padStart(2, '0')}
-        </div>
-        <div className="min-w-0">
-          <h4 className="text-sm font-semibold text-white truncate">{song.title}</h4>
-          <p className="text-xs text-slate-500 truncate mt-1">{song.artist}</p>
-        </div>
-      </div>
-      <p className="text-sm text-slate-400 leading-relaxed">{song.reason}</p>
-    </motion.article>
-  )
-}
+function SongSequence({ songs = [], tracking }) {
+  useEffect(() => {
+    if (!tracking?.sessionId || !tracking?.requestId) return undefined
+    songs.forEach((song, index) => {
+      recommendationEventsAPI.impression(buildRecommendationEvent({
+        recommendationId: `${tracking.requestId}:${song.title}:${index}`,
+        requestId: tracking.requestId,
+        sessionId: tracking.sessionId,
+        trackKey: `${song.title}::${song.artist}`,
+        position: index,
+        surface: 'auralith',
+        modelVersion: tracking.modelVersion,
+        candidateSource: tracking.candidateSource,
+      })).catch(() => {})
+    })
+    return undefined
+  }, [songs, tracking])
 
-function TagList({ title, items, color = '#A78BFA' }) {
-  if (!items?.length) return null
+  if (!songs.length) return null
   return (
-    <div className="mt-5">
-      <p className="section-label mb-3" style={{ color }}>{title}</p>
-      <div className="flex flex-wrap gap-2">
-        {items.map((item) => (
-          <span
-            key={item}
-            className="px-3 py-1.5 rounded-full text-xs border"
-            style={{ borderColor: `${color}33`, color, background: `${color}14` }}
-          >
-            {item}
-          </span>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function MetricGrid({ metrics }) {
-  if (!metrics) return null
-  return (
-    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
-      {Object.entries(metrics).map(([key, value]) => (
-        <div key={key} className="rounded-[22px] p-4 bg-white/[0.03] border border-white/6">
-          <p className="section-label mb-2">{key.replaceAll('_', ' ')}</p>
-          <p className="text-sm text-white font-medium">{value}</p>
+    <div className="grid gap-3 xl:grid-cols-2">
+      {songs.map((song, index) => (
+        <div key={`${song.title}-${song.artist}-${index}`} className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+          <p className="text-sm font-semibold text-white">{song.title}</p>
+          <p className="mt-1 text-xs text-slate-500">{song.artist}</p>
+          <p className="mt-3 text-sm text-slate-300">{song.reason || song.explanation || 'Chosen for the emotional contour of this moment.'}</p>
         </div>
       ))}
     </div>
   )
 }
 
-function LoadingPanel() {
-  return (
-    <section className="glass-card rounded-[32px] p-6 min-h-[560px] overflow-hidden relative">
-      <div
-        className="absolute inset-0 pointer-events-none"
-        style={{ background: 'radial-gradient(circle at top right, rgba(124,111,255,0.1), transparent 38%)' }}
-      />
-      <div className="relative z-10 space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-2xl flex items-center justify-center animate-glow-pulse" style={{ background: 'rgba(124,111,255,0.16)' }}>
-            <Disc3 className="w-5 h-5 text-brand-purple animate-spin" style={{ animationDuration: '5s' }} />
-          </div>
-          <div>
-            <p className="text-white font-semibold">Auralith is listening</p>
-            <p className="text-sm text-slate-500">Holding the prompt, your profile, and the emotional pacing between them.</p>
-          </div>
-        </div>
-        <div className="skeleton h-7 w-2/5" />
-        <div className="skeleton h-4 w-4/5" />
-        <div className="skeleton h-4 w-3/5" />
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-          <div className="skeleton h-24" />
-        </div>
-        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 pt-3">
-          {Array.from({ length: 4 }).map((_, index) => <div key={index} className="skeleton h-36" />)}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function EmptyPanel({ module, profilePayload }) {
-  return (
-    <section className="glass-card rounded-[32px] p-6 min-h-[560px] flex flex-col justify-center">
-      <p className="section-label mb-3">Melody Map Intelligence</p>
-      <h3 className="text-3xl font-black text-white mb-3">
-        {module.id === 'playlist' ? 'Auralith is ready to score a listening moment.' : `${module.label} is ready to open.`}
-      </h3>
-      <p className="text-sm text-slate-400 max-w-2xl leading-relaxed">
-        {profilePayload
-          ? 'Your Melody Map profile is present, so the response can bend toward your real habits instead of staying at surface level.'
-          : 'Auralith can begin from the prompt alone and fold in Melody Map context the moment your listening profile becomes available.'}
-      </p>
-      <div className="mt-6 rounded-[24px] border border-white/6 bg-white/[0.03] p-4">
-        <p className="section-label mb-3" style={{ color: '#FBBF24' }}>Try this next</p>
-        <div className="flex flex-wrap gap-2">
-          {module.examples.map((example) => (
-            <span key={example} className="px-3 py-1.5 rounded-full text-xs border border-white/8 bg-white/[0.03] text-slate-300">
-              {example}
-            </span>
-          ))}
-        </div>
-      </div>
-    </section>
-  )
-}
-
-function ErrorPanel({ error, onRetry }) {
-  return (
-    <section className="glass-card rounded-[32px] p-6 min-h-[560px] flex flex-col justify-center">
-      <p className="section-label mb-3 text-brand-pink">Auralith paused</p>
-      <h3 className="text-2xl font-black text-white mb-3">something slipped through the static</h3>
-      <p className="text-sm text-slate-400 max-w-xl">{error}</p>
-      <div className="mt-5">
-        <button
-          type="button"
-          onClick={onRetry}
-          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-2xl border border-white/10 bg-white/[0.04] text-sm text-white hover:bg-white/[0.08] transition-all"
-        >
-          <RotateCcw className="w-4 h-4" />
-          Try again
-        </button>
-      </div>
-    </section>
-  )
-}
-
-function ResultPanel({ module, result, loading, error, onRetry, profilePayload }) {
-  if (loading) return <LoadingPanel />
-  if (error) return <ErrorPanel error={error} onRetry={onRetry} />
-  if (!result) return <EmptyPanel module={module} profilePayload={profilePayload} />
-
-  const title = result.playlist_title || result.taste_profile || result.core_feeling || result.overall_assessment || result.interpretation
-  const summary = result.vibe_summary || result.emotional_signature || result.why_it_works || result.flow_analysis || result.emotional_arc
-  const songs = result.songs || []
-
-  return (
-    <section className="glass-card rounded-[32px] p-6 lg:p-7">
-      <div className="flex items-start justify-between gap-4">
-        <div className="max-w-3xl">
-          <p className="section-label mb-2" style={{ color: '#00D1FF' }}>
-            {result.mood || result.core_feeling || result.emotional_signature || 'Auralith Output'}
-          </p>
-          <h3 className="text-3xl lg:text-[2rem] font-black text-white leading-tight">{title}</h3>
-          <p className="text-sm text-slate-400 mt-3 leading-relaxed">{summary}</p>
-        </div>
-        <span className="pill">{result.used_model}</span>
-      </div>
-
-      <MetricGrid metrics={result.sonic_profile || result.sonic_preferences || result.sonic_breakdown} />
-
-      {result.why_this_fits_your_taste ? (
-        <div className="mt-5 p-4 rounded-[24px] border border-white/6 bg-white/[0.04]">
-          <p className="section-label mb-2" style={{ color: '#FBBF24' }}>Why it feels true</p>
-          <p className="text-sm text-slate-300 leading-relaxed">{result.why_this_fits_your_taste}</p>
-        </div>
-      ) : null}
-
-      {result.listener_alignment ? (
-        <div className="mt-5 p-4 rounded-[24px] border border-white/6 bg-white/[0.03]">
-          <p className="section-label mb-2" style={{ color: '#A78BFA' }}>Where it meets you</p>
-          <p className="text-sm text-slate-400 leading-relaxed">{result.listener_alignment}</p>
-        </div>
-      ) : null}
-
-      <TagList title="Dominant Traits" items={result.dominant_traits} />
-      <TagList title="Hidden Patterns" items={result.hidden_patterns} color="#00D1FF" />
-      <TagList title="Exploration Suggestions" items={result.exploration_suggestions} color="#FBBF24" />
-      <TagList title="Strengths" items={result.strengths} color="#34D399" />
-      <TagList title="Issues" items={result.issues} color="#FF5DA2" />
-      <TagList title="Improvements" items={result.improvements} color="#FBBF24" />
-      <TagList title="Similar Vibe" items={result.similar_vibe} color="#A78BFA" />
-
-      {(result.narrative || result.emotional_effect || result.closing_note || result.recommendation_direction) ? (
-        <div className="mt-5 p-4 rounded-[24px] border border-white/6 bg-white/[0.03]">
-          <p className="section-label mb-2" style={{ color: '#FBBF24' }}>
-            {module.id === 'taste' ? 'Where to go next' : 'Narrative'}
-          </p>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            {result.narrative || result.emotional_effect || result.closing_note || result.recommendation_direction}
-          </p>
-        </div>
-      ) : null}
-
-      {songs.length ? (
-        <div className="mt-6">
-          <div className="flex items-center justify-between mb-4">
-            <p className="section-label">{module.id === 'playlist' ? 'Curated sequence' : 'Sequence'}</p>
-            <span className="text-xs text-slate-500">{songs.length} tracks in focus</span>
-          </div>
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-            {songs.map((song, index) => (
-              <SongCard key={`${song.title}-${song.artist}-${index}`} song={song} index={index} />
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {module.id === 'critic' && result.replacement_suggestions?.length ? (
-        <div className="mt-6">
-          <p className="section-label mb-4">Replacement Suggestions</p>
-          <div className="grid gap-3">
-            {result.replacement_suggestions.map((item, index) => (
-              <div key={`${item.remove}-${index}`} className="rounded-[24px] p-4 bg-white/[0.03] border border-white/6">
-                <div className="flex items-center gap-2 text-sm text-white font-medium">
-                  <span>{item.remove}</span>
-                  <ArrowRight className="w-4 h-4 text-slate-500" />
-                  <span className="text-brand-purple">{item.replace_with}</span>
-                </div>
-                <p className="text-sm text-slate-400 mt-3">{item.reason}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      ) : null}
-
-      {!profilePayload ? (
-        <div className="mt-6 rounded-[24px] border border-white/6 bg-white/[0.03] p-4">
-          <p className="section-label mb-2" style={{ color: '#00D1FF' }}>Prompt-led reading</p>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            Melody Map listening data is limited right now, so Auralith leaned more heavily on your words than on the deeper profile signal.
-          </p>
-        </div>
-      ) : null}
-    </section>
-  )
-}
-
 export default function Auralith() {
-  const [searchParams] = useSearchParams()
   const { profile, phase } = useMusicProfile()
-  const { data: playlistsData } = usePlaylists()
-  const activeProfile = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || 'your listening world')
-  const profilePayload = useMemo(() => normalizeProfile(profile, playlistsData), [profile, playlistsData])
-  const [activeModuleId, setActiveModuleId] = useState(MODULES[0].id)
-  const [inputs, setInputs] = useState({
-    playlist: 'dreamy shoegaze winter night',
-    taste: 'Frank Ocean\nBeach House\nRadiohead',
-    explainer: 'Nights - Frank Ocean',
-    critic: 'Space Song - Beach House\nK. - Cigarettes After Sex\nTeardrop - Massive Attack',
-    concept: 'what 3am feels like after heartbreak',
-  })
-  const [result, setResult] = useState(null)
-  const [loading, setLoading] = useState(false)
+  const sessionId = useStore((state) => state.sessionId)
+  const profilePayload = useMemo(() => normalizeProfile(profile), [profile])
+  const { signal: liveSignal } = useLiveTasteSignal({ enabled: Boolean(profilePayload), pollMs: 12000 })
+  const [activeModule, setActiveModule] = useState(MODULES[0])
+  const [moduleInput, setModuleInput] = useState(MODULES[0].prompt)
+  const [moduleResult, setModuleResult] = useState(null)
+  const [oraclePrompt, setOraclePrompt] = useState('Why do I keep returning to melancholic songs?')
+  const [oracleResult, setOracleResult] = useState(null)
+  const [loadingModule, setLoadingModule] = useState(false)
+  const [loadingOracle, setLoadingOracle] = useState(false)
   const [error, setError] = useState('')
+  const [threadId] = useState(() => `auralith-${Date.now().toString(36)}`)
 
   if (phase === 'loading' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="loading"
-        title="Auralith is gathering your signal."
-        subtitle="We are tuning into your listening history before the interpreter settles."
-        detail="Hold steady."
-      />
-    )
+    return <ProfileBootPanel variant="loading" title="Auralith is tuning in." subtitle="The oracle is gathering your listening signal." detail="Hold steady." />
   }
-
   if (phase === 'empty') {
-    return (
-      <ProfileBootPanel
-        variant="empty"
-        title="Connect a music source to awaken Auralith."
-        subtitle="The interpreter needs a listening signal to speak with precision."
-        detail="No signal is present yet."
-      />
-    )
+    return <ProfileBootPanel variant="empty" title="Connect a music source to wake Auralith." subtitle="The oracle needs a listening history to read." detail="No signal is present yet." />
   }
-
   if (phase === 'error' && !profile) {
-    return (
-      <ProfileBootPanel
-        variant="error"
-        title="Auralith could not reach your signal."
-        subtitle="The listening data is unavailable right now."
-        detail="Refresh once and the interpreter should return."
-        actionLabel="Reload Auralith"
-        onAction={() => window.location.reload()}
-      />
-    )
+    return <ProfileBootPanel variant="error" title="Auralith could not reach your signal." subtitle="The music memory layer is unavailable right now." detail="Refresh once and the oracle should return." onAction={() => window.location.reload()} actionLabel="Reload Auralith" />
   }
 
-  useEffect(() => {
-    const requestedModule = searchParams.get('mode')
-    const requestedPrompt = searchParams.get('prompt')
-    const normalizedModule = requestedModule && MODULES.some((module) => module.id === requestedModule)
-      ? requestedModule
-      : activeModuleId
-
-    if (requestedModule && MODULES.some((module) => module.id === requestedModule) && requestedModule !== activeModuleId) {
-      setActiveModuleId(requestedModule)
-    }
-    if (requestedPrompt && inputs[normalizedModule] !== requestedPrompt) {
-      setInputs((current) => ({
-        ...current,
-        [normalizedModule]: requestedPrompt,
-      }))
-    }
-  }, [activeModuleId, inputs, searchParams])
-
-  const activeModule = MODULES.find((module) => module.id === activeModuleId) || MODULES[0]
-  const ActiveIcon = activeModule.icon
+  const tracking = {
+    requestId: moduleResult?.requestId || moduleResult?.thread_id || null,
+    sessionId,
+    modelVersion: moduleResult?.modelVersion || moduleResult?.used_model || 'auralith-rag-v2',
+    candidateSource: 'auralith',
+  }
 
   const runModule = async () => {
-    const value = inputs[activeModule.id]?.trim()
-    if (!value) {
-      setError('Give Auralith a scene, sequence, or listening clue to work with.')
-      setResult(null)
-      return
-    }
-
-    setLoading(true)
+    setLoadingModule(true)
     setError('')
     try {
-      const payload = activeModule.buildPayload(value, profilePayload)
-      const data = await auralithAPI[activeModule.endpoint](payload)
-      setResult(data.data)
+      const response = await auralithAPI.agentTurn({
+        prompt: moduleInput,
+        profile: profilePayload,
+        mode: activeModule.mode,
+        thread_id: threadId,
+        limit: 8,
+      })
+      setModuleResult(response.data)
     } catch (submissionError) {
-      setError(submissionError.response?.data?.error || submissionError.message)
-      setResult(null)
+      setError(submissionError?.normalized?.message || submissionError.message || 'Auralith slipped through the static.')
     } finally {
-      setLoading(false)
+      setLoadingModule(false)
+    }
+  }
+
+  const runOracle = async () => {
+    setLoadingOracle(true)
+    setError('')
+    try {
+      const response = await auralithAPI.rag({
+        prompt: oraclePrompt,
+        profile: profilePayload,
+        limit: 6,
+      })
+      setOracleResult(response.data)
+    } catch (submissionError) {
+      setError(submissionError?.normalized?.message || submissionError.message || 'The oracle could not read your stored memories.')
+    } finally {
+      setLoadingOracle(false)
     }
   }
 
   return (
     <div className="cosmic-page space-y-6">
-      <motion.section
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        className="rounded-[32px] overflow-hidden relative noire-panel"
-        style={{
-          background: 'linear-gradient(135deg, rgba(143,117,255,0.12), rgba(242,141,223,0.06) 45%, rgba(159,208,255,0.05) 100%)',
-        }}
-      >
-        <div
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background: 'radial-gradient(ellipse at 80% 20%, rgba(255,93,162,0.12), transparent 35%), radial-gradient(ellipse at 12% 88%, rgba(0,209,255,0.06), transparent 38%)',
-          }}
-        />
-        <div className="relative z-10 p-6 lg:p-8">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-6">
-            <div className="max-w-3xl">
-              <p className="section-label mb-3" style={{ color: '#FBBF24' }}>Melody Map Intelligence</p>
-              <h1 className="text-4xl lg:text-5xl font-black text-white leading-[0.95]">
-                Auralith reads the emotional meaning inside <span className="text-gradient-aurora">{activeProfile}</span>.
-              </h1>
-              <p className="text-slate-400 text-sm lg:text-base mt-4 max-w-2xl leading-relaxed">
-                Built into Melody Map as its quiet interpreter: prompt-aware, profile-aware, and shaped to turn musical context into responses that still feel human.
+      <section className="noire-panel relative overflow-hidden rounded-[36px] p-6 lg:p-8">
+        <AtmosphereBackground variant="oracle" intensity="rich" anchored />
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="premium-kicker mb-3 text-amber-300">Music Memory Oracle</p>
+            <h1 className="premium-hero-title max-w-4xl">
+              Auralith reads the meaning inside your listening history.
+            </h1>
+            <p className="premium-body mt-4 max-w-2xl">
+              Calm, intelligent, and slightly mystical. Ask why certain feelings recur, how your taste has shifted, and what your history suggests for this exact moment.
+            </p>
+            <ShimmerDivider className="my-5 max-w-xl" />
+            <p className="text-sm leading-relaxed text-slate-300 max-w-2xl">
+              The response is grounded in stored listening memories, genre gravity, active sessions, and identity snapshots, so the oracle feels reflective rather than generic.
+            </p>
+          </div>
+          <div className="grid w-full gap-3 sm:grid-cols-2 lg:w-[420px]">
+            <AuraCard className="p-4" accent="cyan">
+              <p className="section-label mb-2">Live signal</p>
+              <p className="text-sm font-semibold text-white">
+                {liveSignal?.activeTracks?.[0] || 'Quiet session'}
               </p>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full lg:w-[420px]">
-              <HeroMeter label="Active mode" value={activeModule.label} color="#c4b5fd" />
-              <HeroMeter label="Tone" value="soft / cinematic" color="#f9a8d4" />
-              <HeroMeter label="Context" value={profilePayload ? 'Profile-held' : 'Prompt-first'} color="#67e8f9" />
-            </div>
+            </AuraCard>
+            <AuraCard className="p-4" accent="lavender">
+              <p className="section-label mb-2">Indexed memory</p>
+              <p className="text-sm font-semibold text-white">{liveSignal?.eventCount || 0} recent listening events</p>
+            </AuraCard>
           </div>
         </div>
-      </motion.section>
+      </section>
+
+      <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
+        <AuraCard className="p-6" accent="cyan">
+          <div className="flex items-center gap-3">
+            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-3">
+              <Brain className="h-5 w-5 text-cyan-100" />
+            </div>
+            <div>
+              <p className="section-label">Ask the oracle</p>
+              <p className="text-sm text-slate-400">Examples: Why do I keep returning to melancholic songs? How has my taste changed recently?</p>
+            </div>
+          </div>
+          <textarea
+            value={oraclePrompt}
+            onChange={(event) => setOraclePrompt(event.target.value)}
+            rows={5}
+            className="mt-5 w-full rounded-[24px] border border-white/8 bg-white/[0.03] p-4 text-white outline-none"
+          />
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              'Why do I keep returning to melancholic songs?',
+              'How has my taste changed recently?',
+              'What artists define my emotional pattern?',
+              'What should I listen to tonight based on my history?',
+            ].map((example) => (
+              <button key={example} type="button" onClick={() => setOraclePrompt(example)} className="touch-target rounded-full border border-white/8 px-3 py-1.5 text-left text-xs text-slate-300">
+                {example}
+              </button>
+            ))}
+          </div>
+          <HaloButton type="button" onClick={runOracle} variant="cyan" icon={loadingOracle ? Loader2 : Sparkles} className="mt-5 w-full justify-center px-5 py-3 text-sm normal-case tracking-[0.08em] sm:w-auto">
+            Ask Auralith
+          </HaloButton>
+        </AuraCard>
+
+        <AnimatePresence mode="wait">
+          <motion.div key={Boolean(oracleResult)} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }}>
+            {loadingOracle ? (
+              <NebulaLoader label="Searching your listening memories" detail="The oracle is surfacing fragments, emotional patterns, and the strongest nearby echoes." />
+            ) : error && !moduleResult ? (
+              <AuraCard className="p-6 text-sm text-rose-300" accent="rose">{error}</AuraCard>
+            ) : (
+              <OracleResult result={oracleResult} />
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </section>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        <Link
-          to="/discover"
-          className="rounded-[24px] p-4 glass-hover"
-          style={{ background: 'rgba(0,209,255,0.08)', border: '1px solid rgba(0,209,255,0.16)' }}
-        >
-          <p className="section-label mb-2" style={{ color: '#00D1FF' }}>Need a fresh signal?</p>
-          <p className="text-sm font-semibold text-white">Drift through Discover first</p>
-          <p className="mt-1 text-xs text-slate-500">Let a few new sequences arrive before you ask for a deeper reading.</p>
+        <Link to="/discover" className="aura-card aura-interactive rounded-[24px] border border-white/8 p-4">
+          <p className="section-label mb-2">Signal stream</p>
+          <p className="text-sm font-semibold text-white">Drift into Discover first</p>
+          <p className="mt-1 text-xs text-slate-500">Let a few new songs land before you ask Auralith what changed.</p>
         </Link>
-        <Link
-          to="/galaxy?mode=artist"
-          className="rounded-[24px] p-4 glass-hover"
-          style={{ background: 'rgba(124,111,255,0.08)', border: '1px solid rgba(124,111,255,0.16)' }}
-        >
-          <p className="section-label mb-2">Coming from the galaxy</p>
-          <p className="text-sm font-semibold text-white">Bring a star back with you</p>
-          <p className="mt-1 text-xs text-slate-500">Touch a region or artist in the field, then return here and let Auralith translate it.</p>
+        <Link to="/identity-drift" className="aura-card aura-interactive rounded-[24px] border border-white/8 p-4">
+          <p className="section-label mb-2">Identity drift</p>
+          <p className="text-sm font-semibold text-white">See the long arc of your taste</p>
+          <p className="mt-1 text-xs text-slate-500">Move from one oracle answer into your broader timeline.</p>
         </Link>
-        <Link
-          to="/identity"
-          className="rounded-[24px] p-4 glass-hover"
-          style={{ background: 'rgba(242,141,223,0.08)', border: '1px solid rgba(242,141,223,0.16)' }}
-        >
-          <p className="section-label mb-2" style={{ color: '#F28DDF' }}>Inner reading</p>
-          <p className="text-sm font-semibold text-white">Hold your music self nearby</p>
-          <p className="mt-1 text-xs text-slate-500">The stronger your identity reading becomes, the more nuanced these responses can feel.</p>
+        <Link to="/galaxy?mode=artist" className="aura-card aura-interactive rounded-[24px] border border-white/8 p-4">
+          <p className="section-label mb-2">Galaxy mode</p>
+          <p className="text-sm font-semibold text-white">Carry a star back into language</p>
+          <p className="mt-1 text-xs text-slate-500">Touch the field, then return here and ask what it means.</p>
         </Link>
       </section>
 
-      <div className="grid grid-cols-1 xl:grid-cols-[300px_minmax(0,1fr)] gap-6">
-        <aside className="glass-card rounded-[32px] p-4 h-fit">
+      <section className="grid gap-6 xl:grid-cols-[300px_minmax(0,1fr)]">
+        <AuraCard className="p-4" accent="lavender">
           <p className="section-label mb-4">Ways of listening</p>
           <div className="space-y-2">
             {MODULES.map((module) => {
@@ -625,97 +272,70 @@ export default function Auralith() {
                   key={module.id}
                   type="button"
                   onClick={() => {
-                    setActiveModuleId(module.id)
-                    setResult(null)
-                    setError('')
+                    setActiveModule(module)
+                    setModuleInput(module.prompt)
+                    setModuleResult(null)
                   }}
-                  className={`w-full text-left rounded-[24px] p-4 transition-all ${isActive ? 'nav-item active' : 'nav-item'}`}
+                  className={`w-full rounded-[24px] p-4 text-left transition-all ${isActive ? 'nav-item active' : 'nav-item'}`}
                 >
                   <div className="flex items-start gap-3">
-                    <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                      style={isActive
-                        ? { background: 'rgba(124,111,255,0.18)', boxShadow: '0 0 14px rgba(124,111,255,0.18)' }
-                        : { background: 'rgba(255,255,255,0.04)' }}
-                    >
-                      <Icon className="w-4 h-4" style={isActive ? { color: '#a78bfa' } : {}} />
+                    <div className="rounded-xl bg-white/[0.05] p-2">
+                      <Icon className="h-4 w-4 text-white" />
                     </div>
                     <div>
-                      <p className="section-label mb-1" style={{ color: isActive ? '#FBBF24' : undefined }}>{module.eyebrow}</p>
                       <p className="text-sm font-semibold text-white">{module.label}</p>
-                      <p className="text-xs text-slate-500 mt-1 leading-relaxed">{module.description}</p>
+                      <p className="mt-1 text-xs text-slate-500">Prompt-aware and grounded in your listening signal.</p>
                     </div>
                   </div>
                 </button>
               )
             })}
           </div>
-
-          <div className="mt-5 space-y-3">
-            <ContextBanner profilePayload={profilePayload} playlistCount={profilePayload?.savedPlaylists?.length || 0} />
-
-            <div className="rounded-[24px] p-4 border border-white/6 bg-white/[0.03]">
-              <div className="flex items-start gap-3">
-                <Waves className="w-4 h-4 text-brand-blue mt-0.5 shrink-0" />
-                <div>
-              <p className="text-sm font-medium text-white">Response shape</p>
-                  <p className="text-xs text-slate-500 leading-relaxed mt-2">
-                Every module returns something shaped for reading, so the intelligence feels like part of the product rather than a pasted transcript.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        </aside>
+        </AuraCard>
 
         <div className="space-y-6">
-          <div className="flex items-center gap-3 px-1">
-            <div
-              className="w-11 h-11 rounded-2xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, rgba(124,111,255,0.2), rgba(255,93,162,0.14))' }}
-            >
-              <ActiveIcon className="w-5 h-5 text-white" />
+          <AuraCard className="p-6" accent="lavender">
+            <div className="flex items-center gap-3">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
+                <Radio className="h-5 w-5 text-purple-200" />
+              </div>
+              <div>
+                <p className="section-label">Current module</p>
+                <p className="text-sm text-slate-400">{activeModule.label}</p>
+              </div>
             </div>
-            <div>
-              <p className="section-label">Now listening</p>
-              <p className="text-white font-semibold">{activeModule.eyebrow}</p>
-            </div>
-            {activeModule.id === 'playlist' ? (
-              <span className="pill ml-auto">
-                <Radio className="w-3 h-3 mr-1" />
-                Flagship experience
-              </span>
-            ) : null}
-          </div>
+            <textarea
+              value={moduleInput}
+              onChange={(event) => setModuleInput(event.target.value)}
+              rows={6}
+              className="mt-5 w-full rounded-[24px] border border-white/8 bg-white/[0.03] p-4 text-white outline-none"
+            />
+            <HaloButton type="button" onClick={runModule} variant="primary" icon={loadingModule ? Loader2 : Wand2} className="mt-5 w-full justify-center px-5 py-3 text-sm normal-case tracking-[0.08em] sm:w-auto">
+              Send into Auralith
+            </HaloButton>
+          </AuraCard>
 
-          <Composer
-            module={activeModule}
-            value={inputs[activeModule.id]}
-            onChange={(value) => setInputs((current) => ({ ...current, [activeModule.id]: value }))}
-            onExample={(value) => setInputs((current) => ({ ...current, [activeModule.id]: value }))}
-            onSubmit={runModule}
-            loading={loading}
-          />
-
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={`${activeModule.id}-${Boolean(result)}-${loading}-${Boolean(error)}`}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-            >
-              <ResultPanel
-                module={activeModule}
-                result={result}
-                loading={loading}
-                error={error}
-                onRetry={runModule}
-                profilePayload={profilePayload}
-              />
-            </motion.div>
-          </AnimatePresence>
+          {moduleResult ? (
+            <AuraCard className="p-6" accent="rose">
+              <p className="section-label mb-2 text-amber-300">{moduleResult.mood || moduleResult.core_feeling || 'Auralith output'}</p>
+              <h2 className="text-3xl font-black text-white">{moduleResult.playlist_title || moduleResult.taste_profile || moduleResult.core_feeling || moduleResult.interpretation || 'Auralith answer'}</h2>
+              <p className="mt-3 text-sm text-slate-400">{moduleResult.vibe_summary || moduleResult.emotional_signature || moduleResult.why_it_works || moduleResult.overall_assessment || moduleResult.narrative}</p>
+              {moduleResult.agent_trace?.steps?.length ? (
+                <div className="mt-5 flex flex-wrap gap-2">
+                  {moduleResult.agent_trace.steps.map((step) => (
+                    <span key={step.id} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100">
+                      {step.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
+              <div className="mt-6">
+                <SongSequence songs={moduleResult.songs || []} tracking={tracking} />
+              </div>
+            </AuraCard>
+          ) : null}
         </div>
-      </div>
+      </section>
     </div>
   )
 }

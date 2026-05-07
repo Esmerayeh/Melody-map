@@ -4,8 +4,11 @@ import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { AnimatePresence, motion } from 'framer-motion'
 import useSoulOrbController from '../features/orb/useSoulOrbController'
+import useLiveTasteSignal from '../hooks/useLiveTasteSignal'
+import useAdaptiveExperience from '../hooks/useAdaptiveExperience'
 import '../features/orb/SoulOrbShaderMaterial'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../features/motion/motionTokens'
+import SoulTooltip from './premium/SoulTooltip'
 
 function OrbConnectionThreads({ color, opacity, count = 1 }) {
   const paths = useMemo(() => (
@@ -391,40 +394,48 @@ export default function MusicSoulOrb(props) {
   const [expanded, setExpanded] = useState(false)
   const {
     resonance = null,
+    liveSignal: liveSignalProp = null,
     size = 180,
     showLabels = true,
     lowPower = false,
   } = props
+  const adaptive = useAdaptiveExperience()
+  const effectiveLowPower = lowPower || adaptive.lowPowerMode
+  const allowHoverFx = !adaptive.isCoarsePointer && !adaptive.prefersReducedMotion
 
-  const presentation = useSoulOrbController({ ...props, resonance })
+  const { signal: polledSignal } = useLiveTasteSignal({ enabled: !liveSignalProp && !effectiveLowPower && showLabels, pollMs: 15000 })
+  const presentation = useSoulOrbController({ ...props, resonance, liveSignal: liveSignalProp || polledSignal })
 
   return (
     <motion.div
-      initial={{ opacity: 0, scale: 0.84 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={MOTION_TOKENS.focusSettle}
-      className="flex flex-col items-center gap-3"
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <motion.div
-        animate={{
-          y: [0, -MOTION_FLOAT.hero.amplitude * 0.18, 0],
-          rotateX: [0.2, 1.2, 0.2],
-          rotateY: [-0.4, 1.6, -0.4],
-        }}
-        transition={MOTION_TOKENS.heroFloat}
+        initial={{ opacity: 0, scale: 0.84 }}
+        animate={{ opacity: 1, scale: 1 }}
+        transition={MOTION_TOKENS.focusSettle}
+        className="flex flex-col items-center gap-3"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onFocus={() => setHovered(true)}
+        onBlur={() => setHovered(false)}
       >
-        <motion.button
-          type="button"
-          whileHover={{ scale: 1.018, y: -MOTION_FLOAT.ui.amplitude, rotateX: 1.8, rotateY: -1.2 }}
-          whileTap={{ scale: 0.985 }}
-          transition={MOTION_TOKENS.hoverNotice}
-          onClick={() => setExpanded((value) => !value)}
-          className="dimensional-surface relative overflow-visible rounded-full transition-[filter] duration-300"
-          style={{ width: size, height: size }}
+        <motion.div
+          animate={adaptive.prefersReducedMotion ? { y: 0, rotateX: 0, rotateY: 0 } : {
+            y: [0, -MOTION_FLOAT.hero.amplitude * 0.18, 0],
+            rotateX: [0.2, 1.2, 0.2],
+            rotateY: [-0.4, 1.6, -0.4],
+          }}
+          transition={MOTION_TOKENS.heroFloat}
         >
-          <OrbAura palette={presentation.palette} behavior={presentation.behavior} hovered={hovered} />
+          <motion.button
+            type="button"
+            whileHover={allowHoverFx ? { scale: 1.018, y: -MOTION_FLOAT.ui.amplitude, rotateX: 1.8, rotateY: -1.2 } : undefined}
+            whileTap={{ scale: 0.985 }}
+            transition={MOTION_TOKENS.hoverNotice}
+            onClick={() => setExpanded((value) => !value)}
+            className="dimensional-surface touch-target relative overflow-visible rounded-full transition-[filter] duration-300"
+            aria-expanded={expanded}
+            style={{ width: size, height: size }}
+          >
+            <OrbAura palette={presentation.palette} behavior={presentation.behavior} hovered={hovered} />
           <div
             className="pointer-events-none absolute inset-[6%] rounded-full"
             style={{
@@ -441,7 +452,7 @@ export default function MusicSoulOrb(props) {
               opacity: 0.62,
             }}
           />
-          <OrbCanvas presentation={presentation} hovered={hovered} lowPower={lowPower} />
+            <OrbCanvas presentation={presentation} hovered={hovered} lowPower={effectiveLowPower} />
         </motion.button>
       </motion.div>
 
@@ -485,7 +496,15 @@ export default function MusicSoulOrb(props) {
       )}
 
       <AnimatePresence>
-        {expanded && showLabels && <OrbDetailPanel presentation={presentation} />}
+        {expanded && showLabels && (
+          <SoulTooltip
+            title="Listening entity"
+            detail={presentation.caption.detail}
+            accent="lavender"
+          >
+            <OrbDetailPanel presentation={presentation} />
+          </SoulTooltip>
+        )}
       </AnimatePresence>
     </motion.div>
   )

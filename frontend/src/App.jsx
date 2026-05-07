@@ -6,11 +6,13 @@ import { AnimatePresence, motion } from 'framer-motion'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import BottomNav from './components/BottomNav'
-import PageLoader from './components/PageLoader'
 import useStore from './store/useStore'
 import useExperienceStore from './store/useExperienceStore'
 import useMusicProfile from './hooks/useMusicProfile'
+import useAuthStore from './store/useAuthStore'
+import AuthBootstrap from './app/AuthBootstrap'
 import { applyVibeTheme, resetVibeTheme } from './services/vibeTheme'
+import ShellSkeleton from './components/shell/ShellSkeleton'
 
 const MusicMap       = lazy(() => import('./pages/MusicMap'))
 const Discover       = lazy(() => import('./pages/Discover'))
@@ -25,18 +27,12 @@ const Dashboard      = lazy(() => import('./pages/Dashboard'))
 const Profile        = lazy(() => import('./pages/Profile'))
 const Auralith       = lazy(() => import('./pages/Auralith'))
 const MusicIdentity  = lazy(() => import('./pages/MusicIdentity'))
+const SocialSoulmates = lazy(() => import('./pages/SocialSoulmates'))
+const IdentityDrift = lazy(() => import('./pages/IdentityDrift'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
 })
-
-function safeStorageGet(key) {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
 
 // Spatial spring-physics page transitions -- suggest depth between layers
 const pageVariants = {
@@ -62,6 +58,45 @@ function PageWrapper({ children }) {
     >
       {children}
     </motion.div>
+  )
+}
+
+function ShellRouteFallback() {
+  return (
+    <AppShell>
+      <div className="cosmic-page space-y-6">
+        <div className="noire-panel rounded-[28px] p-6">
+          <p className="page-header-kicker mb-3">Loading the next layer</p>
+          <ShellSkeleton lines={4} />
+        </div>
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <div key={index} className="noire-info-card rounded-[24px] p-5">
+              <ShellSkeleton lines={3} compact />
+            </div>
+          ))}
+        </div>
+      </div>
+    </AppShell>
+  )
+}
+
+function StandaloneRouteFallback() {
+  return (
+    <div className="flex min-h-[100dvh] items-center justify-center px-6 app-shell-bg">
+      <div className="noire-panel max-w-lg rounded-[28px] p-8 w-full">
+        <p className="page-header-kicker mb-3">Continuing the handoff</p>
+        <ShellSkeleton lines={4} />
+      </div>
+    </div>
+  )
+}
+
+function RouteModule({ shell = false, children }) {
+  return (
+    <Suspense fallback={shell ? <ShellRouteFallback /> : <StandaloneRouteFallback />}>
+      {children}
+    </Suspense>
   )
 }
 
@@ -127,7 +162,7 @@ function GlobalRouteFallback() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-6 app-shell-bg">
+    <div className="flex min-h-[100dvh] items-center justify-center px-6 app-shell-bg">
       <div className="noire-panel max-w-lg rounded-[28px] p-8 text-center">
         <p className="page-header-kicker mb-2">Holding the thread</p>
         <h1 className="text-2xl font-semibold text-white">Melody Map hit a render fault.</h1>
@@ -147,8 +182,10 @@ function GlobalRouteFallback() {
 }
 
 const ProtectedRoute = ({ children }) => {
-  const isAuthenticated = useStore((s) => s.isAuthenticated)
-  return isAuthenticated ? children : <Navigate to="/login" replace />
+  const sessionToken = useAuthStore((s) => s.sessionToken)
+  const providers = useAuthStore((s) => s.providers)
+  const canAccessShell = Boolean(sessionToken || providers.spotify.connected || providers.lastfm.connected)
+  return canAccessShell ? children : <Navigate to="/login" replace />
 }
 
 function ProtectedShell({ children }) {
@@ -166,14 +203,14 @@ function ProtectedShell({ children }) {
 function AppShell({ children }) {
   const cinemaMode = useStore((s) => s.cinemaMode)
   if (cinemaMode) {
-    return <div className="h-screen overflow-hidden bg-surface">{children}</div>
+    return <div className="h-[100dvh] overflow-hidden bg-surface">{children}</div>
   }
   return (
-    <div className="flex h-screen overflow-hidden app-shell-bg">
+    <div className="flex h-[100dvh] min-h-[100dvh] overflow-hidden app-shell-bg">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden app-main-shell">
         <TopBar />
-        <main className="flex-1 overflow-y-auto pb-16 md:pb-0">
+        <main className="app-shell-scroll flex-1 overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
           {children}
         </main>
       </div>
@@ -186,6 +223,7 @@ function resolveActiveMode(pathname) {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/discover')) return 'discover'
   if (pathname.startsWith('/galaxy')) return 'galaxy'
+  if (pathname.startsWith('/soulmates')) return 'soulmate'
   if (pathname.startsWith('/soulmate')) return 'soulmate'
   if (pathname.startsWith('/aesthetic')) return 'aesthetic'
   if (pathname.startsWith('/auralith')) return 'auralith'
@@ -197,9 +235,11 @@ function resolveActiveMode(pathname) {
 
 function ExperienceBridge() {
   const location = useLocation()
-  const isAuthenticated = useStore((state) => state.isAuthenticated)
+  const sessionToken = useAuthStore((state) => state.sessionToken)
+  const providers = useAuthStore((state) => state.providers)
+  const bootPhase = useAuthStore((state) => state.bootPhase)
   const { profile, loading, error, confidence, dataQuality } = useMusicProfile({
-    autoFetch: isAuthenticated,
+    autoFetch: Boolean(sessionToken || providers.spotify.connected || providers.lastfm.connected),
   })
   const setActiveMode = useExperienceStore((state) => state.setActiveMode)
   const setRouteContext = useExperienceStore((state) => state.setRouteContext)
@@ -223,8 +263,8 @@ function ExperienceBridge() {
   }, [loading, location.pathname, setLoadingState])
 
   useEffect(() => {
-    const bootPhase = !isAuthenticated
-      ? 'idle'
+    const derivedBootPhase = !(sessionToken || providers.spotify.connected || providers.lastfm.connected)
+      ? bootPhase === 'booting' ? 'login_ready' : bootPhase
       : (loading && !profile)
         ? 'profileBootLoading'
         : (error && !profile)
@@ -256,11 +296,11 @@ function ExperienceBridge() {
       hasAudioProfile: Boolean(dataQuality?.hasAudioProfile),
       profileReady: Boolean(profile),
       tier,
-      bootPhase,
+      bootPhase: derivedBootPhase,
       bootMessage: error || '',
       error: error || null,
     })
-  }, [confidence, dataQuality, error, isAuthenticated, loading, profile, setDataConfidence])
+  }, [bootPhase, confidence, dataQuality, error, loading, profile, providers.lastfm.connected, providers.spotify.connected, sessionToken, setDataConfidence])
 
   return null
 }
@@ -274,40 +314,46 @@ function AnimatedRoutes() {
       <AnimatePresence mode="wait">
         <ExperienceBridge />
         <Routes location={location} key={location.pathname}>
-          <Route path="/login" element={<PageWrapper><Login /></PageWrapper>} />
-          <Route path="/spotify-success" element={<SpotifySuccess />} />
-          <Route path="/lastfm-success" element={<LastfmSuccess />} />
+          <Route path="/login" element={<RouteModule><PageWrapper><Login /></PageWrapper></RouteModule>} />
+          <Route path="/spotify-success" element={<RouteModule><SpotifySuccess /></RouteModule>} />
+          <Route path="/lastfm-success" element={<RouteModule><LastfmSuccess /></RouteModule>} />
 
           <Route path="/" element={
-            <ProtectedShell><PageWrapper><Dashboard /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><Dashboard /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/galaxy" element={
-            <ProtectedShell><PageWrapper><MusicMap /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><MusicMap /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/discover" element={
-            <ProtectedShell><PageWrapper><Discover /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><Discover /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/playlists" element={
-            <ProtectedShell><PageWrapper><Playlists /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><Playlists /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/analytics" element={
-            <ProtectedShell><PageWrapper><Analytics /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><Analytics /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/soulmate" element={
-            <ProtectedShell><PageWrapper><MusicSoulmate /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><MusicSoulmate /></PageWrapper></RouteModule></ProtectedShell>
           } />
-          <Route path="/soulmate/:identifier" element={<PageWrapper><MusicSoulmate /></PageWrapper>} />
+          <Route path="/soulmates" element={
+            <ProtectedShell><RouteModule shell><PageWrapper><SocialSoulmates /></PageWrapper></RouteModule></ProtectedShell>
+          } />
+          <Route path="/soulmate/:identifier" element={<RouteModule><PageWrapper><MusicSoulmate /></PageWrapper></RouteModule>} />
           <Route path="/aesthetic" element={
-            <ProtectedShell><PageWrapper><MusicAesthetic /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><MusicAesthetic /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/profile" element={
-            <ProtectedShell><PageWrapper><Profile /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><Profile /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/identity" element={
-            <ProtectedShell><PageWrapper><MusicIdentity /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><MusicIdentity /></PageWrapper></RouteModule></ProtectedShell>
+          } />
+          <Route path="/identity-drift" element={
+            <ProtectedShell><RouteModule shell><PageWrapper><IdentityDrift /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/auralith" element={
-            <ProtectedShell><PageWrapper><Auralith /></PageWrapper></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><Auralith /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
@@ -319,28 +365,6 @@ function AnimatedRoutes() {
 export default function App() {
   const aestheticState  = useStore((s) => s.aestheticState)
   const vibeFeatures    = useStore((s) => s.vibeFeatures)
-  const setSpotifyToken = useStore((s) => s.setSpotifyToken)
-  const setLastfm       = useStore((s) => s.setLastfm)
-  const logout          = useStore((s) => s.logout)
-
-  // Rehydrate auth state on mount -- handles page refresh
-  useEffect(() => {
-    const spotifyToken = safeStorageGet('spotify_token')
-    const spotifyExpiry = safeStorageGet('spotify_token_expiry')
-    const lastfmSession = safeStorageGet('lastfm_session')
-    const lastfmUser = safeStorageGet('lastfm_username')
-
-    if (spotifyToken) {
-      const expiryValue = Number.parseInt(spotifyExpiry || '', 10)
-      if (spotifyExpiry && Number.isFinite(expiryValue) && Date.now() > expiryValue) {
-        logout()
-      } else {
-        setSpotifyToken(spotifyToken, safeStorageGet('spotify_refresh_token'))
-      }
-    } else if (lastfmSession && lastfmUser) {
-      setLastfm(lastfmSession, lastfmUser)
-    }
-  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Apply generative vibe theme whenever audio features change
   useEffect(() => {
@@ -360,9 +384,8 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
-        <Suspense fallback={<PageLoader />}>
-          <AnimatedRoutes />
-        </Suspense>
+        <AuthBootstrap />
+        <AnimatedRoutes />
 
         <Toaster
           position="bottom-right"

@@ -13,6 +13,16 @@ function buildRequestId() {
   return `mm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 }
 
+function readCookie(name) {
+  if (typeof document === 'undefined') return null
+  const prefix = `${name}=`
+  const match = document.cookie
+    .split(';')
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(prefix))
+  return match ? decodeURIComponent(match.slice(prefix.length)) : null
+}
+
 function normalizeError(err) {
   const status = err?.response?.status || 0
   const data = err?.response?.data || {}
@@ -33,13 +43,25 @@ function normalizeError(err) {
 
 const api = axios.create({
   baseURL: `${BASE_URL}/api`,
-  headers: { 'Content-Type': 'application/json' }
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
+})
+
+const rootApi = axios.create({
+  baseURL: BASE_URL || '/',
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
 })
 
 async function attachRequestMetadata(config, client) {
   const nextConfig = { ...config }
   nextConfig.headers = nextConfig.headers || {}
   nextConfig.headers['X-Request-ID'] = nextConfig.headers['X-Request-ID'] || buildRequestId()
+  const method = (nextConfig.method || 'get').toLowerCase()
+  if (!['get', 'head', 'options'].includes(method)) {
+    const csrf = readCookie('mm_csrf')
+    if (csrf) nextConfig.headers['X-CSRF-Token'] = nextConfig.headers['X-CSRF-Token'] || csrf
+  }
   nextConfig._retryClient = client
   return nextConfig
 }
@@ -61,10 +83,8 @@ async function withRetry(err) {
   const normalized = normalizeError(err)
   err.normalized = normalized
 
-  const usesProviderToken = Boolean(config?.headers?.['X-Spotify-Token'] || config?.headers?.['X-Lastfm-Session'])
-  if (status === 401 && !config?.meta?.suppressAuthRedirect && !usesProviderToken) {
-    localStorage.removeItem('token')
-    localStorage.removeItem('userId')
+  if (status === 401 && !config?.meta?.suppressAuthRedirect) {
+    window.dispatchEvent(new CustomEvent('melodymap:session-expired', { detail: normalized }))
     if (window.location.pathname !== '/login') {
       window.location.href = '/login'
     }
@@ -74,8 +94,6 @@ async function withRetry(err) {
 }
 
 api.interceptors.request.use(async (config) => {
-  const token = localStorage.getItem('token')
-  if (token) config.headers.Authorization = `Bearer ${token}`
   return attachRequestMetadata(config, api)
 })
 
@@ -84,9 +102,27 @@ api.interceptors.response.use(
   withRetry
 )
 
+rootApi.interceptors.request.use(async (config) => {
+  return attachRequestMetadata(config, rootApi)
+})
+rootApi.interceptors.response.use(
+  (res) => res,
+  withRetry
+)
+
 export const authAPI = {
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
+  exchangeSpotify: (code) => rootApi.post('/auth/spotify/exchange', { code }),
+  exchangeLastfm: (code) => rootApi.post('/auth/lastfm/exchange', { code }),
+  refreshSpotify: () => rootApi.post('/auth/spotify/refresh', {}),
+  logout: () => api.post('/auth/logout', {}, { meta: { suppressAuthRedirect: true } }),
+  logoutSpotify: () => rootApi.post('/auth/spotify/logout', {}, { meta: { suppressAuthRedirect: true } }),
+  logoutLastfm: () => rootApi.post('/auth/lastfm/logout', {}, { meta: { suppressAuthRedirect: true } }),
+}
+
+export const sessionAPI = {
+  bootstrap: () => api.get('/session/bootstrap', { meta: { suppressAuthRedirect: true } }),
 }
 
 export const mapAPI = {
@@ -105,14 +141,14 @@ export const playlistAPI = {
 
 export const recommendAPI = {
   get: (userId) => api.get(`/recommendations/${userId}`),
+  getCandidates: (topK = 100) => api.get(`/recommendations/candidates?top_k=${topK}`),
+  getRanked: (topK = 100) => api.get(`/recommendations/ranked?top_k=${topK}`),
 }
 
-// Spotify API -- passes spotify_token via custom header
-const spotifyApi = axios.create({ baseURL: `${BASE_URL}/api` })
+// Spotify API -- provider cookies are attached automatically.
+const spotifyApi = axios.create({ baseURL: `${BASE_URL}/api`, withCredentials: true })
 spotifyApi.interceptors.request.use(async (config) => {
   config.meta = { ...(config.meta || {}), suppressAuthRedirect: true }
-  const token = localStorage.getItem('spotify_token')
-  if (token) config.headers['X-Spotify-Token'] = token
   return attachRequestMetadata(config, spotifyApi)
 })
 spotifyApi.interceptors.response.use((res) => res, withRetry)
@@ -129,14 +165,10 @@ export const spotifyAPI = {
   getRecommendations:  (params) => spotifyApi.get('/spotify/recommendations', { params }),
 }
 
-// Last.fm API -- passes session key + username via custom headers
-const lastfmApi = axios.create({ baseURL: `${BASE_URL}/api` })
+// Last.fm API -- provider cookies are attached automatically.
+const lastfmApi = axios.create({ baseURL: `${BASE_URL}/api`, withCredentials: true })
 lastfmApi.interceptors.request.use(async (config) => {
   config.meta = { ...(config.meta || {}), suppressAuthRedirect: true }
-  const session  = localStorage.getItem('lastfm_session')
-  const username = localStorage.getItem('lastfm_username')
-  if (session)  config.headers['X-Lastfm-Session']  = session
-  if (username) config.headers['X-Lastfm-User']     = username
   return attachRequestMetadata(config, lastfmApi)
 })
 lastfmApi.interceptors.response.use((res) => res, withRetry)
@@ -156,6 +188,10 @@ export const soulmateAPI = {
   getMatches:  ()        => api.get('/soulmate/matches', { meta: { suppressAuthRedirect: true } }),
   compare:     (uid_b)   => api.get(`/soulmate/compare/${uid_b}`, { meta: { suppressAuthRedirect: true } }),
   comparePublic: (slug)  => api.get(`/soulmate/compare-public/${encodeURIComponent(slug)}`, { meta: { suppressAuthRedirect: true } }),
+  updatePrivacy: (data)  => api.post('/soulmate/privacy', data, { meta: { suppressAuthRedirect: true } }),
+  getNetwork: ()         => api.get('/soulmate/network', { meta: { suppressAuthRedirect: true } }),
+  createCoCurate: (data) => api.post('/soulmate/co-curate', data, { meta: { suppressAuthRedirect: true } }),
+  listCoCurate: ()       => api.get('/soulmate/co-curate', { meta: { suppressAuthRedirect: true } }),
 }
 
 export const aestheticAPI = {
@@ -179,6 +215,44 @@ export const auralithAPI = {
   explainSong: (data) => api.post('/auralith/explain-song', data),
   critiquePlaylist: (data) => api.post('/auralith/critique-playlist', data),
   conceptPlaylist: (data) => api.post('/auralith/concept-playlist', data),
+  agentTurn: (data) => api.post('/auralith/agent-turn', data),
+  rag: (data) => api.post('/auralith/rag', data),
+  threads: (limit = 8) => api.get(`/auralith/threads?limit=${limit}`),
+}
+
+export const eventsAPI = {
+  ingestListening: (data) => api.post('/events/listening', data, { headers: { 'Idempotency-Key': buildRequestId() } }),
+  getRecentListening: (limit = 12) => api.get(`/events/listening?limit=${limit}`),
+  getLiveSignal: (limit = 20) => api.get(`/events/live-signal?limit=${limit}`),
+  trainEmbeddings: () => api.post('/ml/train-embeddings'),
+}
+
+export const recommendationEventsAPI = {
+  impression: (data) => api.post('/recommendations/impression', data),
+  click: (data) => api.post('/recommendations/click', data),
+  save: (data) => api.post('/recommendations/save', data),
+  skip: (data) => api.post('/recommendations/skip', data),
+  replay: (data) => api.post('/recommendations/replay', data),
+  dwell: (data) => api.post('/recommendations/dwell', data),
+  abandon: (data) => api.post('/recommendations/abandon', data),
+}
+
+export const socialAPI = {
+  getPublicProfile: (userId) => api.get(`/social/public-profile/${encodeURIComponent(userId)}`),
+  updatePublicProfile: (data) => api.post('/social/public-profile', data),
+  searchSoulmates: (data) => api.post('/social/soulmate/search', data),
+  compareSoulmate: (data) => api.post('/social/soulmate/compare', data),
+  listRequests: (status = '') => api.get(`/social/soulmate/requests${status ? `?status=${encodeURIComponent(status)}` : ''}`),
+  requestSoulmate: (data) => api.post('/social/soulmate/request', data),
+  acceptSoulmate: (data) => api.post('/social/soulmate/accept', data),
+}
+
+export const identityAPI = {
+  getDrift: (range = 'all') => api.get(`/identity/drift?range=${encodeURIComponent(range)}`),
+}
+
+export const shareAPI = {
+  identityCard: (data) => api.post('/share/identity-card', data),
 }
 
 // Music Profile — single endpoint that returns the full aggregated profile

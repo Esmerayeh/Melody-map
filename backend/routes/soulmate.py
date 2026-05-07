@@ -12,6 +12,14 @@ import re
 from middleware.auth import require_auth
 from middleware.rate_limit import rate_limit
 from ml.soulmate_engine import soulmate_engine
+from services.feature_store import (
+    create_co_curation_artifact,
+    get_social_edges,
+    get_social_profile,
+    list_co_curation_artifacts,
+    upsert_social_edge,
+    upsert_social_profile,
+)
 from utils.api import api_error, api_success_legacy
 from utils.logger import logger
 
@@ -64,6 +72,12 @@ def _get_profile_by_slug(slug: str) -> dict | None:
         return None
 
 
+def _profile_allows_matching(doc: dict | None) -> bool:
+    if doc is None:
+        return False
+    return doc.get('allow_matching') is not False
+
+
 def _profile_to_engine_format(doc: dict) -> dict:
     """Convert a DB taste_profile doc to the format SoulmateEngine expects."""
     return {
@@ -97,6 +111,8 @@ def _profile_to_engine_format(doc: dict) -> dict:
         'analyticsMetrics': doc.get('analytics_metrics') or {},
         'confidence': doc.get('confidence') or {},
         'dataQuality': doc.get('data_quality') or {},
+        'representations': doc.get('representations') or {},
+        'profileVector': ((doc.get('representations') or {}).get('profileVector') if isinstance(doc.get('representations'), dict) else None),
         'profileTier': doc.get('profile_tier'),
         'audioCoverage': doc.get('audio_coverage'),
         'genreCoverage': doc.get('genre_coverage'),
@@ -206,11 +222,17 @@ def upsert_profile():
         'analytics_metrics': data.get('analytics_metrics') or {},
         'data_quality':   data.get('data_quality', {}),
         'confidence':     data.get('confidence', {}),
+        'representations': data.get('representations') or {},
+        'galaxy_topology': data.get('galaxy_topology') or {},
         'profile_tier': data.get('profile_tier'),
         'audio_coverage': data.get('audio_coverage'),
         'genre_coverage': data.get('genre_coverage'),
         'soulmate_readiness': data.get('soulmate_readiness', {}),
         'identity_readiness': data.get('identity_readiness', {}),
+        'visibility': data.get('visibility', 'private'),
+        'allow_matching': bool(data.get('allow_matching', True)),
+        'allow_public_artifacts': bool(data.get('allow_public_artifacts', False)),
+        'allow_co_curation': bool(data.get('allow_co_curation', True)),
         'updated_at':     datetime.utcnow(),
     }
 
@@ -220,6 +242,16 @@ def upsert_profile():
         upsert=True,
     )
     logger.info({'event': 'profile_upsert', 'user_id': user_id})
+    upsert_social_profile(
+        user_id,
+        {
+            'display_name': username,
+            'visibility': profile['visibility'],
+            'allow_matching': profile['allow_matching'],
+            'allow_public_artifacts': profile['allow_public_artifacts'],
+            'allow_co_curation': profile['allow_co_curation'],
+        },
+    )
     public_url = f'/soulmate/{profile["public_slug"]}'
     payload = {
         'ok': True,
@@ -254,13 +286,84 @@ def get_matches():
     my_profile = _profile_to_engine_format(my_doc)
 
     # Fetch all other profiles
-    others = list(_mongo.db.taste_profiles.find({'user_id': {'$ne': user_id}}))
+    others = list(_mongo.db.taste_profiles.find({'user_id': {'$ne': user_id}, 'allow_matching': {'$ne': False}}))
     if not others:
         return api_success_legacy([], status=200, warnings=['no_matches'])
 
     other_profiles = [_profile_to_engine_format(o) for o in others]
     ranked = soulmate_engine.rank_matches(my_profile, other_profiles)
     return api_success_legacy(ranked[:5], status=200)
+
+
+@soulmate_bp.route('/soulmate/privacy', methods=['POST'])
+@require_auth
+def update_privacy():
+    data = request.json or {}
+    profile = upsert_social_profile(
+        g.user_id,
+        {
+            'visibility': data.get('visibility', 'private'),
+            'allow_matching': data.get('allow_matching', True),
+            'allow_public_artifacts': data.get('allow_public_artifacts', False),
+            'allow_co_curation': data.get('allow_co_curation', True),
+            'display_name': data.get('display_name'),
+            'bio': data.get('bio'),
+        },
+    )
+    _mongo.db.taste_profiles.update_one(
+        {'user_id': g.user_id},
+        {
+            '$set': {
+                'visibility': profile.get('visibility'),
+                'allow_matching': profile.get('allow_matching'),
+                'allow_public_artifacts': profile.get('allow_public_artifacts'),
+                'allow_co_curation': profile.get('allow_co_curation'),
+            }
+        },
+        upsert=False,
+    )
+    return api_success_legacy({'privacy': profile}, status=200)
+
+
+@soulmate_bp.route('/soulmate/network', methods=['GET'])
+@require_auth
+def social_network():
+    edges = get_social_edges(g.user_id, limit=50)
+    artifacts = list_co_curation_artifacts(g.user_id, limit=8)
+    privacy = get_social_profile(g.user_id) or {}
+    return api_success_legacy(
+        {
+            'privacy': privacy,
+            'edges': edges,
+            'coCurationArtifacts': artifacts,
+        },
+        status=200,
+    )
+
+
+@soulmate_bp.route('/soulmate/co-curate', methods=['POST'])
+@require_auth
+def create_co_curation():
+    data = request.json or {}
+    artifact = create_co_curation_artifact(
+        g.user_id,
+        {
+            'partner_user_id': data.get('partner_user_id'),
+            'title': data.get('title'),
+            'seed_tracks': data.get('seed_tracks', []),
+            'notes': data.get('notes'),
+            'visibility': data.get('visibility', 'private'),
+        },
+    )
+    if data.get('partner_user_id'):
+        upsert_social_edge(g.user_id, data['partner_user_id'], 'co_curator', {'artifact_id': artifact['artifact_id']})
+    return api_success_legacy({'artifact': artifact}, status=201)
+
+
+@soulmate_bp.route('/soulmate/co-curate', methods=['GET'])
+@require_auth
+def list_co_curation():
+    return api_success_legacy({'artifacts': list_co_curation_artifacts(g.user_id)}, status=200)
 
 
 @soulmate_bp.route('/soulmate/compare/<uid_b>', methods=['GET'])
@@ -277,6 +380,8 @@ def compare(uid_b: str):
         return api_error('Your profile not found. Sync your music first.', 404, code='PROFILE_NOT_FOUND')
     if not doc_b:
         return api_error('Other user profile not found.', 404, code='PROFILE_NOT_FOUND')
+    if uid_b != user_id and not _profile_allows_matching(doc_b):
+        return api_error('Other user profile is private.', 403, code='PROFILE_PRIVATE')
 
     profile_a = _profile_to_engine_format(doc_a)
     profile_b = _profile_to_engine_format(doc_b)
@@ -321,6 +426,8 @@ def compare_public(slug: str):
         return api_error('Your profile not found. Sync your music first.', 404, code='PROFILE_NOT_FOUND')
     if not doc_b:
         return api_error('Other user profile not found.', 404, code='PROFILE_NOT_FOUND')
+    if doc_b.get('user_id') != user_id and not _profile_allows_matching(doc_b):
+        return api_error('Other user profile is private.', 403, code='PROFILE_PRIVATE')
 
     profile_a = _profile_to_engine_format(doc_a)
     profile_b = _profile_to_engine_format(doc_b)

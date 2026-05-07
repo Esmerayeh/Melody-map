@@ -4,11 +4,14 @@ from flask import Blueprint, jsonify, request
 
 from services.spotify_proxy_service import spotify_proxy_service
 from utils.api import api_error
+from utils.provider_cookies import spotify_context_from_request
 
 spotify_data_bp = Blueprint('spotify_data', __name__)
 
 def _token_from_request() -> str:
-    return request.headers.get('X-Spotify-Token') or request.headers.get('Authorization', '')
+    header_token = request.headers.get('X-Spotify-Token') or request.headers.get('Authorization', '')
+    cookie_token, _, _ = spotify_context_from_request(request)
+    return header_token or cookie_token or ''
 
 
 def _get(path, params=None):

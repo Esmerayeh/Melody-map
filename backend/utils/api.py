@@ -2,12 +2,24 @@
 
 from __future__ import annotations
 
-from flask import jsonify
+from flask import g, has_request_context, jsonify
+
+
+API_CONTRACT_VERSION = "2026-04-api-v1"
+
+
+def _meta_payload(meta: dict) -> dict:
+    payload = {key: value for key, value in meta.items() if value is not None}
+    payload.setdefault("contractVersion", API_CONTRACT_VERSION)
+    request_id = getattr(g, "request_id", None) if has_request_context() else None
+    if request_id:
+        payload.setdefault("requestId", request_id)
+    return payload
 
 
 def api_success(data=None, status: int = 200, **meta):
     payload = {"success": True, "data": data}
-    payload.update({key: value for key, value in meta.items() if value is not None})
+    payload.update(_meta_payload(meta))
     return jsonify(payload), status
 
 
@@ -40,6 +52,7 @@ def api_error(
             "code": code or "REQUEST_FAILED",
         },
     }
+    payload.update(_meta_payload({}))
     if details is not None:
         payload["error"]["details"] = details
     if warnings is not None:
@@ -51,5 +64,5 @@ def api_error(
 
 def data_envelope(data, **meta) -> dict:
     payload = {"success": True, "data": data}
-    payload.update({key: value for key, value in meta.items() if value is not None})
+    payload.update(_meta_payload(meta))
     return payload

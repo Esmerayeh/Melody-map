@@ -35,10 +35,18 @@ from ml.soulmate_scoring import (
     normalize_score,
     normalize_name_set,
 )
+from ml.representation_learning import cosine_similarity
 
 
 class SoulmateEngine:
+    def compute_learned_similarity(self, profile_a: dict, profile_b: dict) -> float:
+        embedding_a = ((profile_a.get('representations') or {}).get('profileVector')) or profile_a.get('profileVector')
+        embedding_b = ((profile_b.get('representations') or {}).get('profileVector')) or profile_b.get('profileVector')
+        return normalize_score(cosine_similarity(embedding_a, embedding_b) * 100) if embedding_a and embedding_b else 0
+
     def compute_score(self, profile_a: dict, profile_b: dict) -> dict:
+        embedding_similarity = self.compute_learned_similarity(profile_a, profile_b)
+
         artist = compute_artist_overlap(profile_a, profile_b)
         genre = compute_genre_overlap(profile_a, profile_b)
         song = compute_song_overlap(profile_a, profile_b)
@@ -73,6 +81,8 @@ class SoulmateEngine:
             orb=orb,
             confidence=confidence_score,
         )
+        if embedding_similarity:
+            overall = normalize_score(overall * 0.84 + embedding_similarity * 0.16)
         rarity = compute_rarity(overall, emotional, discovery, tension, artist, genre, mbti)
         bridges = generate_bridge_tracks(profile_a, profile_b)
 
@@ -86,6 +96,7 @@ class SoulmateEngine:
             'songOverlapScore': song.score,
             'discoveryCompatibility': discovery.score,
             'tensionScore': tension.score,
+            'embeddingSimilarity': embedding_similarity,
             'rarityScore': rarity.score,
             'sharedAtmosphere': emotional.details.get('sharedAtmosphere', []),
             'mbtiTypes': mbti.details.get('mbtiTypes', []),
@@ -130,6 +141,9 @@ class SoulmateEngine:
             'whyThisWorks': build_compatibility_narrative(metrics),
             'whereItGetsInteresting': build_tension_narrative(metrics),
             'confidence': confidence,
+            'learnedCompatibility': embedding_similarity,
+            'learnedModelVersion': 'soulmate-siamese-v1' if embedding_similarity else None,
+            'hybridBlend': 0.16 if embedding_similarity else 0.0,
             'note': note,
             'match_score': overall,
             'shared_artists': artist.details.get('sharedArtists', []),
@@ -155,12 +169,13 @@ class SoulmateEngine:
                     'mbtiCompatibility': 0.17,
                     'artistOverlapScore': 0.12,
                     'genreOverlapScore': 0.10,
-                    'songOverlapScore': 0.06,
-                    'discoveryCompatibility': 0.14,
-                    'orbResonanceScore': 0.12,
-                    'tensionBonus': 'healthy tension peaks near the middle rather than zero',
-                    'confidence': 'final score is gently modulated by data confidence',
-                },
+                'songOverlapScore': 0.06,
+                'discoveryCompatibility': 0.14,
+                'orbResonanceScore': 0.12,
+                'embeddingSimilarity': 0.16,
+                'tensionBonus': 'healthy tension peaks near the middle rather than zero',
+                'confidence': 'final score is gently modulated by data confidence',
+            },
             },
         }
         return result

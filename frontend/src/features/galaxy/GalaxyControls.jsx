@@ -39,17 +39,17 @@ export default function GalaxyControls({
     <motion.div
       layout
       transition={MOTION_TOKENS.focus}
-      className="flex flex-wrap items-center justify-end gap-2"
+      className="flex w-full flex-wrap items-center justify-start gap-2 sm:justify-end"
     >
       {isDemo && <span className="rounded-full border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-xs text-amber-300">Demo</span>}
 
-      <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex items-center gap-2 px-3 py-2">
+      <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex min-w-0 flex-1 items-center gap-2 px-3 py-2 sm:min-w-[220px] sm:flex-initial">
         <Search className="h-3.5 w-3.5 text-gray-500" />
         <input
           value={searchQuery}
           onChange={(event) => onSearchChange(event.target.value)}
           placeholder="Search artists, moods, regions..."
-          className="w-40 bg-transparent text-xs text-gray-200 outline-none placeholder:text-gray-600"
+          className="w-full bg-transparent text-xs text-gray-200 outline-none placeholder:text-gray-600 sm:w-40"
         />
       </motion.div>
 

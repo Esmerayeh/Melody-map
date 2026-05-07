@@ -1,0 +1,9 @@
+{
+  "expo": {
+    "name": "Melody Map",
+    "slug": "melody-map-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "platforms": ["ios", "android", "web"]
+  }
+}

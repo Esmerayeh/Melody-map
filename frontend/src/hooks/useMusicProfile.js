@@ -1,16 +1,16 @@
 /**
- * useMusicProfile -- central data hook
- *
- * Spotify uses the backend canonical /api/music-profile contract.
- * Last.fm builds the same contract client-side so the rest of the app
- * can stay provider-agnostic.
+ * useMusicProfile -- canonical profile bootstrap via React Query, with a small
+ * profile store for cross-route persistence and preferences.
  */
-import { useEffect, useCallback, useRef } from 'react'
+import { useEffect } from 'react'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { musicProfileAPI } from '../services/api'
 import { musicService } from '../services/musicService'
 import useStore from '../store/useStore'
+import useProfileStore from '../store/useProfileStore'
 import { buildGenreList, PROFILE_SCHEMA_VERSION } from '../services/profileAdapters.js'
 import { normalizeProfileResponse } from '../services/dataAdapters'
+import { queryKeys } from '../lib/queryKeys'
 
 function mapLastfmPeriod(timeRange) {
   if (timeRange === 'short_term') return '1month'
@@ -34,7 +34,7 @@ async function buildLastfmProfile(timeRange) {
       } catch {
         return { ...artist, genres: artist.genres || [] }
       }
-    })
+    }),
   )
 
   const topArtists = [
@@ -74,6 +74,7 @@ async function buildLastfmProfile(timeRange) {
       featureCoverageByMetric: {},
     },
     confidence: {
+      overall: Math.min(0.48, Number((((topArtists.length / 50) * 0.45) + ((genres.length / 12) * 0.2)).toFixed(3))),
       analytics: { score: 0, label: 'unavailable' },
       identity: { score: Math.min(0.45, Number((genres.length / 12).toFixed(3))), label: genres.length >= 6 ? 'low' : 'unavailable' },
       galaxy: { score: Math.min(1, Number((((topArtists.length / 50) * 0.7) + (genres.length / 12) * 0.3).toFixed(3))), label: topArtists.length >= 15 ? 'medium' : 'low' },
@@ -103,34 +104,30 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
   const spotifyConnected = useStore((s) => s.spotifyConnected)
   const lastfmConnected = useStore((s) => s.lastfmConnected)
   const musicProvider = useStore((s) => s.musicProvider)
-  const musicProfile = useStore((s) => s.musicProfile)
-  const musicProfileLoading = useStore((s) => s.musicProfileLoading)
-  const musicProfileError = useStore((s) => s.musicProfileError)
-  const timeRange = useStore((s) => s.musicProfileTimeRange)
-  const setMusicProfile = useStore((s) => s.setMusicProfile)
-  const setLoading = useStore((s) => s.setMusicProfileLoading)
-  const setError = useStore((s) => s.setMusicProfileError)
   const setVibeFeatures = useStore((s) => s.setVibeFeatures)
   const setSonicIdentity = useStore((s) => s.setSonicIdentity)
+  const setLegacyMusicProfile = useStore((s) => s.setMusicProfile)
+  const clearLegacyMusicProfile = useStore((s) => s.clearMusicProfile)
+  const storedProfile = useProfileStore((s) => s.profile)
+  const storedError = useProfileStore((s) => s.error)
+  const timeRange = useProfileStore((s) => s.timeRange)
+  const cachedProvider = useProfileStore((s) => s.cachedProvider)
+  const cachedAt = useProfileStore((s) => s.cachedAt)
+  const setProfile = useProfileStore((s) => s.setProfile)
+  const setError = useProfileStore((s) => s.setError)
+  const queryClient = useQueryClient()
 
-  const fetchingRef = useRef(false)
+  const truthProvider = spotifyConnected
+    ? 'spotify'
+    : (musicProvider || musicService.getTruthProvider())
+  const enabled = Boolean(autoFetch && (spotifyConnected || lastfmConnected))
 
-  const doFetch = useCallback(async (force = false) => {
-    const truthProvider = spotifyConnected
-      ? 'spotify'
-      : (musicProvider || musicService.getTruthProvider())
-
-    if (!spotifyConnected && !lastfmConnected) return
-    const cachedProvider = musicProfile?.provider || null
-    const shouldRefetchForProvider = Boolean(truthProvider && cachedProvider && cachedProvider !== truthProvider)
-    if (musicProfile && !force && !shouldRefetchForProvider) return
-    if (fetchingRef.current) return
-
-    fetchingRef.current = true
-    setLoading(true)
-    setError(null)
-
-    try {
+  const query = useQuery({
+    queryKey: queryKeys.musicProfile(truthProvider, timeRange),
+    enabled,
+    staleTime: 60_000,
+    retry: 1,
+    queryFn: async () => {
       let rawProfile
       if (truthProvider === 'lastfm') {
         rawProfile = await buildLastfmProfile(timeRange)
@@ -138,19 +135,25 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
         const res = await musicProfileAPI.get({ time_range: timeRange, limit: 50 })
         rawProfile = res.data
       }
+
       const normalized = normalizeProfileResponse(rawProfile, truthProvider)
       if (normalized.status === 'failed' || !normalized.data) {
         throw new Error(normalized.warnings?.[0] || 'Failed to load music profile')
       }
-      const profile = normalized.data
-      setMusicProfile(profile)
+      return normalized.data
+    },
+  })
 
-      const af = profile.audioFeatures || {}
+  useEffect(() => {
+    if (query.data) {
+      setProfile(query.data, { provider: truthProvider, timeRange })
+      setLegacyMusicProfile(query.data)
+      const af = query.data.audioFeatures || {}
       if (af.energy != null || af.valence != null) {
         setVibeFeatures({ energy: af.energy, valence: af.valence })
       }
 
-      const metrics = profile.analyticsMetrics || {}
+      const metrics = query.data.analyticsMetrics || {}
       if (metrics.mood || metrics.diversityScore != null) {
         setSonicIdentity({
           mood: metrics.mood,
@@ -161,63 +164,63 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
           brightness: metrics.sonicBrightness,
         })
       }
-    } catch (err) {
-      const msg = err?.response?.data?.error || err.message || 'Failed to load music profile'
-      setError(msg)
-    } finally {
-      setLoading(false)
-      fetchingRef.current = false
     }
-  }, [
-    spotifyConnected,
-    lastfmConnected,
-    musicProvider,
-    musicProfile,
-    timeRange,
-    setMusicProfile,
-    setLoading,
-    setError,
-    setVibeFeatures,
-    setSonicIdentity,
-  ])
+  }, [query.data, setLegacyMusicProfile, setProfile, setSonicIdentity, setVibeFeatures])
 
   useEffect(() => {
-    if (autoFetch) doFetch()
-  }, [autoFetch, doFetch])
+    if (query.error) {
+      setError(query.error.message || 'Failed to load music profile')
+    } else if (query.data) {
+      setError(null)
+    }
+  }, [query.data, query.error, setError])
+
+  const cachedProfileMatchesProvider = !storedProfile || !cachedProvider || cachedProvider === truthProvider
+  const profile = query.data || (cachedProfileMatchesProvider ? storedProfile : null)
+  const error = query.error?.message || storedError
+  const loading = enabled && query.isLoading && !profile
 
   return {
-    profile: musicProfile,
-    loading: musicProfileLoading,
-    error: musicProfileError,
-    refetch: () => doFetch(true),
+    profile,
+    loading,
+    error,
+    refetch: async () => {
+      useProfileStore.getState().clearProfile()
+      clearLegacyMusicProfile()
+      await queryClient.invalidateQueries({ queryKey: ['music-profile'] })
+      return query.refetch()
+    },
     timeRange,
-    isDegraded: Boolean(musicProfile?.isDegraded),
-    canComputeIdentity: Boolean(musicProfile?.canComputeIdentity),
-    canComputeAnalytics: Boolean(musicProfile?.canComputeAnalytics),
-    canRenderGalaxy: Boolean(musicProfile?.canRenderGalaxy),
-    confidence: musicProfile?.confidence || null,
-    dataQuality: musicProfile?.dataQuality || null,
+    musicProvider: truthProvider,
+    isDegraded: Boolean(profile?.isDegraded),
+    canComputeIdentity: Boolean(profile?.canComputeIdentity),
+    canComputeAnalytics: Boolean(profile?.canComputeAnalytics),
+    canRenderGalaxy: Boolean(profile?.canRenderGalaxy),
+    confidence: profile?.confidence || null,
+    dataQuality: profile?.dataQuality || null,
+    cachedAt,
     phase: (() => {
-      if (musicProfileLoading && !musicProfile) return 'loading'
-      if (musicProfileError && !musicProfile) return 'error'
-      if (!musicProfile) return 'empty'
-      if (musicProfile?.isDegraded) return 'partial'
+      if (loading && !profile) return 'loading'
+      if (error && !profile) return 'error'
+      if (!profile) return 'empty'
+      if (!query.data && profile) return 'partial'
+      if (profile?.isDegraded) return 'partial'
       return 'ready'
     })(),
     tier: (() => {
-      if (musicProfileError && !musicProfile) return 'failed'
-      if (!musicProfile) return 'limited'
-      const overall = musicProfile?.confidence?.overall ?? 0
+      if (error && !profile) return 'failed'
+      if (!profile) return 'limited'
+      const overall = profile?.confidence?.overall ?? 0
       if (overall >= 0.78) return 'rich'
       if (overall >= 0.55) return 'medium'
       if (overall >= 0.35) return 'sparse'
       return 'limited'
     })(),
     readiness: {
-      analytics: Boolean(musicProfile?.analyticsReadiness?.ready),
-      identity: Boolean(musicProfile?.identityReadiness?.ready),
-      soulmate: Boolean(musicProfile?.soulmateReadiness?.ready),
-      galaxy: Boolean(musicProfile?.canRenderGalaxy),
+      analytics: Boolean(profile?.analyticsReadiness?.ready),
+      identity: Boolean(profile?.identityReadiness?.ready),
+      soulmate: Boolean(profile?.soulmateReadiness?.ready),
+      galaxy: Boolean(profile?.canRenderGalaxy),
     },
   }
 }

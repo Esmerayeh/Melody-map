@@ -8,6 +8,7 @@ import requests
 from flask import Blueprint, jsonify, request
 
 from utils.api import api_error
+from utils.provider_cookies import lastfm_context_from_request
 
 lastfm_data_bp = Blueprint('lastfm_data', __name__)
 
@@ -17,8 +18,9 @@ LASTFM_API = 'https://ws.audioscrobbler.com/2.0/'
 def _ctx():
     """Extract session key, username, and api_key from request headers."""
     from config import Config
-    session  = request.headers.get('X-Lastfm-Session', '')
-    username = request.headers.get('X-Lastfm-User', '')
+    cookie_session, cookie_username = lastfm_context_from_request(request)
+    session  = request.headers.get('X-Lastfm-Session', '') or cookie_session or ''
+    username = request.headers.get('X-Lastfm-User', '') or cookie_username or ''
     return session, username, Config.lastfm_api_key
 
 

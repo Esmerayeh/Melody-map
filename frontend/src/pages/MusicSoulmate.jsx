@@ -12,8 +12,9 @@ import MusicSourceCard from '../components/MusicSourceCard'
 import CompatibilityCard from '../components/CompatibilityCard'
 import SoulmateMap from '../components/SoulmateMap'
 import VibeEmitter from '../components/VibeEmitter'
-import ProfileBootPanel from '../components/ProfileBootPanel'
+import RouteStatusBanner from '../components/RouteStatusBanner'
 import { normalizeListResponse, normalizeSoulmateResponse } from '../services/dataAdapters'
+import useAuthStore from '../store/useAuthStore'
 
 function parseSoulmateIdentifier(input) {
   const trimmed = String(input || '').trim()
@@ -112,14 +113,7 @@ export default function MusicSoulmate() {
   const { profile, loading: profileLoading, phase, readiness, tier } = useMusicProfile()
   const musicProvider = useStore((state) => state.musicProvider)
   const vibeFeatures = useStore((state) => state.vibeFeatures)
-
-  const hasAppToken = (() => {
-    try {
-      return Boolean(window.localStorage.getItem('token'))
-    } catch {
-      return false
-    }
-  })()
+  const hasAppToken = useAuthStore((state) => Boolean(state.sessionToken))
 
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
@@ -130,6 +124,7 @@ export default function MusicSoulmate() {
   const [comparison, setComparison] = useState(null)
   const [comparisonLoading, setComparisonLoading] = useState(false)
   const [inviteComparison, setInviteComparison] = useState(null)
+  const [networkState, setNetworkState] = useState(null)
 
   const myUsername = profile?.userProfile?.name || profile?.userProfile?.username || 'you'
   const normalizedIdentifier = useMemo(() => parseSoulmateIdentifier(identifier), [identifier])
@@ -213,6 +208,8 @@ export default function MusicSoulmate() {
         analytics_metrics: profile?.analyticsMetrics || {},
         data_quality: profile?.dataQuality || {},
         confidence: profile?.confidence || {},
+        representations: profile?.representations || {},
+        galaxy_topology: profile?.galaxyTopology || {},
         profile_tier: profile?.isDegraded ? 'partial' : 'full',
         audio_coverage: profile?.dataQuality?.audioCoverage || 0,
         genre_coverage: (genres.length || 0) / 12,
@@ -252,6 +249,7 @@ export default function MusicSoulmate() {
   useEffect(() => {
     if (synced && hasAppToken) {
       loadMatches()
+      soulmateAPI.getNetwork().then((res) => setNetworkState(res?.data || null)).catch(() => {})
     }
   }, [hasAppToken, synced, loadMatches])
 
@@ -352,19 +350,6 @@ export default function MusicSoulmate() {
     },
   })
 
-  if (boot.blocked) {
-    return (
-      <ProfileBootPanel
-        variant={boot.variant}
-        title={boot.title}
-        subtitle={boot.subtitle}
-        detail={boot.detail}
-        actionLabel={boot.variant === 'error' ? 'Reload the orbit' : undefined}
-        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
-      />
-    )
-  }
-
   return (
     <div className="cosmic-page space-y-6">
       <motion.section initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="noire-panel relative overflow-hidden rounded-[34px] p-6 lg:p-8">
@@ -377,6 +362,15 @@ export default function MusicSoulmate() {
           </p>
         </div>
       </motion.section>
+
+      {boot.variant !== 'ready' && (
+        <RouteStatusBanner
+          variant={boot.variant}
+          title={boot.title}
+          subtitle={boot.subtitle}
+          detail={boot.detail}
+        />
+      )}
 
       {!musicProvider && (
         <div className="max-w-lg">
@@ -424,7 +418,27 @@ export default function MusicSoulmate() {
 
       {musicProvider && hasAppToken && !readiness?.soulmate && (
         <div className="noire-panel-soft rounded-[24px] p-5 text-sm text-slate-400">
-          The soulmate field is still forming. You can sync now, but the overlap will deepen once more listening data settles.
+          The soulmate field is still forming. You can sync now, preview your own orbit, and open invite links immediately while the deeper overlap model keeps filling in.
+        </div>
+      )}
+
+      {musicProvider && hasAppToken && synced && networkState && (
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="noire-info-card rounded-[24px] p-4">
+            <p className="section-label mb-2">Privacy posture</p>
+            <p className="text-sm text-white capitalize">{networkState.privacy?.visibility || 'private'}</p>
+            <p className="mt-2 text-xs text-slate-500">Matching: {networkState.privacy?.allow_matching === false ? 'off' : 'on'} • Co-curation: {networkState.privacy?.allow_co_curation === false ? 'off' : 'on'}</p>
+          </div>
+          <div className="noire-info-card rounded-[24px] p-4">
+            <p className="section-label mb-2">Taste graph</p>
+            <p className="text-sm text-white">{(networkState.edges || []).length} relationship edges</p>
+            <p className="mt-2 text-xs text-slate-500">Soulmate comparisons and co-curation links are now persisted as graph edges instead of disappearing after one read.</p>
+          </div>
+          <div className="noire-info-card rounded-[24px] p-4">
+            <p className="section-label mb-2">Co-curation vault</p>
+            <p className="text-sm text-white">{(networkState.coCurationArtifacts || []).length} shared artifacts</p>
+            <p className="mt-2 text-xs text-slate-500">Each ritual can now become a saved social artifact rather than a temporary comparison state.</p>
+          </div>
         </div>
       )}
 
@@ -482,10 +496,33 @@ export default function MusicSoulmate() {
 
           <div className="space-y-5">
             {!selected && (
-              <div className="noire-panel rounded-[28px] p-10 text-center">
-                <HeartHandshake className="mx-auto h-8 w-8 text-brand-purple" />
-                <p className="mt-4 text-lg font-semibold text-white">Choose an orbit</p>
-                <p className="mt-2 text-sm text-slate-400">The page will open into a full compatibility ritual once two worlds are in view.</p>
+              <div className="space-y-4">
+                <div className="noire-panel rounded-[28px] p-6">
+                  <div className="flex items-center gap-3">
+                    <HeartHandshake className="h-6 w-6 text-brand-purple" />
+                    <div>
+                      <p className="text-lg font-semibold text-white">Comparison chamber is ready</p>
+                      <p className="mt-1 text-sm text-slate-400">Choose an orbit on the left and Melody Map will open the shared field without leaving this page empty first.</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="grid gap-4 md:grid-cols-3">
+                  <div className="noire-info-card rounded-[24px] p-4">
+                    <p className="section-label mb-2">How it works</p>
+                    <p className="text-sm text-white">Overlap, tension, discovery</p>
+                    <p className="mt-2 text-xs text-slate-500">Soulmates are read through shared artists, emotional climate, and where your worlds bridge or resist each other.</p>
+                  </div>
+                  <div className="noire-info-card rounded-[24px] p-4">
+                    <p className="section-label mb-2">Your visible orbit</p>
+                    <p className="text-sm text-white">{profile?.mbti?.type || profile?.analyticsMetrics?.mood || 'Listening self'}</p>
+                    <p className="mt-2 text-xs text-slate-500">Your own identity orb is already present, even before a dual comparison is selected.</p>
+                  </div>
+                  <div className="noire-info-card rounded-[24px] p-4">
+                    <p className="section-label mb-2">Sync posture</p>
+                    <p className="text-sm text-white">{synced ? 'Orbit synced' : 'Ready to sync'}</p>
+                    <p className="mt-2 text-xs text-slate-500">Invite links, recent sync state, and the comparison canvas stay visible instead of collapsing into a waiting message.</p>
+                  </div>
+                </div>
               </div>
             )}
 

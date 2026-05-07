@@ -9,7 +9,7 @@ const TOP_NAV = [
   { to: '/', label: 'Dashboard' },
   { to: '/discover', label: 'Discover' },
   { to: '/galaxy', label: 'Galaxy' },
-  { to: '/soulmate', label: 'Soulmates' },
+  { to: '/soulmates', label: 'Soulmates' },
   { to: '/aesthetic', label: 'Aesthetic' },
   { to: '/auralith', label: 'Auralith' },
   { to: '/analytics', label: 'Analytics' },
@@ -25,21 +25,22 @@ export default function TopBar() {
 
   return (
     <header
-      className="sticky top-0 z-40 shrink-0 px-5 lg:px-6 py-3"
+      className="sticky top-0 z-40 shrink-0 px-3 py-2.5 sm:px-5 lg:px-6 sm:py-3"
       style={{
         background: 'rgba(8,8,18,0.72)',
         backdropFilter: 'blur(28px)',
         borderBottom: '1px solid rgba(255,255,255,0.05)',
+        paddingTop: 'calc(0.5rem + env(safe-area-inset-top))',
       }}
     >
       <div
-        className="flex items-center gap-4 rounded-[24px] border border-white/[0.06] px-4 py-3"
+        className="flex items-center gap-2.5 rounded-[20px] border border-white/[0.06] px-3 py-2.5 sm:gap-4 sm:rounded-[24px] sm:px-4 sm:py-3"
         style={{
           background: 'linear-gradient(180deg, rgba(17,15,35,0.72), rgba(10,9,22,0.56))',
           boxShadow: '0 10px 36px rgba(0,0,0,0.26)',
         }}
       >
-        <div className="flex-1 max-w-sm relative">
+        <div className="relative min-w-0 flex-1 max-w-none sm:max-w-sm">
           <Search
             className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 pointer-events-none transition-colors duration-300"
             style={{ color: focused ? '#8f75ff' : 'rgba(174,166,201,0.55)' }}
@@ -99,12 +100,12 @@ export default function TopBar() {
           ))}
         </nav>
 
-        <div className="flex items-center gap-2 ml-auto">
+        <div className="ml-auto flex items-center gap-2">
           <motion.button
             whileHover={{ scale: 1.03, y: -1 }}
             whileTap={{ scale: 0.985 }}
             transition={MOTION_TOKENS.hoverIn}
-            className="p-2.5 rounded-2xl transition-all relative border border-white/[0.05]"
+            className="relative hidden rounded-2xl border border-white/[0.05] p-2.5 transition-all sm:block"
             style={{ color: 'rgba(196,185,226,0.65)', background: 'rgba(255,255,255,0.03)' }}
             onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)' }}
             onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)' }}
@@ -119,7 +120,7 @@ export default function TopBar() {
           <motion.div
             whileHover={{ scale: 1.02, y: -1 }}
             transition={MOTION_TOKENS.hoverIn}
-            className="flex items-center gap-2 rounded-2xl border border-white/[0.05] bg-white/[0.03] px-2 py-1.5 cursor-pointer shrink-0"
+            className="flex shrink-0 items-center gap-2 rounded-2xl border border-white/[0.05] bg-white/[0.03] px-2 py-1.5 cursor-pointer"
             style={{ boxShadow: '0 0 14px rgba(143,117,255,0.08)' }}
           >
             <div

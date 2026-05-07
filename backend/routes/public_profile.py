@@ -23,6 +23,13 @@ def init_mongo(mongo_instance):
     _mongo = mongo_instance
 
 
+def _public_profile_visible(doc: dict | None) -> bool:
+    if not doc:
+        return False
+    visibility = (doc.get('visibility') or 'private').lower()
+    return visibility == 'public' or doc.get('allow_public_artifacts') is True
+
+
 @public_profile_bp.route('/api/public-profile/<identifier>', methods=['GET'])
 @rate_limit(max_requests=60, window_seconds=60)
 def get_public_profile(identifier: str):
@@ -40,6 +47,8 @@ def get_public_profile(identifier: str):
         doc = _mongo.db.taste_profiles.find_one({'user_id': identifier})
     if not doc:
         return api_error('Profile not found', 404, code='PROFILE_NOT_FOUND')
+    if not _public_profile_visible(doc):
+        return api_error('Profile is private', 403, code='PROFILE_PRIVATE')
 
     # Normalise to the same shape the frontend expects from /api/music-profile
     top_artists_raw = doc.get('top_artists', [])
@@ -102,6 +111,8 @@ def get_public_profile(identifier: str):
         'genreCoverage':        doc.get('genre_coverage'),
         'soulmateReadiness':    doc.get('soulmate_readiness', {}),
         'identityReadiness':    doc.get('identity_readiness', {}),
+        'representations':      doc.get('representations', {}),
+        'galaxyTopology':       doc.get('galaxy_topology', {}),
     }
 
     return api_success_legacy(

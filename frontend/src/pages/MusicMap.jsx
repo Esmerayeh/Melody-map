@@ -5,8 +5,10 @@ import { useSearchParams } from 'react-router-dom'
 import { mapAPI } from '../services/api'
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
+import useLiveTasteSignal from '../hooks/useLiveTasteSignal'
 import useExperienceStore from '../store/useExperienceStore'
 import { buildGalaxyModeModel, buildGalaxyModel, buildLegacyGalaxyModel } from '../features/galaxy/galaxyBuilder'
+import useGalaxyArtifact from '../features/galaxy/useGalaxyArtifact'
 import GalaxyControls from '../features/galaxy/GalaxyControls'
 import GalaxyInspector from '../features/galaxy/GalaxyInspector'
 import GalaxyLegend from '../features/galaxy/GalaxyLegend'
@@ -17,12 +19,18 @@ import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import { mapGalaxySelectionToResonance } from '../features/orb/resonanceEngine'
 import useGalaxyInteractionStore from '../features/galaxy/useGalaxyInteractionStore'
 import { resolveInteractionEntity, slugifyInteraction } from '../features/galaxy/interactionModel.js'
+import AtmosphereBackground from '../components/premium/AtmosphereBackground'
+import AuraCard from '../components/premium/AuraCard'
+import HaloButton from '../components/premium/HaloButton'
+import ShimmerDivider from '../components/premium/ShimmerDivider'
+import NebulaLoader from '../components/premium/NebulaLoader'
+import useAdaptiveExperience from '../hooks/useAdaptiveExperience'
 
 const DEMO_NODES = [
-  { _id: 'demo-1', title: 'Only Shallow', artist: 'My Bloody Valentine', genres: ['shoegaze'], popularity: 80, sonic_color: 'hsl(198, 85%, 44%)', map_coords_3d: { x: -2, y: 4, z: -1 } },
-  { _id: 'demo-2', title: 'Cherry-Coloured Funk', artist: 'Cocteau Twins', genres: ['dream pop'], popularity: 68, sonic_color: 'hsl(234, 79%, 49%)', map_coords_3d: { x: 3, y: 2, z: 1 } },
-  { _id: 'demo-3', title: 'Fade Into You', artist: 'Mazzy Star', genres: ['dream pop', 'folk'], popularity: 85, sonic_color: 'hsl(117, 62%, 43%)', map_coords_3d: { x: -1, y: -3, z: -2 } },
-  { _id: 'demo-4', title: 'Karma Police', artist: 'Radiohead', genres: ['alternative rock'], popularity: 92, sonic_color: 'hsl(91, 62%, 42%)', map_coords_3d: { x: -4, y: 1, z: -2 } },
+  { _id: 'demo-1', title: 'Only Shallow', artist: 'My Bloody Valentine', genres: ['shoegaze'], popularity: 80, sonic_color: 'hsl(253, 88%, 72%)', map_coords_3d: { x: -2, y: 4, z: -1 } },
+  { _id: 'demo-2', title: 'Cherry-Coloured Funk', artist: 'Cocteau Twins', genres: ['dream pop'], popularity: 68, sonic_color: 'hsl(272, 72%, 74%)', map_coords_3d: { x: 3, y: 2, z: 1 } },
+  { _id: 'demo-3', title: 'Fade Into You', artist: 'Mazzy Star', genres: ['dream pop', 'folk'], popularity: 85, sonic_color: 'hsl(220, 70%, 78%)', map_coords_3d: { x: -1, y: -3, z: -2 } },
+  { _id: 'demo-4', title: 'Karma Police', artist: 'Radiohead', genres: ['alternative rock'], popularity: 92, sonic_color: 'hsl(318, 52%, 70%)', map_coords_3d: { x: -4, y: 1, z: -2 } },
 ]
 
 function ClusterOverlay({ cluster, region }) {
@@ -30,7 +38,7 @@ function ClusterOverlay({ cluster, region }) {
   if (!item) return null
 
   return (
-    <div className="absolute right-5 top-5 max-w-xs rounded-[20px] border border-white/10 bg-[#090c1f]/70 px-4 py-3 text-xs text-gray-300 shadow-[0_18px_60px_rgba(10,8,30,0.48)] backdrop-blur-xl">
+    <div className="absolute right-5 top-5 max-w-xs rounded-[24px] border border-white/10 bg-[#090c1f]/74 px-4 py-3 text-xs text-gray-300 shadow-[0_18px_60px_rgba(10,8,30,0.48)] backdrop-blur-xl">
       <div className="mb-1.5 flex items-center gap-2">
         <span className="h-2.5 w-2.5 rounded-full shadow-[0_0_18px_currentColor]" style={{ background: item.color, color: item.color }} />
         <span className="font-semibold text-white">{item.title || item.label}</span>
@@ -44,8 +52,11 @@ export default function MusicMap() {
   const [searchParams, setSearchParams] = useSearchParams()
   const { profile: profileSnapshot, loading: profileLoading, phase, readiness, tier } = useMusicProfile({ autoFetch: false })
   const musicProfile = profileSnapshot || useStore((state) => state.musicProfile)
+  const { artifact: generatedGalaxy, loading: galaxyLoading, error: galaxyError, jobStatus, artifactMeta } = useGalaxyArtifact(musicProfile)
   const cinemaMode = useStore((state) => state.cinemaMode)
   const setCinemaMode = useStore((state) => state.setCinemaMode)
+  const { signal: liveSignal, hasLiveSignal } = useLiveTasteSignal({ enabled: Boolean(musicProfile), pollMs: 12000 })
+  const adaptive = useAdaptiveExperience()
 
   const boot = useRouteReadiness({
     phase,
@@ -97,7 +108,6 @@ export default function MusicMap() {
   const showTracks = useGalaxyInteractionStore((state) => state.showTracks)
   const showMoodRegions = useGalaxyInteractionStore((state) => state.showMoodRegions)
   const searchQuery = useGalaxyInteractionStore((state) => state.searchQuery)
-  const focusTarget = useGalaxyInteractionStore((state) => state.focusTarget)
   const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
   const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
   const setGalaxyMode = useGalaxyInteractionStore((state) => state.setGalaxyMode)
@@ -108,7 +118,6 @@ export default function MusicMap() {
   const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
   const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
   const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
-  const setConstellationOrigin = useGalaxyInteractionStore((state) => state.setConstellationOrigin)
   const setNodeData = useGalaxyInteractionStore((state) => state.setNodeData)
   const setLayoutData = useGalaxyInteractionStore((state) => state.setLayoutData)
   const setMotionState = useGalaxyInteractionStore((state) => state.setMotionState)
@@ -123,20 +132,14 @@ export default function MusicMap() {
 
   const resolveFocusPosition = useCallback((ids = []) => {
     if (!model) return null
-    const targets = ids
-      .map((id) => model.nodes.find((node) => node.id === id))
-      .filter(Boolean)
-
+    const targets = ids.map((id) => model.nodes.find((node) => node.id === id)).filter(Boolean)
     if (!targets.length) return null
 
-    const total = targets.reduce(
-      (accumulator, node) => ({
-        x: accumulator.x + (node.position?.x || 0),
-        y: accumulator.y + (node.position?.y || 0),
-        z: accumulator.z + (node.position?.z || 0),
-      }),
-      { x: 0, y: 0, z: 0 },
-    )
+    const total = targets.reduce((accumulator, node) => ({
+      x: accumulator.x + (node.position?.x || 0),
+      y: accumulator.y + (node.position?.y || 0),
+      z: accumulator.z + (node.position?.z || 0),
+    }), { x: 0, y: 0, z: 0 })
 
     return {
       x: total.x / targets.length,
@@ -152,6 +155,13 @@ export default function MusicMap() {
         setModel(null)
         return
       }
+
+      if (generatedGalaxy) {
+        setModel(generatedGalaxy)
+        setIsDemo(false)
+        return
+      }
+
       if (musicProfile?.topArtists?.length || musicProfile?.genres?.length) {
         setModel(buildGalaxyModel(musicProfile))
         setIsDemo(false)
@@ -174,43 +184,21 @@ export default function MusicMap() {
     } finally {
       setLoading(false)
     }
-  }, [musicProfile, profileLoading])
+  }, [generatedGalaxy, musicProfile, profileLoading])
 
   useEffect(() => {
     loadData()
   }, [loadData])
 
-  useEffect(() => {
-    return () => {
-      resetGalaxyInteraction()
-    }
-  }, [resetGalaxyInteraction])
+  useEffect(() => () => resetGalaxyInteraction(), [resetGalaxyInteraction])
+  useEffect(() => { setExperienceHoveredObject(hoveredObject) }, [hoveredObject, setExperienceHoveredObject])
+  useEffect(() => { setExperienceSelectedObject(focusedObject) }, [focusedObject, setExperienceSelectedObject])
 
   useEffect(() => {
-    setExperienceHoveredObject(hoveredObject)
-  }, [hoveredObject, setExperienceHoveredObject])
+    setIsCoarsePointer(adaptive.isCoarsePointer)
+  }, [adaptive.isCoarsePointer])
 
-  useEffect(() => {
-    setExperienceSelectedObject(focusedObject)
-  }, [focusedObject, setExperienceSelectedObject])
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || !window.matchMedia) return undefined
-    const media = window.matchMedia('(pointer: coarse)')
-    const update = () => setIsCoarsePointer(media.matches)
-    update()
-    if (media.addEventListener) {
-      media.addEventListener('change', update)
-      return () => media.removeEventListener('change', update)
-    }
-    media.addListener(update)
-    return () => media.removeListener(update)
-  }, [])
-
-  const activeModel = useMemo(
-    () => buildGalaxyModeModel(model, galaxyMode),
-    [galaxyMode, model],
-  )
+  const activeModel = useMemo(() => buildGalaxyModeModel(model, galaxyMode), [galaxyMode, model])
 
   useEffect(() => {
     if (!activeModel) return
@@ -225,61 +213,37 @@ export default function MusicMap() {
   }, [activeModel, galaxyMode, setLayoutData, setNodeData])
 
   useEffect(() => {
-    if (galaxyMode === 'song') {
-      setMotionState({
-        driftStrength: 0.24,
-        oscillationStrength: 0.4,
-        shimmerStrength: 0.28,
-      })
-      return
+    const sessionIntensity = Math.max(0, Math.min(1, liveSignal?.sessionIntensity || 0))
+    const novelty = Math.max(0, Math.min(1, liveSignal?.noveltyScore || 0))
+    const modeMotion = {
+      universal: { driftStrength: 0.18, oscillationStrength: 0.28, shimmerStrength: 0.2 },
+      genre: { driftStrength: 0.2, oscillationStrength: 0.22, shimmerStrength: 0.16 },
+      artist: { driftStrength: 0.16, oscillationStrength: 0.24, shimmerStrength: 0.18 },
+      song: { driftStrength: 0.24, oscillationStrength: 0.4, shimmerStrength: 0.28 },
     }
-
-    if (galaxyMode === 'artist') {
-      setMotionState({
-        driftStrength: 0.16,
-        oscillationStrength: 0.24,
-        shimmerStrength: 0.18,
-      })
-      return
-    }
-
-    if (galaxyMode === 'genre') {
-      setMotionState({
-        driftStrength: 0.2,
-        oscillationStrength: 0.22,
-        shimmerStrength: 0.16,
-      })
-      return
-    }
-
+    const base = modeMotion[galaxyMode] || modeMotion.universal
     setMotionState({
-      driftStrength: 0.18,
-      oscillationStrength: 0.28,
-      shimmerStrength: 0.2,
+      driftStrength: base.driftStrength + sessionIntensity * 0.05,
+      oscillationStrength: base.oscillationStrength + novelty * 0.06,
+      shimmerStrength: base.shimmerStrength + sessionIntensity * 0.05,
     })
-  }, [galaxyMode, setMotionState])
+  }, [galaxyMode, liveSignal?.noveltyScore, liveSignal?.sessionIntensity, setMotionState])
 
-  const focusedEntity = useMemo(
-    () => resolveInteractionEntity(activeModel, musicProfile, focusedObject),
-    [activeModel, focusedObject, musicProfile],
-  )
-  const hoveredEntity = useMemo(
-    () => resolveInteractionEntity(activeModel, musicProfile, hoveredObject),
-    [activeModel, hoveredObject, musicProfile],
-  )
+  const focusedEntity = useMemo(() => resolveInteractionEntity(activeModel, musicProfile, focusedObject), [activeModel, focusedObject, musicProfile])
+  const hoveredEntity = useMemo(() => resolveInteractionEntity(activeModel, musicProfile, hoveredObject), [activeModel, hoveredObject, musicProfile])
 
   useEffect(() => {
     if (!activeModel || !focusedObject?.id) return
     const resolved = resolveInteractionEntity(activeModel, musicProfile, focusedObject)
-    const stillValid = resolved.node || resolved.cluster || resolved.region || resolved.edge
-    if (!stillValid) clearFocusedObject()
+    if (!(resolved.node || resolved.cluster || resolved.region || resolved.edge)) {
+      clearFocusedObject()
+    }
   }, [activeModel, clearFocusedObject, focusedObject, musicProfile])
 
   const handleSelectCluster = useCallback((clusterId) => {
     if (!activeModel) return
-    const cluster = activeModel.clusters?.find((entry) => entry.id === clusterId) || null
+    const cluster = activeModel.clusters?.find((entry) => entry.id === clusterId)
     if (!cluster) return
-
     setFocusedObject({
       id: cluster.id,
       type: 'cluster',
@@ -291,7 +255,7 @@ export default function MusicMap() {
 
   const handleSelectRegion = useCallback((regionId) => {
     if (!activeModel) return
-    const region = activeModel.regions?.find((entry) => entry.id === regionId) || null
+    const region = activeModel.regions?.find((entry) => entry.id === regionId)
     if (!region) return
     setFocusedObject({ id: region.id, type: 'region', label: region.title || region.label })
     setFocusTarget(region.centroid || null)
@@ -301,11 +265,10 @@ export default function MusicMap() {
     const ids = activeModel?.metadata?.focusPresets?.[presetKey] || []
     const target = resolveFocusPosition(ids)
     if (!target) return
-
     setFocusTarget(target)
 
     if (ids.length === 1) {
-      const node = activeModel?.nodes?.find((entry) => entry.id === ids[0]) || null
+      const node = activeModel?.nodes?.find((entry) => entry.id === ids[0])
       if (node) {
         setFocusedObject({
           id: node.type === 'cluster' ? node.clusterId : node.id,
@@ -351,9 +314,7 @@ export default function MusicMap() {
     }
 
     const regionMatch = activeModel.regions?.find((region) => (region.title || region.label)?.toLowerCase().includes(query))
-    if (regionMatch) {
-      handleSelectRegion(regionMatch.id)
-    }
+    if (regionMatch) handleSelectRegion(regionMatch.id)
   }, [activeModel, handleSelectCluster, handleSelectRegion, searchQuery, setFocusTarget, setFocusedObject])
 
   useEffect(() => {
@@ -361,7 +322,6 @@ export default function MusicMap() {
     if (requestedMode && ['universal', 'genre', 'artist', 'song'].includes(requestedMode) && requestedMode !== galaxyMode) {
       setGalaxyMode(requestedMode)
     }
-
     const requestedQuery = searchParams.get('q')
     if (requestedQuery && requestedQuery !== searchQuery) {
       setSearchQuery(requestedQuery)
@@ -376,7 +336,6 @@ export default function MusicMap() {
       next.set('mode', galaxyMode)
       changed = true
     }
-
     if (searchQuery.trim()) {
       if (next.get('q') !== searchQuery.trim()) {
         next.set('q', searchQuery.trim())
@@ -387,63 +346,57 @@ export default function MusicMap() {
       changed = true
     }
 
-    if (changed) {
-      setSearchParams(next, { replace: true })
-    }
+    if (changed) setSearchParams(next, { replace: true })
   }, [galaxyMode, searchParams, searchQuery, setSearchParams])
 
   const activeViewMode = constellationMode ? 'constellation' : viewMode
-  const focusedNodeForResonance = focusedEntity.node
-  const hoveredNodeForResonance = hoveredEntity.node
-
   const selectedResonance = useMemo(() => mapGalaxySelectionToResonance({
-    node: focusedNodeForResonance,
+    node: focusedEntity.node,
     cluster: focusedEntity.cluster,
     region: focusedEntity.region,
     edge: focusedEntity.edge,
     model: activeModel,
     mode: 'focused',
-  }), [activeModel, focusedEntity.cluster, focusedEntity.edge, focusedEntity.region, focusedNodeForResonance])
+  }), [activeModel, focusedEntity.cluster, focusedEntity.edge, focusedEntity.node, focusedEntity.region])
 
   const liveResonance = useMemo(() => {
     if (selectedResonance) return selectedResonance
     return mapGalaxySelectionToResonance({
-      node: hoveredNodeForResonance,
+      node: hoveredEntity.node,
       cluster: hoveredEntity.cluster,
       region: hoveredEntity.region,
       edge: hoveredEntity.edge,
       model: activeModel,
       mode: 'live',
     })
-  }, [activeModel, hoveredEntity.cluster, hoveredEntity.edge, hoveredEntity.region, hoveredNodeForResonance, selectedResonance])
+  }, [activeModel, hoveredEntity.cluster, hoveredEntity.edge, hoveredEntity.node, hoveredEntity.region, selectedResonance])
 
   const resonanceHint = useMemo(() => {
-    if (selectedResonance?.label) {
-      return `The Soul Orb is holding ${selectedResonance.label.toLowerCase()} close.`
-    }
-    if (liveResonance?.label) {
-      return `The Soul Orb is listening to ${liveResonance.label.toLowerCase()} in real time.`
-    }
-    return 'The Soul Orb is resting in your wider listening weather.'
+    if (selectedResonance?.label) return `The Soul Orb is holding ${selectedResonance.label.toLowerCase()} close.`
+    if (liveResonance?.label) return `The Soul Orb is listening to ${liveResonance.label.toLowerCase()} in real time.`
+    return 'The Soul Orb is resting inside your wider listening weather.'
   }, [liveResonance, selectedResonance])
 
   const subtitle = useMemo(() => {
-    if (loading) return 'tuning into your signal...'
+    if (loading || galaxyLoading) return 'computing clusters, spacing stars, and plotting meaning...'
     if (isDemo) return 'a borrowed sky for now -- connect a music source to see your own'
     if (!activeModel) return 'the sky is still quiet'
-
     const density = activeModel.metadata?.modeDensity || activeModel.metadata?.density
-    return `${galaxyMode} mode • ${density?.nodes || activeModel.nodes.length} visible bodies • ${density?.edges || activeModel.edges?.length || 0} links • ${activeModel.metadata?.profileTier || 'canonical'} profile`
-  }, [activeModel, galaxyMode, isDemo, loading])
+    const layoutVersion = artifactMeta?.metadata?.layout || activeModel.metadata?.layoutVersion || 'galaxy-layout'
+    return `${galaxyMode} mode • ${density?.nodes || activeModel.nodes.length} visible bodies • ${density?.edges || activeModel.edges?.length || 0} links • ${layoutVersion}`
+  }, [activeModel, artifactMeta, galaxyLoading, galaxyMode, isDemo, loading])
 
   const trustBanner = useMemo(() => {
     if (!activeModel) return null
+    if (hasLiveSignal) return `${liveSignal.eventCount} live listening events are nudging drift, shimmer, and focus in this session.`
     if (isDemo) return 'this is only a borrowed sky -- your own map arrives once your listening is connected.'
-    if (activeModel.metadata?.source !== 'profile') return 'the full constellation has not settled yet, so some structures are still running on older signal.'
+    if (galaxyError) return 'the next-gen galaxy service slipped, so the map fell back gracefully instead of going blank.'
+    if (jobStatus?.job_id) return 'the visible galaxy is live now, and a deeper recompute is already queued in the background.'
+    if (!['profile', 'nextgen-galaxy'].includes(activeModel.metadata?.source)) return 'some structures are still arriving from an older local model.'
     if (activeModel.metadata?.profileTier === 'partial') return 'this galaxy is still forming. regions and bridges stay sparse on purpose.'
     if ((activeModel.metadata?.confidence?.galaxy?.score || 0) < 0.5) return 'the pattern is real, but still faint in places.'
     return null
-  }, [activeModel, isDemo])
+  }, [activeModel, galaxyError, hasLiveSignal, isDemo, jobStatus, liveSignal])
 
   const detailBanner = useMemo(() => {
     if (!activeModel || isDemo) return null
@@ -454,7 +407,7 @@ export default function MusicMap() {
 
   const controlProps = {
     isDemo,
-    loading,
+    loading: loading || galaxyLoading,
     cinemaMode,
     onRefresh: loadData,
     galaxyMode,
@@ -472,25 +425,30 @@ export default function MusicMap() {
 
   const hoveredCluster = hoveredEntity.cluster || (hoveredEntity.node?.clusterId ? activeModel?.clusters?.find((cluster) => cluster.id === hoveredEntity.node.clusterId) : null)
   const hoveredRegion = hoveredEntity.region || (hoveredEntity.node?.regionLabel ? activeModel?.regions?.find((region) => region.label === hoveredEntity.node.regionLabel) : null)
-
-  const sparseMode = boot?.mode === 'sparse' || tier === 'sparse' || Boolean(musicProfile && !readiness?.galaxy)
-  const showBootPanel = loading && !activeModel && !cinemaMode
+  const sparseMode = tier === 'sparse' || Boolean(musicProfile && !readiness?.galaxy)
+  const showBootPanel = (loading || galaxyLoading) && !activeModel && !cinemaMode
 
   const scene = (
     <div className="relative h-full w-full overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(120,255,206,0.14),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(194,120,255,0.18),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(255,184,120,0.16),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(255,193,120,0.12),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(132,153,255,0.14),transparent_24%),linear-gradient(180deg,#050713_0%,#050610_48%,#03040b_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(139,124,255,0.16),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(185,148,255,0.18),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(159,188,255,0.14),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(208,179,255,0.10),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(90,70,214,0.16),transparent_24%),linear-gradient(180deg,#050611_0%,#070714_48%,#03040a_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.02)_0%,transparent_18%,transparent_82%,rgba(255,255,255,0.02)_100%)] opacity-70" />
-      <GalaxyScene model={activeModel} sparseMode={sparseMode} />
-      {isCoarsePointer && !loading && (
+      <GalaxyScene
+        model={activeModel}
+        sparseMode={sparseMode}
+        lowPower={adaptive.lowPowerMode}
+        reducedMotion={adaptive.prefersReducedMotion}
+        webglEnabled={adaptive.webglSupported}
+      />
+      {isCoarsePointer && !(loading || galaxyLoading) ? (
         <div className="pointer-events-none absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[#090d1f]/72 px-4 py-2 text-[11px] text-gray-200 shadow-[0_18px_40px_rgba(3,4,15,0.35)] backdrop-blur-xl">
           Touch a star, nebula, bridge, or the core to see what it reveals. Touch it again to let it go.
         </div>
-      )}
-      {constellationMode && !constellationOrigin && !loading && (
+      ) : null}
+      {constellationMode && !constellationOrigin && !(loading || galaxyLoading) ? (
         <div className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full border border-purple-500/30 bg-purple-500/18 px-3 py-1.5 text-xs text-purple-200 backdrop-blur">
           Touch a voice in the field to let its nearby constellation appear
         </div>
-      )}
+      ) : null}
       <ClusterOverlay cluster={hoveredCluster} region={!hoveredCluster ? hoveredRegion : null} />
       <GalaxyLegend
         clusters={activeModel?.clusters || []}
@@ -506,16 +464,13 @@ export default function MusicMap() {
   if (cinemaMode) {
     return (
       <div className="fixed inset-0 z-50 bg-black">
-        {loading ? (
+        {loading || galaxyLoading ? (
           <div className="absolute inset-0 flex items-center justify-center">
-            <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
+            <NebulaLoader compact label="Opening cinema mode" detail="The universe is settling into a wider frame." />
           </div>
         ) : scene}
-        <div className="absolute right-4 top-4 z-10">
-          <GalaxyControls
-            {...controlProps}
-            onToggleCinema={() => setCinemaMode(false)}
-          />
+        <div className="absolute left-3 right-3 top-[calc(0.75rem+env(safe-area-inset-top))] z-10 sm:left-auto sm:right-4 sm:top-4">
+          <GalaxyControls {...controlProps} onToggleCinema={() => setCinemaMode(false)} />
         </div>
       </div>
     )
@@ -534,23 +489,60 @@ export default function MusicMap() {
 
   return (
     <div className="mx-auto max-w-[1440px] p-6">
-      <div className="mb-6 flex items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gradient">Galaxy</h1>
-          <p className="mt-0.5 text-sm text-gray-400">{subtitle}</p>
+      <div className="relative mb-6 overflow-hidden rounded-[36px] noire-panel p-6 lg:p-8">
+        <AtmosphereBackground variant="galaxy" intensity="rich" anchored />
+        <div className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-3xl">
+            <p className="premium-kicker mb-3">Emotional universe</p>
+            <h1 className="premium-hero-title">Galaxy</h1>
+            <p className="premium-body mt-4">
+              A map of your listening world rendered as distance, gravity, clusters, and memory instead of a pile of tracks.
+            </p>
+            <ShimmerDivider className="my-5 max-w-xl" />
+            <p className="text-sm text-slate-300">{subtitle}</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <HaloButton to="/discover" variant="secondary">Return to drift</HaloButton>
+            <HaloButton to="/auralith?mode=analyze&prompt=read%20my%20galaxy" variant="primary">Ask what it means</HaloButton>
+          </div>
         </div>
-        <GalaxyControls
-          {...controlProps}
-          onToggleCinema={() => setCinemaMode(true)}
-        />
       </div>
 
-      <div className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#040610] shadow-[0_30px_120px_rgba(2,4,12,0.6)]" style={{ height: 680 }}>
-        {loading ? (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="h-8 w-8 animate-spin text-indigo-400" />
-              <p className="text-sm text-gray-400">tuning into your signal...</p>
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
+        <GalaxyControls {...controlProps} onToggleCinema={() => setCinemaMode(true)} />
+      </div>
+
+      <div className="relative h-[62dvh] min-h-[420px] overflow-hidden rounded-[28px] border border-white/10 bg-[#040610] shadow-[0_30px_120px_rgba(2,4,12,0.6)] sm:h-[680px]">
+        <AtmosphereBackground variant="galaxy" intensity="medium" anchored />
+        {(loading || galaxyLoading) ? (
+          <div className="absolute inset-0 p-6">
+            <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
+              <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_50%_42%,rgba(139,124,255,0.12),transparent_16%),linear-gradient(180deg,rgba(10,11,22,0.82),rgba(5,6,15,0.92))] p-6">
+                <NebulaLoader
+                  label="Assembling your taste galaxy"
+                  detail="Anchors, bridges, and nebula regions are resolving in layers so the route stays alive while the deeper structure settles."
+                />
+                <div className="mt-6 grid grid-cols-2 gap-3">
+                  <div className="skeleton h-28" />
+                  <div className="skeleton h-28" />
+                  <div className="skeleton h-28" />
+                  <div className="skeleton h-28" />
+                </div>
+              </div>
+              <div className="space-y-4">
+                <AuraCard className="p-4" accent="silver">
+                  <p className="section-label mb-2">Preview metrics</p>
+                  <div className="space-y-3">
+                    <div className="skeleton h-4 w-3/4" />
+                    <div className="skeleton h-4 w-2/3" />
+                    <div className="skeleton h-4 w-4/5" />
+                  </div>
+                </AuraCard>
+                <AuraCard className="p-4" accent="lavender">
+                  <p className="section-label mb-2">Route posture</p>
+                  <p className="text-sm text-slate-400">The shell stays visible while clustering, density, and deeper meaning finish behind the glass.</p>
+                </AuraCard>
+              </div>
             </div>
           </div>
         ) : (
@@ -563,25 +555,29 @@ export default function MusicMap() {
             {scene}
           </motion.div>
         )}
-        {trustBanner && !loading && (
+        {trustBanner && !(loading || galaxyLoading) ? (
           <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-amber-500/25 bg-amber-500/10 px-3 py-1.5 text-[11px] text-amber-200 backdrop-blur">
             {trustBanner}
           </div>
-        )}
-        {detailBanner && !loading && !trustBanner && (
+        ) : null}
+        {detailBanner && !(loading || galaxyLoading) && !trustBanner ? (
           <div className="pointer-events-none absolute left-4 top-4 rounded-full border border-white/10 bg-black/35 px-3 py-1.5 text-[11px] text-gray-200 backdrop-blur">
             {detailBanner}
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,360px)_minmax(0,1fr)]">
         <SoulResonancePanel profile={musicProfile} model={activeModel} />
-
         <div>
-          <div className="mb-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-gray-300">
+          {liveSignal?.recentEvents?.[0]?.title ? (
+            <AuraCard className="mb-3 px-4 py-3 text-sm text-cyan-100" accent="cyan">
+              Now shaping your map: {liveSignal.recentEvents[0].title} by {liveSignal.recentEvents[0].artist}
+            </AuraCard>
+          ) : null}
+          <AuraCard className="mb-3 px-4 py-3 text-sm text-gray-300" accent="silver">
             {resonanceHint}
-          </div>
+          </AuraCard>
           <GalaxyInspector
             node={focusedEntity.node}
             edge={focusedEntity.edge}

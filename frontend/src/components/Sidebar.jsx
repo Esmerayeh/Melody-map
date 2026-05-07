@@ -5,8 +5,11 @@ import {
   Heart, Sparkles, BarChart3, LogOut, User, Wand2, Brain,
 } from 'lucide-react'
 import useStore from '../store/useStore'
+import useAuthStore from '../store/useAuthStore'
+import useProfileStore from '../store/useProfileStore'
 import { ProviderBadge } from './MusicSourceCard'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
+import { authAPI } from '../services/api'
 
 const NAV = [
   { section: 'Explore' },
@@ -14,23 +17,34 @@ const NAV = [
   { path: '/discover', icon: Compass, label: 'Discover', color: '#00D1FF' },
   { path: '/galaxy', icon: Disc3, label: 'Galaxy', color: '#E040FB' },
   { section: 'Identity' },
-  { path: '/soulmate', icon: Heart, label: 'Soulmates', color: '#FF5DA2' },
+  { path: '/soulmates', icon: Heart, label: 'Soulmates', color: '#FF5DA2' },
   { path: '/aesthetic', icon: Sparkles, label: 'Aesthetic', color: '#FBBF24' },
   { path: '/auralith', icon: Wand2, label: 'Auralith', color: '#C084FC' },
   { path: '/analytics', icon: BarChart3, label: 'Analytics', color: '#2DD4BF' },
   { path: '/identity', icon: Brain, label: 'Music Identity', color: '#60A5FA' },
+  { path: '/identity-drift', icon: Brain, label: 'Identity Drift', color: '#93C5FD' },
   { path: '/profile', icon: User, label: 'Profile', color: '#A78BFA' },
 ]
 
 export default function Sidebar() {
   const logout = useStore((s) => s.logout)
+  const clearAllAuth = useAuthStore((s) => s.clearAllAuth)
+  const clearProfile = useProfileStore((s) => s.clearProfile)
   const navigate = useNavigate()
   const username = useStore((s) => s.spotifyProfile?.name || s.lastfmUsername || 'You')
   const avatar = useStore((s) => s.spotifyProfile?.image)
   const safeUsername = typeof username === 'string' && username.trim() ? username : 'You'
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authAPI.logout()
+      await Promise.allSettled([authAPI.logoutSpotify(), authAPI.logoutLastfm()])
+    } catch {
+      // Local logout still needs to succeed if the network is unavailable.
+    }
     logout()
+    clearAllAuth()
+    clearProfile()
     navigate('/login')
   }
 

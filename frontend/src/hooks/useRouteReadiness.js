@@ -51,16 +51,16 @@ export function useRouteReadiness({
   }
 
   if (phase === 'loading' && !profile) {
-    return { blocked: true, variant: 'loading', ...pickCopy(copy, 'loading') }
+    return { blocked: false, mode: 'loading', variant: 'loading', ...pickCopy(copy, 'loading') }
   }
   if (phase === 'error' && !profile) {
-    return { blocked: true, variant: 'error', ...pickCopy(copy, 'error') }
+    return { blocked: false, mode: 'error', variant: 'error', ...pickCopy(copy, 'error') }
   }
   if (phase === 'empty') {
-    return { blocked: true, variant: 'empty', ...pickCopy(copy, 'empty') }
+    return { blocked: false, mode: 'empty', variant: 'empty', ...pickCopy(copy, 'empty') }
   }
   if (Object.values(missing).some(Boolean)) {
-    return { blocked: true, variant: 'partial', ...pickCopy(copy, 'partial') }
+    return { blocked: false, mode: 'partial', variant: 'partial', ...pickCopy(copy, 'partial') }
   }
   if (tier === 'sparse') {
     return { blocked: false, mode: 'sparse', variant: 'sparse', ...pickCopy(copy, 'sparse') }

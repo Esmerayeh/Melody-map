@@ -4,6 +4,8 @@ from pathlib import Path
 
 import numpy as np
 
+from ml.serving.auralith_retriever import AuralithRetriever
+from services.feature_store import get_latest_snapshot, get_recent_events
 from utils.logger import logger
 
 
@@ -14,6 +16,7 @@ class AuralithEngine:
         self.songs = self._load_songs()
         self.dimension = 64
         self.matrix = self._embed_many(self._serialize_song(song) for song in self.songs)
+        self.retriever = AuralithRetriever()
 
     def _load_songs(self) -> list[dict]:
         if not self.dataset_path.exists():
@@ -74,7 +77,14 @@ class AuralithEngine:
             "user_name": (profile.get("userProfile") or {}).get("name") or "",
             "audio": audio,
             "analytics": analytics,
+            "representations": profile.get("representations") or {},
         }
+
+    def _history_context(self, profile: dict | None) -> dict:
+        user_id = (profile or {}).get("user_id") or ((profile or {}).get("userProfile") or {}).get("id")
+        events = get_recent_events(user_id, limit=12) if user_id else []
+        snapshot = get_latest_snapshot(user_id) if user_id else None
+        return {"events": events, "snapshot": snapshot}
 
     def _profile_terms(self, profile: dict | None) -> str:
         context = self._profile_context(profile)
@@ -219,6 +229,7 @@ class AuralithEngine:
 
     def _taste_fit_summary(self, profile: dict | None, songs: list[dict]) -> str:
         context = self._profile_context(profile)
+        history = self._history_context(profile)
         if not profile:
             return "This sequence stays coherent by holding to one emotional climate while varying texture and pacing."
         anchors = []
@@ -228,9 +239,35 @@ class AuralithEngine:
             anchors.append(f"it carries the atmospheric weight you tend to favor around {context['top_artists'][0]}")
         if context["analytics"].get("mood"):
             anchors.append(f"it stays close to the {context['analytics']['mood']} current in your profile")
+        if history["events"]:
+            anchors.append("it reflects the tracks and sessions you touched most recently")
         if not anchors and songs:
             anchors.append("it mirrors the pacing and tonal restraint in your current listening")
         return "Why this fits your taste: " + "; ".join(anchors[:3]) + "."
+
+    def _retrieval_trace(self, query: str, profile: dict | None, songs: list[dict]) -> dict:
+        history = self._history_context(profile)
+        return {
+            "query": query,
+            "profileEmbeddingVersion": ((profile or {}).get("representations") or {}).get("embeddingVersion"),
+            "retrievedSongs": [
+                {"title": song["title"], "artist": song["artist"], "genre": song.get("genre"), "mood": song.get("mood")}
+                for song in songs[:6]
+            ],
+            "recentEventsUsed": history["events"][:5],
+            "snapshotId": (history["snapshot"] or {}).get("snapshot_id"),
+        }
+
+    def _retrieve_grounding(self, prompt: str, profile: dict | None) -> dict:
+        user_id = (profile or {}).get("user_id") or ((profile or {}).get("userProfile") or {}).get("id")
+        return self.retriever.retrieve(user_id, prompt, profile=profile, limit=12) if user_id else {
+            "memories": [],
+            "nearest_tracks": [],
+            "nearest_artists": [],
+            "recent_events": [],
+            "snapshot": None,
+            "confidence": 0.35,
+        }
 
     def generate_playlist(self, prompt: str, profile: dict | None = None, limit: int = 8) -> dict:
         songs = self._personalized_search(prompt, profile, limit=max(limit, 8))
@@ -247,6 +284,7 @@ class AuralithEngine:
             "narrative": "The arc opens in suspension, warms into detail around the center, then leaves a trace of tension so the ending feels carried rather than closed.",
             "why_this_fits_your_taste": self._taste_fit_summary(profile, selected),
             "retrieved_context": songs,
+            "retrieval_trace": self._retrieval_trace(prompt, profile, selected),
             "used_model": "melody-map-auralith",
         }
 
@@ -280,6 +318,7 @@ class AuralithEngine:
             ],
             "recommendation_direction": "Expand into art pop, downtempo, and left-field electronic releases that preserve closeness while widening dynamic range.",
             "retrieved_context": songs,
+            "retrieval_trace": self._retrieval_trace(" ".join(seeds), profile, songs),
             "used_model": "melody-map-auralith",
         }
 
@@ -306,6 +345,7 @@ class AuralithEngine:
             "listener_alignment": self._taste_fit_summary(profile, [song]) if profile else "",
             "similar_vibe": [f"{item['title']} - {item['artist']}" for item in songs[1:5]],
             "retrieved_context": songs,
+            "retrieval_trace": self._retrieval_trace(prompt, profile, songs),
             "used_model": "melody-map-auralith",
         }
 
@@ -341,6 +381,7 @@ class AuralithEngine:
                 }
             ],
             "retrieved_context": songs,
+            "retrieval_trace": self._retrieval_trace(" ".join(songs_or_artists), profile, songs),
             "used_model": "melody-map-auralith",
         }
 
@@ -357,5 +398,6 @@ class AuralithEngine:
             ],
             "closing_note": "The goal is not closure. It is shape, motion, and enough silence around the music to let the feeling breathe.",
             "retrieved_context": songs,
+            "retrieval_trace": self._retrieval_trace(prompt, profile, selected),
             "used_model": "melody-map-auralith",
         }
