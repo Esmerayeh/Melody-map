@@ -29,6 +29,7 @@ const Auralith       = lazy(() => import('./pages/Auralith'))
 const MusicIdentity  = lazy(() => import('./pages/MusicIdentity'))
 const SocialSoulmates = lazy(() => import('./pages/SocialSoulmates'))
 const IdentityDrift = lazy(() => import('./pages/IdentityDrift'))
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -317,6 +318,7 @@ function AnimatedRoutes() {
           <Route path="/login" element={<RouteModule><PageWrapper><Login /></PageWrapper></RouteModule>} />
           <Route path="/spotify-success" element={<RouteModule><SpotifySuccess /></RouteModule>} />
           <Route path="/lastfm-success" element={<RouteModule><LastfmSuccess /></RouteModule>} />
+          <Route path="/privacy" element={<RouteModule><PageWrapper><PrivacyPolicy /></PageWrapper></RouteModule>} />
 
           <Route path="/" element={
             <ProtectedShell><RouteModule shell><PageWrapper><Dashboard /></PageWrapper></RouteModule></ProtectedShell>
