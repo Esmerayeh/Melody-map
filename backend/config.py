@@ -77,6 +77,21 @@ class AppConfig:
     lastfm_redirect_uri: str
     unsplash_access_key: str | None
     pinterest_access_token: str | None
+    redis_url: str | None
+    mlflow_tracking_uri: str | None
+    feature_store_mode: str
+    retrieval_model_version: str
+    ranking_model_version: str
+    soulmate_model_version: str
+    enable_shadow_retrieval: bool
+    enable_shadow_ranker: bool
+    enable_learned_soulmate: bool
+    recommendation_canary_percent: int
+    kafka_bootstrap_servers: str | None
+    kafka_events_topic: str
+    kafka_recommendation_feedback_topic: str
+    kafka_recommendation_request_topic: str
+    kafka_dlq_topic: str
 
     @property
     def spotify_credentials_available(self) -> bool:
@@ -123,6 +138,21 @@ def get_config() -> AppConfig:
         lastfm_redirect_uri=_env("LASTFM_REDIRECT_URI", "http://127.0.0.1:5000/auth/lastfm/callback") or "http://127.0.0.1:5000/auth/lastfm/callback",
         unsplash_access_key=_env("UNSPLASH_ACCESS_KEY"),
         pinterest_access_token=_env("PINTEREST_ACCESS_TOKEN"),
+        redis_url=_env("REDIS_URL"),
+        mlflow_tracking_uri=_env("MLFLOW_TRACKING_URI", "file:./backend/mlruns"),
+        feature_store_mode=_env("FEATURE_STORE_MODE", "native") or "native",
+        retrieval_model_version=_env("RETRIEVAL_MODEL_VERSION", "retrieval-two-tower-v1") or "retrieval-two-tower-v1",
+        ranking_model_version=_env("RANKING_MODEL_VERSION", "ranker-v1") or "ranker-v1",
+        soulmate_model_version=_env("SOULMATE_MODEL_VERSION", "soulmate-siamese-v1") or "soulmate-siamese-v1",
+        enable_shadow_retrieval=_env_bool("ENABLE_SHADOW_RETRIEVAL", False),
+        enable_shadow_ranker=_env_bool("ENABLE_SHADOW_RANKER", False),
+        enable_learned_soulmate=_env_bool("ENABLE_LEARNED_SOULMATE", False),
+        recommendation_canary_percent=_env_int("RECOMMENDATION_CANARY_PERCENT", 0),
+        kafka_bootstrap_servers=_env("KAFKA_BOOTSTRAP_SERVERS"),
+        kafka_events_topic=_env("KAFKA_EVENTS_TOPIC", "melodymap.events.v1") or "melodymap.events.v1",
+        kafka_recommendation_feedback_topic=_env("KAFKA_RECOMMENDATION_FEEDBACK_TOPIC", "melodymap.recommendation.feedback.v1") or "melodymap.recommendation.feedback.v1",
+        kafka_recommendation_request_topic=_env("KAFKA_RECOMMENDATION_REQUEST_TOPIC", "melodymap.recommendation.requests.v1") or "melodymap.recommendation.requests.v1",
+        kafka_dlq_topic=_env("KAFKA_DLQ_TOPIC", "melodymap.events.dlq.v1") or "melodymap.events.dlq.v1",
     )
 
 

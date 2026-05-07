@@ -32,6 +32,6 @@
     "dev": "vite",
     "build": "node ./scripts/vite-build.mjs",
     "preview": "vite preview",
-    "test": "node tests/routeSanity.test.js; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; node tests/galaxyInteraction.test.js"
+    "test": "node tests/routeSanity.test.js; if (-not $?) { exit 1 }; node tests/galaxyInteraction.test.js; if (-not $?) { exit 1 }; node tests/identityCardExport.test.js; if (-not $?) { exit 1 }; node tests/mobileReadiness.test.js"
   }
 }

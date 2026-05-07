@@ -1,7 +1,6 @@
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { Billboard, Html, MeshDistortMaterial, OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
-import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import * as THREE from 'three'
 import { motion } from 'framer-motion'
 import useGalaxyInteractionStore from './useGalaxyInteractionStore'
@@ -11,6 +10,7 @@ import { slugifyInteraction } from './interactionModel.js'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
+const GalaxyPostEffects = lazy(() => import('./GalaxyPostEffects'))
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
@@ -29,7 +29,7 @@ const buildStarGeometry = (count, radius, bias = 1) => {
   return geometry
 }
 
-function ParallaxStarfield({ density, sparseMode }) {
+function ParallaxStarfield({ density, sparseMode, lowPower = false }) {
   const foregroundRef = useRef()
   const midgroundRef = useRef()
   const backgroundRef = useRef()
@@ -38,7 +38,7 @@ function ParallaxStarfield({ density, sparseMode }) {
   const dustMaterialRef = useRef()
 
   const [foreground, midground, background, dust] = useMemo(() => {
-    const densityScale = sparseMode ? 0.35 : 1
+    const densityScale = sparseMode ? 0.35 : lowPower ? 0.55 : 1
     const artistDensity = (density?.artistStars || 30) * densityScale
     const trackDensity = (density?.trackSatellites || 20) * densityScale
     return [
@@ -526,7 +526,7 @@ function TasteCore({ core, model, galaxyMode }) {
       {[1.7, 1.28, 0.94].map((factor, index) => (
         <mesh key={`${factor}`}>
           <sphereGeometry args={[factor, 28, 28]} />
-          <meshBasicMaterial color={index === 0 ? '#9df6c9' : index === 1 ? core.color : '#f0fff8'} transparent opacity={index === 0 ? 0.12 : index === 1 ? 0.18 : 0.24} />
+          <meshBasicMaterial color={index === 0 ? '#c9c2ff' : index === 1 ? core.color : '#f6f4ff'} transparent opacity={index === 0 ? 0.12 : index === 1 ? 0.18 : 0.24} />
         </mesh>
       ))}
       <mesh>
@@ -575,9 +575,9 @@ function TasteCore({ core, model, galaxyMode }) {
             transition={MOTION_TOKENS.label}
             className="pointer-events-none text-center"
           >
-            <p className="text-sm uppercase tracking-[0.35em] text-emerald-100/78">Taste Core</p>
+            <p className="text-sm uppercase tracking-[0.35em] text-[#EAE6FF]/78">Taste Core</p>
             {!!coreArtists.length && (
-              <p className="mt-1 text-[11px] text-emerald-50/72">{coreArtists.map((artist) => artist.label).join(' / ')}</p>
+              <p className="mt-1 text-[11px] text-[#D6D0F0]/72">{coreArtists.map((artist) => artist.label).join(' / ')}</p>
             )}
           </motion.div>
         </Html>
@@ -594,17 +594,25 @@ function GalaxyEdges({ model, galaxyMode, viewMode }) {
   const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
 
   const nodeMap = useMemo(() => Object.fromEntries((model?.nodes || []).map((node) => [node.id, node])), [model])
+  const highlightedNodeIds = useMemo(() => {
+    const ids = new Set()
+    if (focusedObject?.id) ids.add(focusedObject.id)
+    if (focusedObject?.clusterId) ids.add(focusedObject.clusterId)
+    if (hoveredObject?.id) ids.add(hoveredObject.id)
+    if (hoveredObject?.clusterId) ids.add(hoveredObject.clusterId)
+    return ids
+  }, [focusedObject, hoveredObject])
   const visibleEdges = useMemo(() => {
     const allEdges = model?.edges || []
-    if (galaxyMode === 'song') return allEdges.filter((edge) => edge.type.startsWith('song_')).slice(0, 180)
-    if (galaxyMode === 'artist') return allEdges.filter((edge) => edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || edge.type === 'shared_genre').slice(0, 220)
-    if (galaxyMode === 'genre') return allEdges.filter((edge) => edge.type === 'artist_genre' || edge.type === 'genre_affinity' || edge.type === 'cluster_membership' || edge.type === 'bridge_lane').slice(0, 220)
-    if (viewMode === 'identity') return allEdges.filter((edge) => edge.type !== 'track_artist' && edge.type !== 'track_genre').slice(0, 220)
-    if (viewMode === 'constellation') return allEdges.slice(0, 340)
-    if (viewMode === 'discovery') return allEdges.filter((edge) => edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || edge.type === 'track_artist').slice(0, 260)
-    if (viewMode === 'genre') return allEdges.filter((edge) => edge.type === 'artist_genre' || edge.type === 'genre_affinity' || edge.type === 'cluster_membership').slice(0, 260)
-    return allEdges.slice(0, 260)
-  }, [model, viewMode])
+    const isHighlighted = (edge) => highlightedNodeIds.has(edge.source) || highlightedNodeIds.has(edge.target)
+    if (viewMode === 'constellation') return allEdges.filter((edge) => edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || isHighlighted(edge)).slice(0, 90)
+    if (galaxyMode === 'song') return allEdges.filter((edge) => edge.type.startsWith('song_') && isHighlighted(edge)).slice(0, 36)
+    if (galaxyMode === 'artist') return allEdges.filter((edge) => (edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || edge.type === 'shared_genre') && (isHighlighted(edge) || (edge.weight || 0) > 0.74)).slice(0, 54)
+    if (galaxyMode === 'genre') return allEdges.filter((edge) => (edge.type === 'genre_affinity' || edge.type === 'bridge_lane') && (isHighlighted(edge) || (edge.weight || 0) > 0.78)).slice(0, 48)
+    if (viewMode === 'discovery') return allEdges.filter((edge) => edge.type === 'bridge_lane' && (isHighlighted(edge) || (edge.weight || 0) > 0.8)).slice(0, 42)
+    if (viewMode === 'genre') return allEdges.filter((edge) => (edge.type === 'genre_affinity' || edge.type === 'cluster_membership') && (isHighlighted(edge) || (edge.weight || 0) > 0.8)).slice(0, 42)
+    return allEdges.filter((edge) => edge.type === 'bridge_lane' && (isHighlighted(edge) || (edge.weight || 0) > 0.84)).slice(0, 34)
+  }, [galaxyMode, highlightedNodeIds, model, viewMode])
 
   return (
     <>
@@ -633,16 +641,16 @@ function GalaxyEdges({ model, galaxyMode, viewMode }) {
           <group key={edge.id}>
             <line geometry={geometry}>
               <lineBasicMaterial
-                color={hovered || focused ? '#f0abfc' : source.color}
+                color={hovered || focused ? '#EAE6FF' : edge.type === 'bridge_lane' ? '#9DB7FF' : source.color}
                 transparent
-                opacity={focused ? Math.min(0.9, baseOpacity + 0.28) : hovered ? Math.min(0.72, baseOpacity + 0.16) : baseOpacity}
+                opacity={focused ? Math.min(0.72, baseOpacity + 0.22) : hovered ? Math.min(0.52, baseOpacity + 0.12) : baseOpacity * 0.68}
               />
             </line>
 
             {shouldShowBridgeMote && (
               <mesh position={[midpoint.x, midpoint.y, midpoint.z]}>
                 <sphereGeometry args={[edge.type === 'bridge_lane' ? 0.2 : 0.12, 12, 12]} />
-                <meshBasicMaterial color={edge.type === 'bridge_lane' ? '#f0abfc' : '#dbeafe'} transparent opacity={hovered || focused ? 0.42 : 0.2} />
+                <meshBasicMaterial color={edge.type === 'bridge_lane' ? '#B994FF' : '#DCE6FF'} transparent opacity={hovered || focused ? 0.42 : 0.18} />
               </mesh>
             )}
 
@@ -749,7 +757,7 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
   )
 }
 
-function SceneContents({ model, sparseMode }) {
+function SceneContents({ model, sparseMode, lowPower = false, reducedMotion = false }) {
   const [cameraDistance, setCameraDistance] = useState(24)
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
   const viewMode = useGalaxyInteractionStore((state) => state.constellationMode ? 'constellation' : state.viewMode)
@@ -773,12 +781,12 @@ function SceneContents({ model, sparseMode }) {
       <PerspectiveCamera makeDefault position={[0, 0, 26]} fov={54} />
       <fog attach="fog" args={['#03050f', 28, 98]} />
       <ambientLight intensity={0.35} />
-      <pointLight position={[0, 0, 7]} intensity={1.35} color="#b8f5d2" />
-      <pointLight position={[10, 8, 10]} intensity={0.82} color="#f5b8ff" />
-      <pointLight position={[-9, -6, -10]} intensity={0.54} color="#7ea8ff" />
-      <pointLight position={[16, 12, 6]} intensity={0.45} color="#ffcf9b" />
+      <pointLight position={[0, 0, 7]} intensity={1.2} color="#B994FF" />
+      <pointLight position={[10, 8, 10]} intensity={0.74} color="#d7cfff" />
+      <pointLight position={[-9, -6, -10]} intensity={0.52} color="#9DB7FF" />
+      <pointLight position={[16, 12, 6]} intensity={0.34} color="#EAE6FF" />
 
-      <ParallaxStarfield density={model?.metadata?.density} sparseMode={sparseMode} />
+        <ParallaxStarfield density={model?.metadata?.density} sparseMode={sparseMode} lowPower={lowPower} />
       <NebulaBackdrop colors={nebulaColors} regions={model?.regions || []} model={model} galaxyMode={galaxyMode} viewMode={viewMode} showMoodRegions={showMoodRegions} />
       <TasteCore core={model?.metadata?.core} model={model} galaxyMode={galaxyMode} />
       <GalaxyEdges model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
@@ -811,9 +819,11 @@ function SceneContents({ model, sparseMode }) {
         maxDistance={42}
       />
 
-      <EffectComposer>
-        <Bloom intensity={1.25} luminanceThreshold={0.14} luminanceSmoothing={0.92} mipmapBlur />
-      </EffectComposer>
+        {!sparseMode && !lowPower && !reducedMotion && (
+          <Suspense fallback={null}>
+            <GalaxyPostEffects />
+          </Suspense>
+        )}
 
       <mesh
         position={[0, 0, -60]}
@@ -829,18 +839,28 @@ function SceneContents({ model, sparseMode }) {
   )
 }
 
-export default function GalaxyScene({ model, sparseMode = false }) {
+export default function GalaxyScene({ model, sparseMode = false, lowPower = false, reducedMotion = false, webglEnabled = true }) {
+  if (!webglEnabled) {
+    return (
+      <div className="flex h-full w-full items-center justify-center px-6 text-center">
+        <div className="max-w-md rounded-[24px] border border-white/10 bg-[#090d1f]/72 p-5 text-sm text-slate-200 backdrop-blur">
+          WebGL is unavailable on this device right now, so the live galaxy is resting. Your profile and recommendation surfaces still work normally.
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="h-full w-full">
-      <Canvas
-        gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}
-        dpr={[1, 1.6]}
-        onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
-      >
-        <Suspense fallback={null}>
-          <SceneContents model={model} sparseMode={sparseMode} />
-        </Suspense>
-      </Canvas>
-    </div>
+      <div className="h-full w-full">
+        <Canvas
+          gl={{ antialias: !lowPower, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}
+          dpr={lowPower ? [1, 1.1] : [1, 1.6]}
+          onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
+        >
+          <Suspense fallback={null}>
+            <SceneContents model={model} sparseMode={sparseMode} lowPower={lowPower} reducedMotion={reducedMotion} />
+          </Suspense>
+        </Canvas>
+      </div>
   )
 }

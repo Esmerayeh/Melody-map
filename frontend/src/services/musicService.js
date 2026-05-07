@@ -3,35 +3,21 @@
  * Abstracts Spotify vs Last.fm so pages don't need to care which provider is active.
  */
 import { spotifyAPI, lastfmAPI } from './api'
-
-function safeStorageGet(key) {
-  try {
-    return window.localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
-function hasSpotifyToken() {
-  return !!safeStorageGet('spotify_token')
-}
-
-function hasLastfmSession() {
-  return !!safeStorageGet('lastfm_session')
-}
+import useStore from '../store/useStore'
 
 function getProvider() {
-  const explicit = safeStorageGet('music_provider')
-  if (explicit === 'spotify' && hasSpotifyToken()) return 'spotify'
-  if (explicit === 'lastfm' && hasLastfmSession()) return 'lastfm'
-  if (hasSpotifyToken()) return 'spotify'
-  if (hasLastfmSession()) return 'lastfm'
+  const { musicProvider, spotifyConnected, lastfmConnected } = useStore.getState()
+  if (musicProvider === 'spotify' && spotifyConnected) return 'spotify'
+  if (musicProvider === 'lastfm' && lastfmConnected) return 'lastfm'
+  if (spotifyConnected) return 'spotify'
+  if (lastfmConnected) return 'lastfm'
   return null
 }
 
 function getTruthProvider() {
-  if (hasSpotifyToken()) return 'spotify'
-  if (hasLastfmSession()) return 'lastfm'
+  const { spotifyConnected, lastfmConnected } = useStore.getState()
+  if (spotifyConnected) return 'spotify'
+  if (lastfmConnected) return 'lastfm'
   return null
 }
 
@@ -42,8 +28,7 @@ export const musicService = {
 
   isConnected() {
     const p = getProvider()
-    if (p === 'spotify') return hasSpotifyToken()
-    if (p === 'lastfm') return hasLastfmSession()
+    if (p === 'spotify' || p === 'lastfm') return true
     return false
   },
 

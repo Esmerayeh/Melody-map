@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
-import { Music2, TrendingUp, Users, Sparkles, ChevronRight, Zap, Heart, Disc3, Radio, ExternalLink, RefreshCw } from 'lucide-react'
+import { Music2, TrendingUp, Users, Sparkles, Zap, Heart, Disc3, Radio, ExternalLink, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
@@ -9,11 +9,18 @@ import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import DeferredSoulOrb from '../components/DeferredSoulOrb'
 import HeroScene from '../components/HeroScene'
 import { getVibeName, extractPastelPalette } from '../services/vibeTheme'
-import VibeEmitter from '../components/VibeEmitter'
 import IdentityReveal from '../components/IdentityReveal'
-import ProfileBootPanel from '../components/ProfileBootPanel'
+import RouteStatusBanner from '../components/RouteStatusBanner'
 import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../features/motion/motionTokens'
+import ModuleBoundary from '../components/shell/ModuleBoundary'
+import ShellSkeleton from '../components/shell/ShellSkeleton'
+import useLiveTasteSignal from '../hooks/useLiveTasteSignal'
+import AtmosphereBackground from '../components/premium/AtmosphereBackground'
+import AuraCard from '../components/premium/AuraCard'
+import HaloButton from '../components/premium/HaloButton'
+import ShimmerDivider from '../components/premium/ShimmerDivider'
+import NebulaLoader from '../components/premium/NebulaLoader'
 
 const cleanCopy = (value = '') => value
   .replace(/\u00e2\u20ac\u201d/g, '--')
@@ -117,7 +124,7 @@ function StatOrb({ icon: Icon, label, value, color, delay = 0 }) {
       whileHover={{ y: -3, scale: 1.015, rotateX: 1.2, rotateY: -1 }}
       className="dimensional-surface relative overflow-hidden rounded-[24px] p-5 flex items-center gap-4 cursor-default glass-card"
     >
-      <div className="absolute inset-0 opacity-0 hover:opacity-100 transition-opacity duration-500"
+      <div className="absolute inset-0 opacity-0 transition-opacity duration-500 md:hover:opacity-100"
         style={{ background: `radial-gradient(ellipse at 30% 50%, ${color}15 0%, transparent 70%)` }} />
       <div className="w-11 h-11 rounded-xl flex items-center justify-center shrink-0 relative"
         style={{ background: `${color}18`, border: `1px solid ${color}30`, boxShadow: `0 0 20px ${color}20` }}>
@@ -147,14 +154,14 @@ function ArtistChip({ artist, rank }) {
           ? <img src={artist.image} alt={artist.name} className="w-10 h-10 rounded-full object-cover" />
           : <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-sm font-bold text-indigo-300">{rank + 1}</div>
         }
-        <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-          style={{ boxShadow: '0 0 12px rgba(124,111,255,0.5)' }} />
-      </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-white truncate group-hover:text-indigo-300 transition-colors">{artist.name}</p>
-        <p className="text-xs text-gray-600 truncate">{artist.genres?.[0] || 'Artist'}</p>
-      </div>
-      <ExternalLink className="w-3.5 h-3.5 text-gray-700 group-hover:text-gray-400 shrink-0 transition-colors" />
+          <div className="absolute inset-0 rounded-full opacity-0 transition-opacity md:group-hover:opacity-100"
+            style={{ boxShadow: '0 0 12px rgba(124,111,255,0.5)' }} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-medium text-white truncate md:group-hover:text-indigo-300 transition-colors">{artist.name}</p>
+          <p className="text-xs text-gray-600 truncate">{artist.genres?.[0] || 'Artist'}</p>
+        </div>
+      <ExternalLink className="w-3.5 h-3.5 text-gray-500 md:text-gray-700 md:group-hover:text-gray-400 shrink-0 transition-colors" />
     </motion.a>
   )
 }
@@ -178,8 +185,8 @@ function TrackRow({ track, rank }) {
         <p className="text-xs text-gray-600 truncate">{track.artist}</p>
       </div>
       {track.spotify_url && (
-        <a href={track.spotify_url} target="_blank" rel="noopener noreferrer"
-          className="opacity-0 group-hover:opacity-100 transition-opacity text-xs text-green-400 shrink-0">{'->'}</a>
+          <a href={track.spotify_url} target="_blank" rel="noopener noreferrer"
+            className="touch-reveal opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-xs text-green-400 shrink-0">{'->'}</a>
       )}
     </motion.div>
   )
@@ -250,7 +257,7 @@ function IdentityCard({ metrics, genres }) {
 const NAV_CARDS = [
   { to: '/galaxy',    icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#8b5cf6' },
   { to: '/discover',  icon: Radio,    label: 'Sonic Echoes',    desc: 'signals drifting your way', from: '#ec4899', to2: '#f43f5e' },
-  { to: '/soulmate',  icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#a855f7', to2: '#7c3aed' },
+  { to: '/soulmates', icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#a855f7', to2: '#7c3aed' },
   { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', from: '#f59e0b', to2: '#ef4444' },
   { to: '/identity',  icon: Sparkles, label: 'Inner Music Self', desc: 'Follow the full reading',  from: '#38bdf8', to2: '#6366f1' },
 ]
@@ -269,6 +276,7 @@ export default function Dashboard() {
   const isConnected          = spotifyConnected || lastfmConnected
 
   const { profile, loading, error, refetch, timeRange, confidence, dataQuality, phase, readiness, tier } = useMusicProfile()
+  const { signal: liveSignal } = useLiveTasteSignal({ enabled: Boolean(isConnected), pollMs: 12000 })
 
   const [showReveal, setShowReveal] = useState(false)
 
@@ -277,6 +285,8 @@ export default function Dashboard() {
   const tracks   = profile?.topTracks     || []
   const genres   = profile?.genres        || []
   const metrics  = profile?.analyticsMetrics || null
+  const liveTrack = liveSignal?.recentEvents?.[0] || null
+  const orbAudioFeatures = liveTrack?.audio_features || profile?.audioFeatures || {}
   const analyticsConfidence = confidence?.labels?.analytics || metrics?.metricConfidence?.energyScore?.label || 'soft signal'
   const identityConfidence = profile?.personalityMeta?.confidence != null
     ? profile.personalityMeta.confidence >= 0.8
@@ -330,67 +340,79 @@ export default function Dashboard() {
     },
   })
 
-  if (boot.blocked && isConnected) {
-    return (
-      <ProfileBootPanel
-        variant={boot.variant}
-        title={boot.title}
-        subtitle={boot.subtitle}
-        detail={boot.detail}
-        actionLabel={boot.variant === 'error' ? 'Reload the observatory' : boot.variant === 'empty' ? 'Refresh the signal' : undefined}
-        onAction={boot.variant === 'error' ? () => window.location.reload() : boot.variant === 'empty' ? refetch : undefined}
-      />
-    )
-  }
-
   return (
     <div className="cosmic-page">
       {/* Hero greeting */}
       <motion.div initial={{ opacity: 0, y: -16 }} animate={{ opacity: 1, y: 0 }}
         transition={MOTION_TOKENS.focusSettle} className="mb-8">
-        <div className="dimensional-surface relative noire-panel rounded-[32px] overflow-hidden mb-3 min-h-[210px]">
+        <div className="dimensional-surface relative noire-panel rounded-[36px] overflow-hidden mb-3 min-h-[280px]">
+          <AtmosphereBackground variant="default" intensity="rich" anchored />
           {/* 3D floating objects */}
           {features.energy != null && (
             <HeroScene energy={features.energy} valence={features.valence ?? 0.5} height={160} />
           )}
-          <div className="relative z-10 p-6 flex items-center justify-between gap-4 flex-wrap">
-            <div>
-              <p className="page-header-kicker mb-2">The Observatory</p>
-              <h1 className="page-header-title">
-                Hey, <span className="text-gradient-aurora">{username}</span>
-              </h1>
-              <p className="page-header-copy mt-3">
-                {features.energy != null
-                  ? <>Right now you lean toward <span className="text-neon-purple font-medium">{getVibeName(features.energy, features.valence)}</span>.</>
-                  : 'Your music, breathing softly in one place.'
-                }
-              </p>
-            </div>
-            {/* Soul Orb */}
-            {features.energy != null && (
-              <div className="shrink-0">
-                <DeferredSoulOrb
-                  personality={profile?.personality}
-                  personalityMeta={profile?.personalityMeta}
-                  mbti={profile?.mbti}
-                  mbtiMeta={profile?.mbtiMeta}
-                  audioFeatures={profile?.audioFeatures}
-                  analyticsMetrics={profile?.analyticsMetrics}
-                  confidence={profile?.confidence}
-                  dataQuality={profile?.dataQuality}
-                  genres={profile?.genres}
-                  topArtists={profile?.topArtists}
-                  size={120}
-                  showLabels={false}
-                  lowPower={tier === 'sparse' || tier === 'limited'}
-                />
+          <div className="relative z-10 grid gap-8 p-6 lg:grid-cols-[minmax(0,1.18fr)_320px] lg:p-8">
+            <div className="flex flex-col justify-between gap-6">
+              <div>
+                <p className="premium-kicker mb-3">The Observatory</p>
+                <h1 className="premium-hero-title max-w-4xl">
+                  Your music is more than taste.
+                  <span className="mt-2 block text-gradient-aurora">It is memory, atmosphere, longing, motion, identity.</span>
+                </h1>
+                <p className="premium-body mt-5 max-w-2xl">
+                  {features.energy != null
+                    ? <>Right now the room leans toward <span className="font-semibold text-gradient-aurora">{getVibeName(features.energy, features.valence)}</span>, and every surface is calibrating itself around that weather.</>
+                    : 'The room is awake and listening, even before your full profile settles into focus.'}
+                </p>
+                {liveTrack?.title ? (
+                  <p className="mt-4 text-sm text-cyan-200">
+                    Now shaping the field: {liveTrack.title} by {liveTrack.artist}
+                  </p>
+                ) : null}
               </div>
-            )}
+              <div className="flex flex-wrap items-center gap-3">
+                <HaloButton to="/identity" variant="primary" icon={Sparkles}>
+                  Enter the full reading
+                </HaloButton>
+                <HaloButton to="/galaxy" variant="secondary" icon={Disc3}>
+                  Open the galaxy
+                </HaloButton>
+              </div>
+            </div>
+
+            <AuraCard accent="lavender" className="relative z-10 p-5 lg:p-6" glow interactive>
+              <p className="section-label mb-2">Current presence</p>
+              <p className="text-sm leading-relaxed text-slate-300">
+                Hey, {username}. This is the pulse beneath the rest of the interface.
+              </p>
+              <ShimmerDivider className="my-4" />
+              {features.energy != null ? (
+                <div className="floating-orb flex items-center justify-center">
+                  <DeferredSoulOrb
+                    personality={profile?.personality}
+                    personalityMeta={profile?.personalityMeta}
+                    mbti={profile?.mbti}
+                    mbtiMeta={profile?.mbtiMeta}
+                    audioFeatures={orbAudioFeatures}
+                    analyticsMetrics={profile?.analyticsMetrics}
+                    confidence={profile?.confidence}
+                    dataQuality={profile?.dataQuality}
+                    genres={profile?.genres}
+                    topArtists={profile?.topArtists}
+                    size={148}
+                    showLabels={false}
+                    lowPower={tier === 'sparse' || tier === 'limited'}
+                  />
+                </div>
+              ) : (
+                <NebulaLoader compact label="Listening for your orbit" detail="The orb wakes when your signal settles." />
+              )}
+            </AuraCard>
           </div>
         </div>
         {/* Time range selector */}
         {isConnected && (
-          <div className="flex items-center gap-1 p-1 rounded-2xl w-fit noire-panel-soft">
+          <div className="mobile-scroll-row flex w-full gap-1 overflow-x-auto rounded-2xl p-1 sm:w-fit noire-panel-soft">
             {TIME_RANGES.map(({ value, label }) => (
               <motion.button
                 key={value}
@@ -409,6 +431,17 @@ export default function Dashboard() {
         )}
       </motion.div>
 
+      {isConnected && boot.variant !== 'ready' && (
+        <div className="mb-6">
+          <RouteStatusBanner
+            variant={boot.variant}
+            title={boot.title}
+            subtitle={boot.subtitle}
+            detail={boot.detail}
+          />
+        </div>
+      )}
+
       {!isConnected && (
         <div className="max-w-lg">
           <p className="text-gray-400 text-sm mb-4">Connect a music source and the room begins to fill in.</p>
@@ -417,9 +450,12 @@ export default function Dashboard() {
       )}
 
       {isConnected && loading && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-          className="flex flex-col items-center justify-center py-20 gap-4">
-          <VibeEmitter bpm={120} size={72} label="tuning into your signal..." />
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, index) => (
+            <AuraCard key={index} className="p-5" accent="silver">
+              <NebulaLoader compact label="Rendering the room" detail="Gathering the next visible layer." />
+            </AuraCard>
+          ))}
         </motion.div>
       )}
 
@@ -453,13 +489,19 @@ export default function Dashboard() {
             <span>inner reading: {identityConfidence}</span>
           </div>
 
-          {/* Stat orbs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
-            <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '--'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
-            <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '--'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
-            <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : 'soft signal'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
-          </div>
+          <ModuleBoundary
+            title="Signal summary"
+            loading={loading && !profile}
+            degraded={Boolean(profile?.isDegraded)}
+            fallback={<ShellSkeleton lines={4} />}
+          >
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
+              <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '--'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
+              <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '--'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
+              <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : 'soft signal'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
+            </div>
+          </ModuleBoundary>
 
           {/* Identity + radar */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
@@ -477,6 +519,16 @@ export default function Dashboard() {
               </motion.div>
             )}
           </div>
+
+          {/* DNA report */}
+          {liveTrack?.title && (
+            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              className="noire-panel p-5 rounded-[28px] border border-cyan-400/15">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200 mb-2">Live listening sync</p>
+              <p className="text-sm font-semibold text-white">{liveTrack.title} by {liveTrack.artist}</p>
+              <p className="mt-2 text-xs text-slate-500">The Soul Orb is leaning into the current track audio signature while the session is active.</p>
+            </motion.div>
+          )}
 
           {/* DNA report */}
           {metrics && profile?.canComputeAnalytics && (
@@ -522,14 +574,9 @@ export default function Dashboard() {
             <div className="flex items-center justify-between mb-3">
               <p className="text-xs text-gray-600 uppercase tracking-[0.2em]">Inner music self</p>
               <div className="flex items-center gap-2">
-                <Link
-                  to="/identity"
-                  className="dimensional-chip flex items-center gap-1.5 rounded-xl border px-4 py-1.5 text-xs font-semibold text-white transition-all"
-                  style={{ background: 'rgba(96,165,250,0.12)', borderColor: 'rgba(96,165,250,0.28)', boxShadow: '0 0 16px rgba(96,165,250,0.08)' }}
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-sky-300" />
+                <HaloButton to="/identity" variant="cyan" icon={Sparkles} className="px-4 py-2 text-[10px]">
                   Enter the full reading
-                </Link>
+                </HaloButton>
                 {profile?.mbti && profile?.personality?.length > 0 && (
                   <motion.button
                     onClick={() => setShowReveal(true)}
@@ -549,8 +596,9 @@ export default function Dashboard() {
           </div>
 
           {/* Genre pills */}
-            {genres.length > 0 && (            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}
-              className="noire-panel p-5 rounded-[28px]">
+          {genres.length > 0 && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+              <AuraCard className="p-5" accent="rose">
               <p className="text-xs text-gray-500 uppercase tracking-[0.2em] mb-3">The atmospheres you return to</p>
               <div className="flex flex-wrap gap-2">
                 {genres.slice(0, 12).map((g, i) => (
@@ -563,6 +611,7 @@ export default function Dashboard() {
                   >{g.genre}</motion.span>
                 ))}
               </div>
+              </AuraCard>
             </motion.div>
           )}
 
@@ -570,33 +619,31 @@ export default function Dashboard() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {artists.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.35, type: 'spring', stiffness: 260, damping: 28 }}
-                className="noire-panel p-5 rounded-[28px]">
+                transition={{ delay: 0.35, type: 'spring', stiffness: 260, damping: 28 }}>
+                <AuraCard className="p-5" accent="lavender" interactive>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm font-semibold text-gray-200">The voices you orbit</p>
-                  <Link to="/analytics" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
-                    Drift deeper <ChevronRight className="w-3 h-3" />
-                  </Link>
+                  <HaloButton to="/analytics" variant="secondary" className="px-3 py-2 text-[10px]">Drift deeper</HaloButton>
                 </div>
                 <div className="space-y-1">
                   {artists.slice(0, 5).map((a, i) => <ArtistChip key={a.id || a.name} artist={a} rank={i} />)}
                 </div>
+                </AuraCard>
               </motion.div>
             )}
 
             {tracks.length > 0 && (
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.4, type: 'spring', stiffness: 260, damping: 28 }}
-                className="noire-panel p-5 rounded-[28px]">
+                transition={{ delay: 0.4, type: 'spring', stiffness: 260, damping: 28 }}>
+                <AuraCard className="p-5" accent="rose" interactive>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm font-semibold text-gray-200">Songs closest to hand</p>
-                  <Link to="/discover" className="text-xs text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-colors">
-                    Keep drifting <ChevronRight className="w-3 h-3" />
-                  </Link>
+                  <HaloButton to="/discover" variant="secondary" className="px-3 py-2 text-[10px]">Keep drifting</HaloButton>
                 </div>
                 <div>
                   {tracks.slice(0, 8).map((t, i) => <TrackRow key={t.id || t.title + i} track={t} rank={i} />)}
                 </div>
+                </AuraCard>
               </motion.div>
             )}
           </div>
@@ -604,12 +651,12 @@ export default function Dashboard() {
           {/* Feature nav */}
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}>
             <p className="text-xs text-gray-600 uppercase tracking-[0.2em] mb-3">Ways in</p>
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
               {NAV_CARDS.map(({ to, icon: Icon, label, desc, from, to2 }, i) => (
                 <motion.div key={to} initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
                   transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.5 + i * 0.06 }}>
                   <TiltCard>
-                    <Link to={to} className="dimensional-surface block p-4 rounded-[24px] relative overflow-hidden group"
+                    <Link to={to} className="dimensional-surface aura-card aura-interactive block p-4 rounded-[24px] relative overflow-hidden group"
                       style={{ background: `linear-gradient(135deg, ${from}15, ${to2}08)`, border: `1px solid ${from}25` }}>
                       <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500"
                         style={{ background: `linear-gradient(135deg, ${from}20, ${to2}12)` }} />
@@ -628,7 +675,7 @@ export default function Dashboard() {
 
           <div className="flex justify-end">
             <button onClick={refetch} disabled={loading}
-              className="flex items-center gap-1.5 text-xs text-gray-600 hover:text-gray-400 transition-colors">
+              className="halo-button halo-secondary flex items-center gap-1.5 px-4 py-2 text-[10px] text-gray-200">
               <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
               Tune again
             </button>

@@ -108,6 +108,7 @@ PROFILE_B = {
     'moodTags': ['melancholic', 'night music', 'soft confession'],
     'atmosphereLabels': ['indie folk meadow', 'violet static'],
     'analyticsMetrics': {'mood': 'melancholic'},
+    'representations': {'profileVector': [0.4, 0.3, 0.2, 0.1]},
 }
 
 PROFILE_C = {
@@ -140,7 +141,10 @@ PROFILE_C = {
     'mbtiType': 'ENTP',
     'moodTags': ['charged', 'kinetic'],
     'analyticsMetrics': {'mood': 'energetic'},
+    'representations': {'profileVector': [0.0, 0.0, 0.9, 0.1]},
 }
+
+PROFILE_A['representations'] = {'profileVector': [0.42, 0.31, 0.19, 0.08]}
 
 
 def test_jaccard_similarity_partial():
@@ -177,6 +181,7 @@ def test_compute_score_returns_rich_shape():
     assert result['beautifulTensionNarrative']
     assert result['orbNarrative']
     assert set(result['breakdown']).issuperset({'artists', 'genres', 'audio', 'tracks', 'mbti', 'orb', 'tension'})
+    assert result['embeddingSimilarity'] > 0
 
 
 def test_compute_score_handles_contrast_without_zeroing_out():

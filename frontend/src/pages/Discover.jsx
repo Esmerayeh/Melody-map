@@ -6,13 +6,18 @@ import {
   Sparkles, ChevronRight, ExternalLink, Wand2, Radio,
   Shuffle, Clock,
 } from 'lucide-react'
-import { spotifyAPI, discoverAPI } from '../services/api'
+import { spotifyAPI, discoverAPI, recommendationEventsAPI } from '../services/api'
 import useMusicProfile from '../hooks/useMusicProfile'
 import { useRouteReadiness } from '../hooks/useRouteReadiness'
 import useStore from '../store/useStore'
 import { useDebounce } from '../hooks/useDebounce'
 import MusicSourceCard from '../components/MusicSourceCard'
-import ProfileBootPanel from '../components/ProfileBootPanel'
+import RouteStatusBanner from '../components/RouteStatusBanner'
+import { buildRecommendationEvent } from '../lib/recommendationTracking'
+import AtmosphereBackground from '../components/premium/AtmosphereBackground'
+import HaloButton from '../components/premium/HaloButton'
+import ShimmerDivider from '../components/premium/ShimmerDivider'
+import NebulaLoader from '../components/premium/NebulaLoader'
 import toast from 'react-hot-toast'
 
 function getTimeContext() {
@@ -40,12 +45,12 @@ function TabBar({ active, onChange }) {
     { id: 'browse', label: 'Wander',  icon: Radio },
   ]
   return (
-    <div className="flex gap-1 p-1 rounded-2xl w-fit mb-8 noire-panel-soft">
+    <div className="mobile-scroll-row mb-8 flex w-full gap-1 overflow-x-auto rounded-2xl p-1 sm:w-fit noire-panel-soft">
       {tabs.map(({ id, label, icon: Icon }) => (
         <button key={id} onClick={() => onChange(id)}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+          className={`flex shrink-0 items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium transition-all ${
             active === id ? 'bg-brand-purple/20 text-brand-purple border border-brand-purple/30' : 'text-slate-500 hover:text-slate-300'
-          }`}>
+          } touch-target`}>
           <Icon className="w-3.5 h-3.5" />{label}
         </button>
       ))}
@@ -62,11 +67,28 @@ function TagPill({ label, color }) {
   )
 }
 
-function SongRow({ song, index, liked, onLike }) {
+function SongRow({ song, index, liked, onLike, tracking }) {
   const title  = song.name  || song.title
   const artist = song.artists?.[0]?.name || song.artist
   const image  = song.album?.images?.[0]?.url || song.album_art
   const url    = song.external_urls?.spotify || song.spotify_url
+  const impressionLogged = useRef(false)
+
+  useEffect(() => {
+    if (!tracking?.sessionId || !tracking?.requestId || impressionLogged.current) return
+    impressionLogged.current = true
+    recommendationEventsAPI.impression(buildRecommendationEvent({
+      recommendationId: `${tracking.requestId}:${song.id || title}:${index}`,
+      requestId: tracking.requestId,
+      sessionId: tracking.sessionId,
+      trackKey: song.id || title,
+      position: index,
+      surface: tracking.surface,
+      modelVersion: tracking.modelVersion,
+      candidateSource: tracking.candidateSource,
+    })).catch(() => {})
+  }, [index, song.id, title, tracking])
+
   return (
     <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
       transition={{ delay: index * 0.03 }}
@@ -87,22 +109,35 @@ function SongRow({ song, index, liked, onLike }) {
         </div>
       )}
       <div className="flex items-center gap-1 shrink-0">
-        <button onClick={() => onLike(song.id || title)}
-          className={`p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-gray-600 hover:text-pink-400'}`}>
-          <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-brand-pink' : ''}`} />
-        </button>
-        {url && (
-          <a href={url} target="_blank" rel="noopener noreferrer"
-            className="p-1.5 rounded-lg text-gray-600 hover:text-green-400 transition-all opacity-0 group-hover:opacity-100">
-            <ExternalLink className="w-3.5 h-3.5" />
-          </a>
-        )}
+          <button onClick={() => onLike(song.id || title, tracking, index)}
+            className={`touch-target p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-gray-600 hover:text-pink-400'}`}>
+            <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-brand-pink' : ''}`} />
+          </button>
+          {url && (
+            <a href={url} target="_blank" rel="noopener noreferrer"
+            onClick={() => {
+              if (!tracking?.sessionId || !tracking?.requestId) return
+              recommendationEventsAPI.click(buildRecommendationEvent({
+                recommendationId: `${tracking.requestId}:${song.id || title}:${index}`,
+                requestId: tracking.requestId,
+                sessionId: tracking.sessionId,
+                trackKey: song.id || title,
+                position: index,
+                surface: tracking.surface,
+                modelVersion: tracking.modelVersion,
+                candidateSource: tracking.candidateSource,
+              })).catch(() => {})
+            }}
+              className="touch-target touch-reveal p-1.5 rounded-lg text-gray-500 hover:text-green-400 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100">
+              <ExternalLink className="w-3.5 h-3.5" />
+            </a>
+          )}
       </div>
     </motion.div>
   )
 }
 
-function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
+function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected, tracking }) {
   const [expanded, setExpanded]           = useState(false)
   const [tracks, setTracks]               = useState([])
   const [loadingTracks, setLoadingTracks] = useState(false)
@@ -142,9 +177,10 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
     <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}
       whileHover={{ y: -2, boxShadow: `0 12px 40px ${playlist.color}20` }}
       transition={{ delay: index * 0.07 }}
-      className="rounded-2xl border border-white/8 overflow-hidden"
-      style={{ background: `linear-gradient(135deg, ${playlist.color}10, rgba(255,255,255,0.02))` }}>
-      <div className="p-5">
+      className="rounded-[28px] border border-white/8 overflow-hidden aura-card"
+      style={{ background: `linear-gradient(135deg, ${playlist.color}14, rgba(255,255,255,0.03))` }}>
+      <div className="relative p-5">
+        <div className="absolute inset-x-0 top-0 h-20 opacity-70" style={{ background: `radial-gradient(circle at top left, ${playlist.color}26, transparent 70%)` }} />
         <div className="flex flex-wrap gap-1.5 mb-3">
           {playlist.mood_tags.slice(0, 3).map((t) => <TagPill key={t} label={t} color={playlist.color} />)}
           {playlist.era_tags.slice(0, 2).map((t)  => <TagPill key={t} label={t} color="#60a5fa" />)}
@@ -167,7 +203,7 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
             <span key={t} className="text-xs px-2 py-0.5 rounded-md bg-white/4 text-gray-500 border border-white/6">{t}</span>
           ))}
         </div>
-        <button onClick={handleExpand} className="flex items-center gap-2 text-sm font-medium transition-all" style={{ color: playlist.color }}>
+        <button onClick={handleExpand} className="touch-target flex min-h-11 items-center gap-2 text-left text-sm font-medium transition-all" style={{ color: playlist.color }}>
           {expanded ? 'Let it fade' : spotifyConnected ? 'Bring in the songs' : 'Follow the seeds'}
           <ChevronRight className={`w-4 h-4 transition-transform ${expanded ? 'rotate-90' : ''}`} />
         </button>
@@ -184,7 +220,7 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected }) {
                 </div>
               )}
               {!loadingTracks && tracks.length > 0 && tracks.map((t, i) => (
-                <SongRow key={t.id || i} song={t} index={i} liked={liked.has(t.id || t.name)} onLike={onLike} />
+                <SongRow key={t.id || i} song={t} index={i} liked={liked.has(t.id || t.name)} onLike={onLike} tracking={tracking} />
               ))}
               {!loadingTracks && tracks.length === 0 && (
                 <div>
@@ -220,19 +256,19 @@ function AlbumCard({ item, index, onLike, liked }) {
           : <div className="w-full h-full flex items-center justify-center"><Music2 className="w-10 h-10 text-slate-600" /></div>
         }
         <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-all duration-200" />
-        <button className="absolute bottom-3 right-3 w-10 h-10 rounded-full bg-brand-purple flex items-center justify-center opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0 transition-all duration-200">
-          <Play className="w-4 h-4 text-white fill-white ml-0.5" />
-        </button>
+          <button className="touch-target absolute bottom-3 right-3 flex h-11 w-11 items-center justify-center rounded-full bg-brand-purple opacity-100 translate-y-0 transition-all duration-200 md:opacity-0 md:translate-y-2 md:group-hover:opacity-100 md:group-hover:translate-y-0">
+            <Play className="w-4 h-4 text-white fill-white ml-0.5" />
+          </button>
       </div>
       <div className="p-3 flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="text-sm font-semibold text-white truncate">{item.title}</p>
           <p className="text-xs text-slate-400 truncate mt-0.5">{item.artist}</p>
         </div>
-        <button onClick={() => onLike(item)}
-          className={`shrink-0 p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-slate-600 hover:text-slate-300'}`}>
-          <Heart className={`w-4 h-4 ${liked ? 'fill-brand-pink' : ''}`} />
-        </button>
+          <button onClick={() => onLike(item)}
+            className={`touch-target shrink-0 p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-slate-600 hover:text-slate-300'}`}>
+            <Heart className={`w-4 h-4 ${liked ? 'fill-brand-pink' : ''}`} />
+          </button>
       </div>
     </motion.div>
   )
@@ -251,7 +287,7 @@ function ArtistCard({ artist, index }) {
         }
       </div>
       <div className="min-w-0 flex-1">
-        <p className="text-sm font-semibold text-white truncate group-hover:text-brand-purple transition-colors">{artist.name}</p>
+        <p className="text-sm font-semibold text-white truncate md:group-hover:text-brand-purple transition-colors">{artist.name}</p>
         <p className="text-xs text-slate-500 truncate">{artist.genres?.[0] || 'Artist'}</p>
       </div>
     </motion.div>
@@ -265,9 +301,11 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
   const [seed, setSeed]               = useState(0)
   const [liked, setLiked]             = useState(new Set())
   const [serendipity, setSerendipity] = useState(false)
+  const [requestMeta, setRequestMeta] = useState(null)
   const timeCtx     = getTimeContext()
   const isConnected = spotifyConnected || lastfmConnected
   const { profile } = useMusicProfile({ autoFetch: false })
+  const sessionId = useStore((s) => s.sessionId)
 
   const generate = useCallback(async (s = 0, sMode = false) => {
     setLoading(true)
@@ -282,14 +320,42 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
       const nudged = applyTimeNudge(energy, valence)
       energy = nudged.energy; valence = nudged.valence
       const res = await discoverAPI.playlists({ genres, energy, valence }, { n: 6, seed: s, serendipity: sMode })
-      setPlaylists(res.data || [])
+      const envelope = res.data || {}
+      setPlaylists(envelope.data || envelope || [])
+      setRequestMeta({
+        requestId: envelope.requestId || null,
+        modelVersion: envelope.modelVersion || envelope.used_model || 'discover-v1',
+        candidateSource: 'discover',
+        sessionId,
+        surface: 'discover',
+      })
       setGenerated(true)
     } catch { toast.error('Could not generate playlists') }
     finally { setLoading(false) }
   }, [profile])
 
   const handleRegenerate = () => { const next = seed + 1; setSeed(next); generate(next, serendipity) }
-  const toggleLike = (id) => setLiked((prev) => { const next = new Set(prev); next.has(id) ? next.delete(id) : next.add(id); return next })
+  const toggleLike = (id, tracking, index = 0) => {
+    setLiked((prev) => {
+      const next = new Set(prev)
+      const wasLiked = next.has(id)
+      if (wasLiked) next.delete(id)
+      else next.add(id)
+      if (!wasLiked && tracking?.sessionId && tracking?.requestId) {
+        recommendationEventsAPI.save(buildRecommendationEvent({
+          recommendationId: `${tracking.requestId}:${id}:${index}`,
+          requestId: tracking.requestId,
+          sessionId: tracking.sessionId,
+          trackKey: id,
+          position: index,
+          surface: tracking.surface,
+          modelVersion: tracking.modelVersion,
+          candidateSource: tracking.candidateSource,
+        })).catch(() => {})
+      }
+      return next
+    })
+  }
 
   if (!isConnected) return (
     <div className="max-w-lg">
@@ -309,40 +375,36 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
       <p className="text-gray-400 text-sm max-w-sm mb-8 leading-relaxed">
         Tell Melody Map the mood you want to live in, and it will shape a sequence around your listening world.
       </p>
-      <motion.button onClick={() => generate(0, serendipity)} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}
-        className="flex items-center gap-2 px-8 py-3.5 rounded-2xl bg-gradient-to-r from-brand-purple to-pink-500 text-white font-semibold shadow-lg shadow-brand-purple/30">
-        <Sparkles className="w-4 h-4" /> Shape the sequence
-      </motion.button>
+      <HaloButton onClick={() => generate(0, serendipity)} variant="primary" icon={Sparkles} className="px-8 py-3.5">
+        Shape the sequence
+      </HaloButton>
     </div>
   )
 
   if (loading) return (
-    <div className="flex flex-col items-center justify-center py-24 gap-4">
-      <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}
-        className="w-12 h-12 rounded-full border-2 border-brand-purple/30 border-t-brand-purple" />
-      <p className="text-gray-400 text-sm animate-pulse">
-        {serendipity ? 'drifting past your usual orbit...' : 'shaping a sequence for this mood...'}
-      </p>
-    </div>
+    <NebulaLoader
+      label={serendipity ? 'Drifting past your usual orbit' : 'Shaping a sequence for this mood'}
+      detail="The stream is assembling music capsules, reasons, and emotional contours."
+    />
   )
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/4 border border-white/8 text-xs text-gray-400">
           <Clock className="w-3.5 h-3.5" />
           <span>{timeCtx.label}</span>
           <span className="text-gray-500 italic">{timeCtx.hint}</span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <button onClick={() => setSerendipity((v) => !v)}
-            className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-medium border transition-all ${
+            className={`touch-target flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all sm:justify-start ${
               serendipity ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' : 'bg-white/4 border-white/8 text-gray-500 hover:text-gray-300'
             }`}>
             <Shuffle className="w-3.5 h-3.5" />
             Serendipity {serendipity ? 'ON' : 'OFF'}
           </button>
-          <button onClick={handleRegenerate} className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors">
+          <button onClick={handleRegenerate} className="touch-target flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-white/8 px-3 text-xs text-gray-400 transition-colors hover:text-gray-300 sm:border-transparent sm:px-0 sm:justify-start">
             <RefreshCw className="w-3.5 h-3.5" /> Shape again
           </button>
         </div>
@@ -356,7 +418,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
       )}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {playlists.map((pl, i) => (
-          <PlaylistCard key={pl.id} playlist={pl} index={i} liked={liked} onLike={toggleLike} spotifyConnected={spotifyConnected} />
+          <PlaylistCard key={pl.id} playlist={pl} index={i} liked={liked} onLike={toggleLike} spotifyConnected={spotifyConnected} tracking={requestMeta} />
         ))}
       </div>
     </div>
@@ -370,7 +432,7 @@ function BrowseSkeleton() {
       <div className="space-y-10">
         <section>
           <div className="skeleton h-3 w-20 rounded mb-4" />
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 sm:gap-4">
             {Array.from({ length: 10 }).map((_, i) => (
               <div key={i} className="rounded-2xl overflow-hidden">
                 <div className="skeleton aspect-square w-full" style={{ borderRadius: '12px 12px 0 0' }} />
@@ -485,7 +547,7 @@ function BrowseTab({ spotifyConnected, lastfmConnected, initialQuery = '' }) {
 export default function Discover() {
   const [searchParams] = useSearchParams()
   const [activeTab, setActiveTab] = useState('forYou')
-  const { profile, phase, tier, readiness, musicProvider } = useMusicProfile({ autoFetch: true })
+  const { profile, phase, tier, readiness } = useMusicProfile({ autoFetch: true })
   const spotifyConnected = useStore((s) => s.spotifyConnected)
   const lastfmConnected  = useStore((s) => s.lastfmConnected)
   const seededQuery = searchParams.get('q') || ''
@@ -510,31 +572,33 @@ export default function Discover() {
     }
   }, [seededQuery])
 
-  if (boot.blocked && boot.variant !== 'empty') {
-    return (
-      <div className="cosmic-page">
-        <ProfileBootPanel
-          variant={boot.variant}
-          title={boot.title}
-          subtitle={boot.subtitle}
-          detail={boot.detail}
-          provider={musicProvider || 'spotify'}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="cosmic-page">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
-        <p className="page-header-kicker mb-2">The Signal Stream</p>
-        <h1 className="page-header-title">Drift</h1>
-        <p className="page-header-copy mt-3">Signals, sequences, and quiet detours shaped by your listening gravity.</p>
-      </motion.div>
+      <motion.section initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="relative mb-6 overflow-hidden rounded-[36px] noire-panel p-6 lg:p-8">
+        <AtmosphereBackground variant="default" intensity="medium" anchored />
+        <div className="relative z-10">
+          <p className="premium-kicker mb-3">The Signal Stream</p>
+          <h1 className="premium-hero-title">Drift</h1>
+          <p className="premium-body mt-4 max-w-2xl">
+            Curated emotional exploration, shaped by your listening gravity. Not a shelf of recommendations, but a series of invitations.
+          </p>
+          <ShimmerDivider className="my-5 max-w-xl" />
+          <p className="text-sm text-slate-300 max-w-xl">
+            Each capsule is meant to feel found, not generated: a mood, a reason, a nearby future.
+          </p>
+        </div>
+      </motion.section>
+
+      {boot.variant !== 'ready' && boot.variant !== 'empty' ? (
+        <div className="mb-6">
+          <RouteStatusBanner variant={boot.variant} title={boot.title} subtitle={boot.subtitle} detail={boot.detail} />
+        </div>
+      ) : null}
+
       <div className="mb-6 grid gap-4 lg:grid-cols-3">
         <Link
           to="/galaxy?mode=song"
-          className="rounded-[24px] p-4 glass-hover"
+          className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
           style={{ background: 'rgba(124,111,255,0.08)', border: '1px solid rgba(124,111,255,0.16)' }}
         >
           <p className="section-label mb-2">See it in space</p>
@@ -543,7 +607,7 @@ export default function Discover() {
         </Link>
         <Link
           to="/auralith?mode=playlist&prompt=shape%20a%20sequence%20from%20what%20just%20drifted%20toward%20me"
-          className="rounded-[24px] p-4 glass-hover"
+          className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
           style={{ background: 'rgba(192,132,252,0.08)', border: '1px solid rgba(192,132,252,0.16)' }}
         >
           <p className="section-label mb-2">Ask Auralith to continue</p>
@@ -552,7 +616,7 @@ export default function Discover() {
         </Link>
         <Link
           to="/identity"
-          className="rounded-[24px] p-4 glass-hover"
+          className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
           style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.16)' }}
         >
           <p className="section-label mb-2">Inner reading</p>

@@ -1,15 +1,18 @@
 import { useState, useEffect, useRef } from "react"
 import { useNavigate } from "react-router-dom"
 import { motion } from "framer-motion"
-import { Music2, Mail, Lock, User, Loader2 } from "lucide-react"
+import { Music2, Mail, Lock, User, Loader2, RadioTower, TimerReset, ShieldAlert } from "lucide-react"
 import toast from "react-hot-toast"
 import { authAPI } from "../services/api"
 import useStore from "../store/useStore"
+import useAuthStore from "../store/useAuthStore"
 import useBackendWake from "../hooks/useBackendWake"
+import useAdaptiveExperience from '../hooks/useAdaptiveExperience'
 
-function Particles() {
+function Particles({ disabled = false }) {
   const canvasRef = useRef(null)
   useEffect(() => {
+    if (disabled) return undefined
     const canvas = canvasRef.current
     if (!canvas) return
     const ctx = canvas.getContext("2d")
@@ -17,7 +20,7 @@ function Particles() {
     const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight }
     resize()
     window.addEventListener("resize", resize)
-    const dots = Array.from({ length: 60 }, () => ({
+    const dots = Array.from({ length: 32 }, () => ({
       x: Math.random() * canvas.width, y: Math.random() * canvas.height,
       r: Math.random() * 1.5 + 0.3, vx: (Math.random() - 0.5) * 0.2,
       vy: (Math.random() - 0.5) * 0.2, a: Math.random() * 0.5 + 0.1,
@@ -45,28 +48,31 @@ export default function Login() {
   const [form, setForm] = useState({ username: "", email: "", password: "" })
   const navigate = useNavigate()
   const setUser  = useStore((s) => s.setUser)
-  const { waking, wake } = useBackendWake()
+  const setSessionToken = useAuthStore((s) => s.setSessionToken)
+  const setAuthUser = useAuthStore((s) => s.setUser)
+  const { waking, wake, phase, message, timedOut } = useBackendWake()
+  const adaptive = useAdaptiveExperience()
 
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true)
     try {
       const fn = isLogin ? authAPI.login : authAPI.register
       const { data } = await fn(form)
-      localStorage.setItem("token", data.token)
-      localStorage.setItem("userId", data.user_id)
+      setSessionToken("cookie-session")
+      setAuthUser({ id: data.user_id })
       setUser({ id: data.user_id })
       toast.success(isLogin ? "Welcome back!" : "Account created!")
       navigate("/")
     } catch (err) {
-      toast.error(err.response?.data?.error || "Something went wrong")
+      toast.error(err.response?.data?.error?.message || "Something went wrong")
     } finally { setLoading(false) }
   }
 
   return (
-    <div className="min-h-screen flex overflow-hidden bg-surface">
+    <div className="flex min-h-[100dvh] overflow-hidden bg-surface">
       <div className="hidden lg:flex flex-col justify-between w-1/2 relative p-12 overflow-hidden"
         style={{ background: "linear-gradient(135deg, #0d0d1a 0%, #151528 100%)" }}>
-        <Particles />
+        <Particles disabled={adaptive.lowPowerMode} />
         <div className="absolute top-1/3 left-1/4 w-72 h-72 bg-brand-purple/15 rounded-full blur-3xl pointer-events-none" />
         <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-brand-pink/10 rounded-full blur-3xl pointer-events-none" />
         <div className="relative z-10 flex items-center gap-2.5">
@@ -94,12 +100,12 @@ export default function Login() {
         <p className="relative z-10 text-slate-600 text-xs">2026 Melody Map</p>
       </div>
 
-      <div className="flex-1 flex items-center justify-center px-6 py-12 relative">
+      <div className="relative flex flex-1 items-start justify-center overflow-y-auto px-4 py-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:py-12 lg:items-center">
         <div className="absolute inset-0 overflow-hidden pointer-events-none lg:hidden">
           <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-brand-purple/15 rounded-full blur-3xl" />
         </div>
         <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="w-full max-w-sm relative">
+          className="relative w-full max-w-sm pb-[calc(1rem+env(safe-area-inset-bottom))]">
           <div className="flex items-center gap-2 mb-8 lg:hidden">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-purple to-brand-pink flex items-center justify-center">
               <Music2 className="w-4 h-4 text-white" />
@@ -112,14 +118,49 @@ export default function Login() {
           <button onClick={() => wake(`${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`)}
             disabled={waking}
             className="w-full flex items-center justify-center gap-3 py-3 rounded-xl font-semibold text-sm text-white mb-5 transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-70"
-            style={{ background: "#1DB954" }}>
+            style={{ background: "linear-gradient(135deg, #8B7CFF, #B994FF 55%, #D7DFFF)" }}>
             {waking
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Waking up Melody Map...</>
+              ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing Spotify connection...</>
               : <><svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
                 </svg> Continue with Spotify</>
             }
           </button>
+
+          <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4 mb-5">
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.04] flex items-center justify-center text-brand-purple shrink-0">
+                {phase === "cold-start"
+                  ? <TimerReset className="w-4 h-4" />
+                  : phase === "redirecting"
+                  ? <RadioTower className="w-4 h-4" />
+                  : timedOut
+                  ? <ShieldAlert className="w-4 h-4" />
+                  : <Loader2 className={`w-4 h-4 ${waking ? "animate-spin" : ""}`} />}
+              </div>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-white">
+                  {waking
+                    ? phase === "redirecting"
+                      ? "Connecting to Spotify"
+                      : phase === "cold-start"
+                      ? "Backend cold start handled"
+                      : "Preparing the auth route"
+                    : "Fast shell, resilient auth"}
+                </p>
+                <p className="text-xs text-slate-400 leading-relaxed mt-2">
+                  {waking
+                    ? message
+                    : "The login shell appears instantly. If the backend is waking up, the UI should tell you clearly instead of looking broken."}
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500 uppercase tracking-[0.16em]">
+                  <span>callback-safe</span>
+                  <span>session restore</span>
+                  <span>{timedOut ? "cold start visible" : "retry aware"}</span>
+                </div>
+              </div>
+            </div>
+          </div>
 
           <div className="flex items-center gap-3 mb-5">
             <div className="flex-1 h-px bg-white/8" />

@@ -8,8 +8,10 @@ import {
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import DeferredSoulOrb from '../components/DeferredSoulOrb'
-import ProfileBootPanel from '../components/ProfileBootPanel'
+import RouteStatusBanner from '../components/RouteStatusBanner'
 import { useRouteReadiness } from '../hooks/useRouteReadiness'
+import ModuleBoundary from '../components/shell/ModuleBoundary'
+import ShellSkeleton from '../components/shell/ShellSkeleton'
 
 const normalizeUnit = (value) => {
   if (value == null || Number.isNaN(Number(value))) return null
@@ -20,11 +22,11 @@ const pct = (value) => {
   return normalized == null ? null : Math.round(normalized * 100)
 }
 const fmt = (v) => (v != null ? Number(v).toFixed(0) : 'soft signal')
-const GENRE_COLORS = ['#a78bfa','#f472b6','#34d399','#60a5fa','#fbbf24','#fb923c','#e879f9','#2dd4bf']
+const GENRE_COLORS = ['#8B7CFF','#B994FF','#9DB7FF','#EAE6FF','#F0C8FF','#7A6BD8','#D6D0F0','#C7BEFF']
 const STAT_CARDS = [
   { key: 'energy',       label: 'Intensity',       icon: Zap,      color: '#f472b6', desc: 'heat and forward pull' },
   { key: 'valence',      label: 'Light',   icon: Heart,    color: '#a78bfa', desc: 'brightness inside the feeling' },
-  { key: 'danceability', label: 'Movement', icon: Activity, color: '#34d399', desc: 'how much the body wants in' },
+  { key: 'danceability', label: 'Movement', icon: Activity, color: '#9DB7FF', desc: 'how much the body wants in' },
   { key: 'acousticness', label: 'Texture', icon: Music2,   color: '#60a5fa', desc: 'wood, wire, or circuitry' },
 ]
 
@@ -225,19 +227,6 @@ export default function Analytics() {
     },
   })
 
-  if (boot.blocked) {
-    return (
-      <ProfileBootPanel
-        variant={boot.variant}
-        title={boot.title}
-        subtitle={boot.subtitle}
-        detail={boot.detail}
-        actionLabel={boot.variant === 'error' ? 'Reload the reading' : undefined}
-        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
-      />
-    )
-  }
-
   return (
     <div className="cosmic-page space-y-8">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
@@ -251,53 +240,95 @@ export default function Analytics() {
           <span>signal reading: {confidence?.labels?.analytics || 'soft signal'}</span>
         </div>
         {!canComputeAnalytics && (
-          <p className="mt-2 text-xs text-amber-300/80">
-            this is a partial reading. when the deeper Spotify signal is missing, the page stays quiet instead of pretending.
-          </p>
+          <div className="mt-4 rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Partial signal, visible first layer</p>
+            <p className="mt-2 text-xs text-slate-400">
+              Movement, mood, and artist pull are available now. Advanced chart confidence and deeper track-level metrics are still computing in the background.
+            </p>
+          </div>
         )}
       </motion.div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      {boot.variant !== 'ready' && (
+        <RouteStatusBanner
+          variant={boot.variant}
+          title={boot.title}
+          subtitle={boot.subtitle}
+          detail={boot.detail}
+        />
+      )}
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <div className="noire-info-card rounded-[24px] p-4">
+          <p className="section-label mb-2">Strongest trend</p>
+          <p className="text-lg font-semibold text-white">{safeProfile.analyticsMetrics?.mood || 'Nocturnal pull'}</p>
+          <p className="mt-2 text-xs text-slate-500">The dominant emotional climate currently shaping the read.</p>
+        </div>
+        <div className="noire-info-card rounded-[24px] p-4">
+          <p className="section-label mb-2">Top artist cluster</p>
+          <p className="text-lg font-semibold text-white">{safeProfile.topArtists?.[0]?.name || 'Settling now'}</p>
+          <p className="mt-2 text-xs text-slate-500">The loudest anchor currently visible even before deeper clustering resolves.</p>
+        </div>
+        <div className="noire-info-card rounded-[24px] p-4">
+          <p className="section-label mb-2">Listening balance</p>
+          <p className="text-lg font-semibold text-white">{pct(af.energy) != null ? `${pct(af.energy)} / ${pct(af.valence) || 0}` : 'Soft signal'}</p>
+          <p className="mt-2 text-xs text-slate-500">A quick read of intensity against brightness so the page always opens with something concrete.</p>
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {STAT_CARDS.map(({ key, label, icon, color, desc }, i) => (
           <StatCard key={key} label={label} icon={icon} color={color} value={pct(af[key])} desc={desc} delay={i * 0.07} />
         ))}
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
-          className="noire-info-card p-5 rounded-[28px]">
-          <div className="flex items-center gap-2 mb-4">
-            <BarChart2 className="w-4 h-4 text-purple-400" />
-            <p className="text-sm font-semibold text-white">Sonic shape</p>
-          </div>
-          <AudioRadar af={af} />
-        </motion.div>
-        <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-          className="noire-orb-panel p-5 rounded-[32px] flex flex-col items-center justify-center">
-          <div className="flex items-center gap-2 mb-4 self-start">
-            <Disc3 className="w-4 h-4 text-pink-400" />
-            <p className="text-sm font-semibold text-white">The listening entity</p>
-          </div>
-          <DeferredSoulOrb
-            personality={safeProfile.personality}
-            personalityMeta={safeProfile.personalityMeta}
-            mbti={safeProfile.mbti}
-            mbtiMeta={safeProfile.mbtiMeta}
-            audioFeatures={safeProfile.audioFeatures}
-            analyticsMetrics={safeProfile.analyticsMetrics}
-            confidence={safeProfile.confidence}
-            dataQuality={safeProfile.dataQuality}
-            genres={safeProfile.genres}
-            topArtists={safeProfile.topArtists}
-            size={160}
-            showLabels
-            lowPower={tier === 'sparse' || tier === 'limited'}
-          />
-        </motion.div>
+        <ModuleBoundary
+          title="Sonic shape"
+          loading={loading && !profile}
+          degraded={Boolean(safeProfile?.isDegraded)}
+          fallback={<ShellSkeleton lines={4} />}
+        >
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
+            className="noire-info-card p-5 rounded-[28px]">
+            <div className="flex items-center gap-2 mb-4">
+              <BarChart2 className="w-4 h-4 text-purple-400" />
+              <p className="text-sm font-semibold text-white">Sonic shape</p>
+            </div>
+            <AudioRadar af={af} />
+          </motion.div>
+        </ModuleBoundary>
+        <ModuleBoundary
+          title="Listening entity"
+          loading={loading && !profile}
+          degraded={Boolean(safeProfile?.isDegraded)}
+          fallback={<ShellSkeleton lines={4} />}
+        >
+          <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
+            className="noire-orb-panel p-5 rounded-[32px] flex flex-col items-center justify-center">
+            <div className="flex items-center gap-2 mb-4 self-start">
+              <Disc3 className="w-4 h-4 text-pink-400" />
+              <p className="text-sm font-semibold text-white">The listening entity</p>
+            </div>
+            <DeferredSoulOrb
+              personality={safeProfile.personality}
+              personalityMeta={safeProfile.personalityMeta}
+              mbti={safeProfile.mbti}
+              mbtiMeta={safeProfile.mbtiMeta}
+              audioFeatures={safeProfile.audioFeatures}
+              analyticsMetrics={safeProfile.analyticsMetrics}
+              confidence={safeProfile.confidence}
+              dataQuality={safeProfile.dataQuality}
+              genres={safeProfile.genres}
+              topArtists={safeProfile.topArtists}
+              size={160}
+              showLabels
+              lowPower={tier === 'sparse' || tier === 'limited'}
+            />
+          </motion.div>
+        </ModuleBoundary>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.4 }}
           className="noire-info-card p-5 rounded-[28px]">
           <div className="flex items-center gap-2 mb-4">
-            <Activity className="w-4 h-4 text-green-400" />
+            <Activity className="w-4 h-4 text-[#9DB7FF]" />
             <p className="text-sm font-semibold text-white">Pulse and pace</p>
           </div>
           <TempoBar tempo={af.tempo} />

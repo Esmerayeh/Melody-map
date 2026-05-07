@@ -1,6 +1,7 @@
 """Regression tests for backend hardening and CI-safe startup behavior."""
 
 import app as backend_app
+from config import Config
 from services.spotify_proxy_service import SpotifyProxyService
 
 
@@ -70,3 +71,73 @@ def test_music_profile_route_requires_token_with_consistent_error_shape():
     assert payload["success"] is False
     assert payload["error"]["code"] == "SPOTIFY_TOKEN_REQUIRED"
 
+
+def test_session_bootstrap_reports_no_session_cleanly():
+    flask_app = backend_app.create_app()
+    client = flask_app.test_client()
+
+    response = client.get("/api/session/bootstrap")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["data"]["auth_state"] == "no_session"
+    assert payload["data"]["music_provider"] is None
+    assert payload["data"]["profile_boot_status"] == "awaiting_provider"
+
+
+def test_session_bootstrap_reads_provider_cookies():
+    flask_app = backend_app.create_app()
+    client = flask_app.test_client()
+    client.set_cookie("mm_spotify_access", "spotify-cookie-token")
+
+    response = client.get("/api/session/bootstrap")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["success"] is True
+    assert payload["data"]["auth_state"] == "provider_connected"
+    assert payload["data"]["music_provider"] == "spotify"
+    assert payload["data"]["providers"]["spotify"]["connected"] is True
+
+
+def test_root_response_carries_request_id_and_contract_version():
+    flask_app = backend_app.create_app()
+    client = flask_app.test_client()
+
+    response = client.get("/", headers={"X-Request-ID": "mm-test-request"})
+
+    assert response.status_code == 200
+    assert response.headers["X-Request-ID"] == "mm-test-request"
+    payload = response.get_json()
+    assert payload["contractVersion"] == "2026-04-api-v1"
+    assert payload["requestId"] == "mm-test-request"
+
+
+def test_session_bootstrap_reads_app_session_cookie():
+    flask_app = backend_app.create_app()
+    client = flask_app.test_client()
+    token = backend_app.jwt.encode(
+        {"user_id": "user-123"},
+        flask_app.config["SECRET_KEY"],
+        algorithm="HS256",
+    )
+    client.set_cookie("mm_app_session", token)
+
+    response = client.get("/api/session/bootstrap")
+
+    assert response.status_code == 200
+    payload = response.get_json()
+    assert payload["data"]["auth_state"] == "authenticated"
+    assert payload["data"]["user"]["id"] == "user-123"
+
+
+def test_platform_config_defaults_are_safe_when_unset():
+    assert Config.feature_store_mode in {"native", "redis", "feast"}
+    assert Config.retrieval_model_version
+    assert Config.ranking_model_version
+    assert Config.soulmate_model_version
+    assert isinstance(Config.enable_shadow_retrieval, bool)
+    assert isinstance(Config.enable_shadow_ranker, bool)
+    assert isinstance(Config.enable_learned_soulmate, bool)
+    assert isinstance(Config.recommendation_canary_percent, int)

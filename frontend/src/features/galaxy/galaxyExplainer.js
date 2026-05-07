@@ -52,10 +52,25 @@ export function describeEdge(edge = {}) {
   return 'This connection reflects a meaningful neighborhood relationship in your galaxy.'
 }
 
+function normalizeNebulaColor(color = '#8B7CFF') {
+  const normalized = String(color || '').toLowerCase()
+  if (
+    normalized.includes('120') ||
+    normalized.includes('91') ||
+    normalized.includes('117') ||
+    normalized.includes('green') ||
+    normalized.includes('#34d399') ||
+    normalized.includes('#9df6c9')
+  ) {
+    return '#8B7CFF'
+  }
+  return color || '#8B7CFF'
+}
+
 export function getNebulaColors(model) {
   const dominant = model?.clusters?.[0]
-  if (!dominant) return ['#1d1b3a', '#5b21b6']
-  return [dominant.color || '#7c6fff', '#0b1024']
+  if (!dominant) return ['#111022', '#5A46D6']
+  return [normalizeNebulaColor(dominant.color || '#8B7CFF'), '#0B0B17']
 }
 
 export function describeMoodRegion(region = {}) {

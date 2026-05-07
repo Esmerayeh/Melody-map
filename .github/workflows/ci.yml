@@ -79,8 +79,14 @@ jobs:
       - name: Run lint if present
         run: npm run lint --if-present
 
+      - name: Run typecheck if present
+        run: npm run typecheck --if-present
+
       - name: Run tests if present
         run: npm run test --if-present
+
+      - name: Run e2e tests if present
+        run: npm run e2e --if-present
 
       - name: Build frontend (authoritative CI check)
         run: npm run build
@@ -106,3 +112,61 @@ jobs:
 
       - name: Build frontend image
         run: docker build -t melody-map-frontend ./frontend
+
+  security:
+    name: Security Scans
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Gitleaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Run Trivy filesystem scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          format: table
+          severity: CRITICAL,HIGH
+
+  backend-security:
+    name: Backend Dependency Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install audit tooling
+        run: pip install pip-audit
+      - name: Run backend dependency audit
+        run: pip-audit -r requirements.txt
+
+  frontend-security:
+    name: Frontend Dependency Audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install dependencies
+        run: npm ci
+      - name: Run npm audit
+        run: npm audit --audit-level=high

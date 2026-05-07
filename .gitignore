@@ -26,8 +26,10 @@ build/
 
 # Environment
 .env
+.env.*
 .env.local
 .env.production
+*.local
 
 # IDE
 .vscode/
@@ -46,6 +48,19 @@ frontend/.npm-cache/
 # Database
 *.db
 *.sqlite
+*.sqlite3
+.coverage
+coverage/
+
+# ML / generated runtime artifacts
+backend/mlruns/
+backend/data/models/
+backend/data/indexes/
+backend/data/processed/
+tmp/
+temp/
+*.tmp
+*.temp
 
 # OS
 Thumbs.db

@@ -12,10 +12,13 @@ import {
 } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import useStore from '../store/useStore'
+import useAuthStore from '../store/useAuthStore'
+import useProfileStore from '../store/useProfileStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicSourceCard from '../components/MusicSourceCard'
 import ProfileBootPanel from '../components/ProfileBootPanel'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
+import { authAPI } from '../services/api'
 
 function StatusChip({ tone = 'violet', children, icon: Icon }) {
   const styles = {
@@ -58,13 +61,23 @@ export default function Profile() {
   const lastfmConnected = useStore((s) => s.lastfmConnected)
   const lastfmUsername = useStore((s) => s.lastfmUsername)
   const logout = useStore((s) => s.logout)
+  const clearAllAuth = useAuthStore((s) => s.clearAllAuth)
+  const clearProfile = useProfileStore((s) => s.clearProfile)
   const navigate = useNavigate()
 
   const { profile: musicProfile, phase } = useMusicProfile({ autoFetch: true })
   const profile = musicProfile?.userProfile || null
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authAPI.logout()
+      await Promise.allSettled([authAPI.logoutSpotify(), authAPI.logoutLastfm()])
+    } catch {
+      // Local logout still needs to succeed if the network is unavailable.
+    }
     logout()
+    clearAllAuth()
+    clearProfile()
     navigate('/login')
   }
 
@@ -111,7 +124,7 @@ export default function Profile() {
   const quickLinks = [
     { to: '/galaxy', icon: Disc3, label: 'Music Galaxy', desc: 'touch the stars that hold your taste', tone: '#7C6FFF' },
     { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', tone: '#FBBF24' },
-    { to: '/soulmate', icon: Heart, label: 'Soulmates', desc: 'see where your worlds meet', tone: '#FF5DA2' },
+    { to: '/soulmates', icon: Heart, label: 'Soulmates', desc: 'see where your worlds meet', tone: '#FF5DA2' },
     { to: '/analytics', icon: BarChart3, label: 'Signal Reading', desc: 'a deeper look at movement and light', tone: '#34D399' },
     { to: '/identity', icon: Brain, label: 'Music Identity', desc: 'enter the full inner reading', tone: '#60A5FA' },
   ]

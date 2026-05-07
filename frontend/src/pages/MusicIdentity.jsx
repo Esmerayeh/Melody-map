@@ -1,12 +1,15 @@
-import { useMemo } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { motion } from 'framer-motion'
 import { Link } from 'react-router-dom'
 import { Brain, Compass, Disc3, Sparkles } from 'lucide-react'
 import useMusicProfile from '../hooks/useMusicProfile'
-import ProfileBootPanel from '../components/ProfileBootPanel'
+import RouteStatusBanner from '../components/RouteStatusBanner'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
 import { useRouteReadiness } from '../hooks/useRouteReadiness'
+import ShareableIdentityCard from '../components/identity/ShareableIdentityCard'
+import { buildIdentityShareText, exportElementAsPng } from '../components/identity/identityCardExport'
+import { shareAPI } from '../services/api'
 
 const pct = (v, max = 100) => Math.round(Math.min(Math.max((v ?? 0), 0), max))
 
@@ -62,6 +65,8 @@ function DnaBand({ label, pct: p, color, icon, delay = 0 }) {
 
 export default function MusicIdentity() {
   const { profile, phase, confidence, dataQuality, readiness, tier } = useMusicProfile()
+  const cardRef = useRef(null)
+  const [shareStatus, setShareStatus] = useState('')
   const safeProfile = profile || {}
 
   const personality = safeProfile.personality || []
@@ -99,19 +104,6 @@ export default function MusicIdentity() {
     },
   })
 
-  if (boot.blocked) {
-    return (
-      <ProfileBootPanel
-        variant={boot.variant}
-        title={boot.title}
-        subtitle={boot.subtitle}
-        detail={boot.detail}
-        actionLabel={boot.variant === 'error' ? 'Reload the reading' : undefined}
-        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
-      />
-    )
-  }
-
   return (
     <div className="cosmic-page space-y-8">
       <motion.div initial={{ opacity: 0, y: -12 }} animate={{ opacity: 1, y: 0 }} transition={MOTION_TOKENS.focusSettle}>
@@ -126,11 +118,46 @@ export default function MusicIdentity() {
           <span>deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%</span>
         </div>
         {safeProfile?.isDegraded && (
-          <p className="mt-3 text-xs text-amber-300/80">
-            This is a partial reading. We will deepen the identity as more listening signal arrives.
-          </p>
+          <div className="mt-4 rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
+            <p className="text-sm font-semibold text-white">Identity read is already open</p>
+            <p className="mt-2 text-xs text-slate-400">
+              Core traits, mood strands, and the first sonic fingerprint are visible now. Advanced DNA layers deepen as more listening history settles.
+            </p>
+          </div>
         )}
       </motion.div>
+
+      {boot.variant !== 'ready' && (
+        <RouteStatusBanner
+          variant={boot.variant}
+          title={boot.title}
+          subtitle={boot.subtitle}
+          detail={boot.detail}
+        />
+      )}
+
+      <div className="grid gap-4 md:grid-cols-4">
+        <div className="noire-info-card rounded-[22px] p-4">
+          <p className="section-label mb-2">Immediate trait</p>
+          <p className="text-white font-semibold">{traits[0]?.label || 'Quiet romantic'}</p>
+          <p className="mt-2 text-xs text-slate-500">The strongest visible contour in your current listening self.</p>
+        </div>
+        <div className="noire-info-card rounded-[22px] p-4">
+          <p className="section-label mb-2">Top mood</p>
+          <p className="text-white font-semibold">{safeProfile.analyticsMetrics?.mood || 'Moonlit tension'}</p>
+          <p className="mt-2 text-xs text-slate-500">The emotional weather most often repeated across your profile.</p>
+        </div>
+        <div className="noire-info-card rounded-[22px] p-4">
+          <p className="section-label mb-2">Top genre strip</p>
+          <p className="text-white font-semibold">{safeProfile.genres?.[0]?.genre || safeProfile.genres?.[0] || 'Still resolving'}</p>
+          <p className="mt-2 text-xs text-slate-500">The first anchor in your visible taste DNA.</p>
+        </div>
+        <div className="noire-info-card rounded-[22px] p-4">
+          <p className="section-label mb-2">Sonic fingerprint</p>
+          <p className="text-white font-semibold">{safeProfile.sonicPersonalityTitle || mbti?.type || 'Soft signal'}</p>
+          <p className="mt-2 text-xs text-slate-500">A short identity label so the route never opens empty.</p>
+        </div>
+      </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
         <div className="noire-panel rounded-[32px] p-6 relative overflow-hidden">
@@ -231,6 +258,73 @@ export default function MusicIdentity() {
         </div>
       </div>
 
+      <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <ShareableIdentityCard ref={cardRef} profile={safeProfile} />
+        <div className="noire-panel rounded-[28px] p-6">
+          <p className="page-header-kicker mb-2">Shareable identity card</p>
+          <p className="text-sm text-slate-400">Export a visual snapshot of your archetype, MBTI, top genres, and mood vector without leaving Melody Map.</p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    const result = await exportElementAsPng(cardRef.current)
+                    setShareStatus(result?.method === 'preview'
+                      ? 'Mobile browser opened the card in a new tab for saving.'
+                      : 'Identity card downloaded.')
+                  } catch (error) {
+                    setShareStatus(error.message || 'Identity card export failed.')
+                  }
+                }}
+                className="min-h-11 w-full rounded-full border border-sky-400/25 bg-sky-400/10 px-4 py-2 text-sm text-sky-100 sm:w-auto"
+              >
+                Download PNG
+              </button>
+            <button
+              type="button"
+                onClick={async () => {
+                  const shareText = buildIdentityShareText({
+                    archetype: safeProfile?.personality?.[0]?.label || safeProfile?.sonicPersonalityTitle,
+                    mbti: safeProfile?.mbti?.type || safeProfile?.mbti?.name,
+                    topGenres: (safeProfile?.genres || []).map((item) => item.genre || item),
+                    moodLabel: safeProfile?.analyticsMetrics?.mood,
+                  })
+                  try {
+                    if (navigator.clipboard?.writeText) {
+                      await navigator.clipboard.writeText(shareText)
+                    } else {
+                      const textarea = document.createElement('textarea')
+                      textarea.value = shareText
+                      textarea.setAttribute('readonly', 'true')
+                      textarea.style.position = 'absolute'
+                      textarea.style.left = '-9999px'
+                      document.body.appendChild(textarea)
+                      textarea.select()
+                      document.execCommand('copy')
+                      textarea.remove()
+                    }
+                    await shareAPI.identityCard({
+                      archetype: safeProfile?.personality?.[0]?.label || safeProfile?.sonicPersonalityTitle,
+                      mbti: safeProfile?.mbti?.type || safeProfile?.mbti?.name,
+                    topGenres: (safeProfile?.genres || []).map((item) => item.genre || item),
+                  }).catch(() => {})
+                  setShareStatus('Share text copied.')
+                  } catch (error) {
+                    setShareStatus(error.message || 'Could not copy share text.')
+                  }
+                }}
+                className="min-h-11 w-full rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 px-4 py-2 text-sm text-fuchsia-100 sm:w-auto"
+              >
+                Copy share text
+              </button>
+              <Link to="/identity-drift" className="flex min-h-11 w-full items-center justify-center rounded-full border border-white/10 px-4 py-2 text-sm text-white sm:w-auto">
+                Open identity drift
+              </Link>
+            </div>
+          {shareStatus ? <p className="mt-4 text-xs text-slate-500">{shareStatus}</p> : null}
+        </div>
+      </div>
+
       <div className="flex flex-wrap gap-3">
         <Link
           to="/galaxy"
@@ -240,11 +334,18 @@ export default function MusicIdentity() {
           Enter the galaxy
         </Link>
         <Link
-          to="/soulmate"
-          className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
+            to="/soulmates"
+            className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
           style={{ background: 'rgba(244,114,182,0.16)', border: '1px solid rgba(244,114,182,0.3)' }}
         >
           Compare soulmates
+        </Link>
+        <Link
+          to="/identity-drift"
+          className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
+          style={{ background: 'rgba(96,165,250,0.16)', border: '1px solid rgba(96,165,250,0.32)' }}
+        >
+          Identity drift
         </Link>
       </div>
     </div>

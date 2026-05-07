@@ -56,40 +56,30 @@ function getStoredJson(key, fallback = null) {
 
 const useStore = create((set) => ({
   user: null,
-  isAuthenticated: !!(
-    getStoredValue('token') ||
-    getStoredValue('spotify_token') ||
-    getStoredValue('lastfm_session')
-  ),
+  isAuthenticated: false,
 
-  spotifyToken: getStoredValue('spotify_token') || null,
+  spotifyToken: null,
   spotifyProfile: null,
-  spotifyConnected: !!getStoredValue('spotify_token'),
+  spotifyConnected: false,
 
-  lastfmSession: getStoredValue('lastfm_session') || null,
-  lastfmUsername: getStoredValue('lastfm_username') || null,
-  lastfmConnected: !!getStoredValue('lastfm_session'),
+  lastfmSession: null,
+  lastfmUsername: null,
+  lastfmConnected: false,
 
-  musicProvider: getStoredValue('music_provider') || null,
+  musicProvider: null,
+  sessionId: null,
 
   selectedSong: null,
 
   cinemaMode: false,
   setCinemaMode: (val) => set({ cinemaMode: val }),
 
-  setUser: (user) => set({ user, isAuthenticated: true }),
+  setUser: (user) => set({ user, isAuthenticated: Boolean(user), }),
 
   logout: () => {
     ;[
-      'token',
-      'userId',
-      'spotify_token',
-      'spotify_refresh_token',
-      'spotify_token_expiry',
-      'lastfm_session',
-      'lastfm_username',
-      'music_provider',
       'music_profile_time_range',
+      'music_profile_cache_v1',
       'vibe_features',
       'sonic_identity',
       'aesthetic_state',
@@ -106,6 +96,7 @@ const useStore = create((set) => ({
       lastfmUsername: null,
       lastfmConnected: false,
       musicProvider: null,
+      sessionId: null,
       musicProfile: null,
       musicProfileLoading: false,
       musicProfileError: null,
@@ -117,50 +108,40 @@ const useStore = create((set) => ({
   },
 
   setSpotifyToken: (token, refreshToken) => {
-    setStoredValue('spotify_token', token)
-    setStoredValue('music_provider', 'spotify')
-    if (refreshToken) setStoredValue('spotify_refresh_token', refreshToken)
-    set({ spotifyToken: token, spotifyConnected: true, musicProvider: 'spotify', isAuthenticated: true })
+    set({
+      spotifyToken: token || null,
+      spotifyConnected: Boolean(token),
+      musicProvider: token ? 'spotify' : null,
+    })
   },
 
   setSpotifyProfile: (profile) => set({ spotifyProfile: profile }),
 
   disconnectSpotify: () => {
-    removeStoredValue('spotify_token')
-    removeStoredValue('spotify_refresh_token')
-    const provider = getStoredValue('music_provider')
-    if (provider === 'spotify') {
-      removeStoredValue('music_provider')
-      set({ spotifyToken: null, spotifyProfile: null, spotifyConnected: false, musicProvider: null })
-    } else {
-      set({ spotifyToken: null, spotifyProfile: null, spotifyConnected: false })
-    }
+    set({ spotifyToken: null, spotifyProfile: null, spotifyConnected: false, musicProvider: null })
   },
 
   setLastfm: (session, username) => {
-    setStoredValue('lastfm_session', session)
-    setStoredValue('lastfm_username', username)
-    setStoredValue('music_provider', 'lastfm')
     set({
-      lastfmSession: session,
-      lastfmUsername: username,
-      lastfmConnected: true,
-      musicProvider: 'lastfm',
-      isAuthenticated: true,
+      lastfmSession: session || null,
+      lastfmUsername: username || null,
+      lastfmConnected: Boolean(session && username),
+      musicProvider: session ? 'lastfm' : null,
     })
   },
 
   disconnectLastfm: () => {
-    removeStoredValue('lastfm_session')
-    removeStoredValue('lastfm_username')
-    const provider = getStoredValue('music_provider')
-    if (provider === 'lastfm') {
-      removeStoredValue('music_provider')
-      set({ lastfmSession: null, lastfmUsername: null, lastfmConnected: false, musicProvider: null })
-    } else {
-      set({ lastfmSession: null, lastfmUsername: null, lastfmConnected: false })
-    }
+    set({ lastfmSession: null, lastfmUsername: null, lastfmConnected: false, musicProvider: null })
   },
+
+  setProviderState: (state) => set((current) => ({
+    spotifyConnected: Boolean(state?.spotifyConnected),
+    lastfmConnected: Boolean(state?.lastfmConnected),
+    musicProvider: state?.musicProvider || null,
+    lastfmUsername: state?.lastfmUsername ?? current.lastfmUsername,
+    spotifyProfile: state?.spotifyProfile ?? current.spotifyProfile,
+    sessionId: state?.sessionId ?? current.sessionId,
+  })),
 
   setSelectedSong: (song) => set({ selectedSong: song }),
 

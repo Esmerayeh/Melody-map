@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import time
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import bcrypt
@@ -9,6 +11,7 @@ from bson import ObjectId
 from flask import Flask, g, request
 from flask_cors import CORS
 from flask_pymongo import PyMongo
+from prometheus_client import CONTENT_TYPE_LATEST, generate_latest
 
 from config import Config
 from middleware.auth import optional_auth, require_auth
@@ -19,21 +22,108 @@ from routes.discover import discover_bp
 from routes.lastfm_auth import lastfm_auth_bp
 from routes.lastfm_data import lastfm_data_bp
 from routes.music_profile import music_profile_bp
+from routes.identity import identity_bp
 from routes.pinterest_aesthetic import pinterest_bp
 from routes.public_profile import init_mongo as public_profile_init_mongo
 from routes.public_profile import public_profile_bp
+from routes.recommendation_events import recommendation_events_bp
+from routes.share import share_bp
+from routes.social import social_bp
 from routes.soulmate import init_mongo as soulmate_init_mongo
 from routes.soulmate import soulmate_bp
 from routes.spotify_auth import spotify_auth_bp
 from routes.spotify_data import spotify_data_bp
+from services.feature_store import (
+    get_live_signal_cached,
+    get_latest_snapshot,
+    get_online_features,
+    get_recent_events,
+    init_mongo as feature_store_init_mongo,
+    register_embedding,
+    store_listening_event,
+    summarize_live_signal,
+    upsert_offline_features,
+    upsert_online_features,
+    upsert_online_features_cached,
+)
+from services.event_logger import log_event
+from services.kafka_producer import publish_event
+from services.metrics_logger import log_model_latency
+from services.metrics_logger import log_candidate_count, log_recommendation_fallback, log_recommendation_trace, log_shadow_run
+from ml.serving.ranking_service import RankingService
+from ml.serving.retrieval_service import RetrievalService
 from utils.api import api_error, api_success
+from utils.auth_cookies import auth_token_from_request, clear_auth_cookie, set_auth_cookie
+from utils.csrf import CSRF_COOKIE, csrf_valid, issue_csrf_token
+from utils.jobs import job_registry
 from utils.logger import logger
+from utils.online_cache import write_request_trace
+from utils.provider_cookies import lastfm_context_from_request, spotify_context_from_request
 
 mongo = PyMongo()
 
 _similarity_engine = None
 _recommendation_engine = None
 _spotify_service = None
+
+
+def stable_recommendation_bucket(value: str) -> int:
+    digest = hashlib.sha256(str(value).encode("utf-8")).hexdigest()
+    return int(digest[:8], 16) % 100
+
+
+def _train_embedding_snapshot():
+    from ml.co_listen_embeddings import build_co_listen_embeddings
+    from ml.graph_walk_embeddings import GRAPH_EMBEDDING_VERSION, build_graph_walk_embeddings
+
+    events = []
+    topologies = []
+    if mongo.db is not None:
+        events = list(mongo.db.listening_events.find().sort("received_at", -1).limit(5000))
+        topologies = list(mongo.db.taste_profiles.find({}, {"user_id": 1, "galaxy_topology": 1}).limit(200))
+
+    result = build_co_listen_embeddings(events)
+    for entity_id, payload in result.get("trackEmbeddings", {}).items():
+        register_embedding("track", entity_id, result["version"], payload.get("vector", []), payload.get("meta"))
+    for user_id, vector in result.get("profileEmbeddings", {}).items():
+        register_embedding("profile", user_id, result["version"], vector, {"source": "co-listen"})
+        upsert_offline_features(
+            user_id,
+            "rolling_30d",
+            {
+                "embeddingVersion": result["version"],
+                "profileVector": vector,
+                "sessionCount": result.get("sessionCount", 0),
+                "trackCount": result.get("trackCount", 0),
+            },
+        )
+
+    graph_summaries = []
+    for entry in topologies:
+        user_id = entry.get("user_id")
+        topology = entry.get("galaxy_topology") or {}
+        if not user_id or not topology:
+            continue
+        graph_result = build_graph_walk_embeddings(topology)
+        register_embedding("galaxy", user_id, graph_result["version"], [graph_result.get("edgeDensity", 0.0)], {"kind": "density"})
+        upsert_offline_features(
+            user_id,
+            "galaxy_walk",
+            {
+                "graphEmbeddingVersion": graph_result["version"],
+                "communities": graph_result.get("communities", []),
+                "edgeDensity": graph_result.get("edgeDensity", 0.0),
+            },
+        )
+        graph_summaries.append({"user_id": user_id, "communities": len(graph_result.get("communities", []))})
+
+    return {
+        "coListenEmbeddingVersion": result.get("version"),
+        "trackEmbeddings": len(result.get("trackEmbeddings", {})),
+        "profileEmbeddings": len(result.get("profileEmbeddings", {})),
+        "graphProfiles": len(graph_summaries),
+        "graphEmbeddingVersion": GRAPH_EMBEDDING_VERSION,
+    }
 
 
 def get_similarity_engine():
@@ -104,6 +194,7 @@ def create_app() -> Flask:
     with app.app_context():
         soulmate_init_mongo(mongo)
         public_profile_init_mongo(mongo)
+        feature_store_init_mongo(mongo)
 
     app.register_blueprint(spotify_auth_bp)
     app.register_blueprint(spotify_data_bp, url_prefix="/api")
@@ -116,6 +207,10 @@ def create_app() -> Flask:
     app.register_blueprint(public_profile_bp)
     app.register_blueprint(pinterest_bp)
     app.register_blueprint(auralith_bp, url_prefix="/api")
+    app.register_blueprint(identity_bp, url_prefix="/api")
+    app.register_blueprint(social_bp, url_prefix="/api")
+    app.register_blueprint(share_bp, url_prefix="/api")
+    app.register_blueprint(recommendation_events_bp, url_prefix="/api")
 
     logger.info(
         {
@@ -135,12 +230,32 @@ def register_hooks(app: Flask) -> None:
     @app.before_request
     def _start_timer():
         g.start = time.time()
+        g.request_id = request.headers.get("X-Request-ID") or f"mm-{uuid.uuid4().hex[:12]}"
+        g.csrf_exempt = (
+            request.method in {"GET", "HEAD", "OPTIONS"}
+            or request.path in {
+                "/api/auth/login",
+                "/api/auth/register",
+                "/auth/spotify/exchange",
+                "/auth/lastfm/exchange",
+                "/auth/spotify/callback",
+                "/auth/lastfm/callback",
+                "/auth/spotify/login",
+                "/auth/lastfm/login",
+            }
+        )
+        has_cookie_session = bool(request.cookies.get("mm_app_session") or request.cookies.get("mm_spotify_access") or request.cookies.get("mm_lastfm_session"))
+        if not g.csrf_exempt and has_cookie_session and not csrf_valid(request):
+            return api_error("CSRF token missing or invalid", 403, code="CSRF_INVALID")
 
     @app.after_request
     def _log_request(response):
         ms = round((time.time() - g.get("start", time.time())) * 1000, 1)
+        response.headers["X-Request-ID"] = g.get("request_id", "")
+        issue_csrf_token(response, request)
         logger.info(
             {
+                "request_id": g.get("request_id"),
                 "method": request.method,
                 "path": request.path,
                 "status": response.status_code,
@@ -152,6 +267,156 @@ def register_hooks(app: Flask) -> None:
 
 
 def register_routes(app: Flask) -> None:
+    def _derive_session_id() -> str:
+        auth = request.cookies.get("mm_app_session") or ""
+        spotify = request.cookies.get("mm_spotify_access") or ""
+        lastfm = request.cookies.get("mm_lastfm_session") or ""
+        seed = auth or spotify or lastfm or request.remote_addr or g.get("request_id") or "anonymous"
+        return f"sess-{hashlib.sha256(seed.encode('utf-8')).hexdigest()[:16]}"
+
+    def _canary_enabled_for_user(user_id: str) -> bool:
+        return Config.recommendation_canary_percent > 0 and stable_recommendation_bucket(user_id) < Config.recommendation_canary_percent
+
+    def _snapshot_profile(user_id: str) -> dict | None:
+        snapshot = get_latest_snapshot(user_id)
+        return (snapshot or {}).get("payload")
+
+    def _song_lookup_keys(song: dict) -> list[str]:
+        keys: list[str] = []
+        for candidate in (
+            song.get("_id"),
+            song.get("song_id"),
+            song.get("track_id"),
+            song.get("id"),
+            song.get("spotify_id"),
+        ):
+            if candidate:
+                keys.append(str(candidate))
+        title = (song.get("title") or song.get("name") or "").strip()
+        artist = (song.get("artist") or song.get("primary_artist") or "").strip()
+        if title and artist:
+            keys.append(f"{title}::{artist}")
+        if title:
+            keys.append(title)
+        return keys
+
+    def _build_song_index(songs: list[dict]) -> dict[str, dict]:
+        index: dict[str, dict] = {}
+        for song in songs:
+            for key in _song_lookup_keys(song):
+                index.setdefault(key, song)
+        return index
+
+    def _song_image(song: dict) -> str | None:
+        images = song.get("images") or []
+        first_image = images[0] if isinstance(images, list) and images else None
+        return (
+            song.get("image")
+            or song.get("artwork")
+            or song.get("album_art")
+            or ((song.get("album") or {}).get("images") or [{}])[0].get("url")
+            or (first_image.get("url") if isinstance(first_image, dict) else first_image)
+        )
+
+    def _song_spotify_url(song: dict) -> str | None:
+        external_urls = song.get("external_urls") or {}
+        return song.get("spotify_url") or external_urls.get("spotify")
+
+    def _reason_text(mode: str, item: dict) -> str:
+        if item.get("reason"):
+            return item["reason"]
+        if mode == "canary_learned":
+            return "Matched by learned retrieval and re-ranked against your recent session signal."
+        return "Matched by the baseline hybrid recommender using your listening profile and interaction history."
+
+    def _hydrate_recommendation_items(
+        items: list[dict],
+        songs: list[dict],
+        *,
+        mode: str,
+        request_id: str,
+        session_id: str,
+        retrieval_model_version: str | None,
+        ranking_model_version: str | None,
+        candidate_source: str,
+    ) -> list[dict]:
+        song_index = _build_song_index(songs)
+        hydrated: list[dict] = []
+        for position, item in enumerate(items):
+            track_key = str(item.get("track_key") or item.get("song_id") or "")
+            song = song_index.get(track_key, {})
+            title = song.get("title") or song.get("name") or track_key
+            artist = song.get("artist") or song.get("primary_artist") or "Unknown artist"
+            hydrated.append(
+                {
+                    "track_key": track_key,
+                    "title": title,
+                    "artist": artist,
+                    "album": song.get("album"),
+                    "image": _song_image(song),
+                    "artwork": _song_image(song),
+                    "album_art": song.get("album_art") or _song_image(song),
+                    "preview_url": song.get("preview_url"),
+                    "spotify_url": _song_spotify_url(song),
+                    "audio_features": song.get("audio_features") or {},
+                    "reason": _reason_text(mode, item),
+                    "explanation": item.get("explanation") or _reason_text(mode, item),
+                    "score": item.get("score"),
+                    "retrieval_score": item.get("retrieval_score"),
+                    "ranking_score": item.get("ranking_score"),
+                    "final_score": item.get("final_score"),
+                    "position": position,
+                    "request_id": request_id,
+                    "session_id": session_id,
+                    "retrieval_model_version": retrieval_model_version,
+                    "ranking_model_version": ranking_model_version,
+                    "candidate_source": candidate_source,
+                    "source": item.get("source"),
+                }
+            )
+        return hydrated
+
+    def _shadow_retrieval_and_ranking(user_id: str, profile: dict | None = None) -> dict:
+        start = time.time()
+        try:
+            retrieval = RetrievalService()
+            ranking = RankingService()
+            candidates = retrieval.retrieve_track_candidates(user_id, top_k=50, fallback_profile=profile)
+            ranked = ranking.rank_candidates(user_id, candidates, profile=profile)
+            latency_ms = round((time.time() - start) * 1000, 2)
+            record = {
+                "user_id": user_id,
+                "request_id": g.get("request_id"),
+                "heuristic_tracks": [],
+                "retrieval_tracks": [item["track_key"] for item in candidates[:20]],
+                "ranked_tracks": [item["track_key"] for item in ranked[:20]],
+                "created_at": datetime.now(UTC),
+                "latency_ms": latency_ms,
+                "model_versions": {
+                    "retrieval": retrieval.embedding_version,
+                    "ranker": ranking.model_version,
+                },
+            }
+            if getattr(mongo, "db", None) is not None:
+                mongo.db.recommendation_shadow_runs.insert_one(record)
+            publish_event(record, topic=Config.kafka_recommendation_request_topic, key=g.get("request_id"))
+            log_shadow_run("shadow", retrieval.embedding_version, ranking.model_version)
+            return record
+        except Exception as exc:
+            logger.warning({"event": "shadow_recommendation_failed", "error": str(exc), "user_id": user_id})
+            log_recommendation_fallback("shadow", "shadow_path_failed")
+            return {
+                "user_id": user_id,
+                "request_id": g.get("request_id"),
+                "heuristic_tracks": [],
+                "retrieval_tracks": [],
+                "ranked_tracks": [],
+                "created_at": datetime.now(UTC),
+                "latency_ms": round((time.time() - start) * 1000, 2),
+                "model_versions": {"retrieval": None, "ranker": None},
+                "failed": True,
+            }
+
     @app.route("/")
     def root():
         return api_success(
@@ -181,8 +446,54 @@ def register_routes(app: Flask) -> None:
                     "state": "connected" if db_ok else "unreachable",
                 },
                 "timestamp": datetime.now(UTC).isoformat(),
+                "jobs": {"registry": "in-process", "mode": "threadpool"},
             },
             warnings=[{"code": "DATABASE_UNREACHABLE", "message": db_error}] if db_error else None,
+        )
+
+    @app.route("/api/auth/csrf", methods=["GET"])
+    def csrf_bootstrap():
+        return api_success({"csrf_cookie": CSRF_COOKIE})
+
+    @app.route("/api/session/bootstrap", methods=["GET"])
+    def session_bootstrap():
+        auth = auth_token_from_request(request) or ""
+        user_id = None
+        if auth:
+            try:
+                payload = jwt.decode(auth, app.config["SECRET_KEY"], algorithms=["HS256"])
+                user_id = payload.get("user_id")
+            except jwt.InvalidTokenError:
+                user_id = None
+
+        spotify_access, _, spotify_expires_at = spotify_context_from_request(request)
+        lastfm_session, lastfm_username = lastfm_context_from_request(request)
+        music_provider = "spotify" if spotify_access else "lastfm" if lastfm_session else None
+        auth_state = "authenticated" if user_id else "provider_connected" if music_provider else "no_session"
+        profile_boot_status = "ready_to_hydrate" if music_provider else "awaiting_provider"
+
+        return api_success(
+            {
+                "auth_state": auth_state,
+                "user": {"id": user_id} if user_id else None,
+                "sessionId": _derive_session_id(),
+                "providers": {
+                    "spotify": {
+                        "connected": bool(spotify_access),
+                        "expires_at": spotify_expires_at,
+                    },
+                    "lastfm": {
+                        "connected": bool(lastfm_session),
+                        "username": lastfm_username,
+                    },
+                },
+                "music_provider": music_provider,
+                "profile_boot_status": profile_boot_status,
+                "retry_after": None,
+                "backend_warm": True,
+                "auth_transport": "cookie" if request.cookies.get("mm_app_session") else "header" if auth else None,
+                "latest_snapshot": get_latest_snapshot(user_id) if user_id else None,
+            }
         )
 
     @app.route("/api/auth/register", methods=["POST"])
@@ -215,7 +526,9 @@ def register_routes(app: Flask) -> None:
                 algorithm="HS256",
             )
             logger.info({"event": "register", "user_id": uid})
-            return api_success({"token": token, "user_id": uid}, 201)
+            response, status = api_success({"user_id": uid, "session": "authenticated"}, 201)
+            set_auth_cookie(response, token, ttl_seconds=60 * 60 * 24 * 30)
+            return response, status
         except Exception as exc:
             logger.error({"event": "register_error", "error": str(exc)})
             return api_error("Registration failed", 500, code="REGISTER_FAILED")
@@ -242,55 +555,181 @@ def register_routes(app: Flask) -> None:
                         algorithm="HS256",
                     )
                     logger.info({"event": "login", "user_id": uid})
-                    return api_success({"token": token, "user_id": uid})
+                    response, status = api_success({"user_id": uid, "session": "authenticated"})
+                    set_auth_cookie(response, token, ttl_seconds=60 * 60 * 24 * 30)
+                    return response, status
             return api_error("Invalid credentials", 401, code="INVALID_CREDENTIALS")
         except Exception as exc:
             logger.error({"event": "login_error", "error": str(exc)})
             return api_error("Login failed", 500, code="LOGIN_FAILED")
 
+    @app.route("/api/auth/logout", methods=["POST"])
+    def logout():
+        response, status = api_success({"session": "cleared"})
+        clear_auth_cookie(response)
+        return response, status
+
     @app.route("/api/map/generate", methods=["POST"])
     @require_auth
     def generate_map():
-        similarity_engine = get_similarity_engine()
-        recommendation_engine = get_recommendation_engine()
-        if not similarity_engine or not recommendation_engine:
-            return api_error("ML engine unavailable", 503, code="ML_ENGINE_UNAVAILABLE")
+        def _compute_map():
+            similarity_engine = get_similarity_engine()
+            recommendation_engine = get_recommendation_engine()
+            if not similarity_engine or not recommendation_engine:
+                raise RuntimeError("ML engine unavailable")
 
-        songs = list(mongo.db.songs.find().limit(500))
-        if not songs:
-            return api_error("No songs in database", 404, code="SONG_CATALOG_EMPTY")
+            songs = list(mongo.db.songs.find().limit(500))
+            if not songs:
+                raise RuntimeError("Song catalog empty")
 
-        songs_data = [serialize_doc(dict(song)) for song in songs]
-        features = similarity_engine.extract_features(songs_data)
-        normalized = similarity_engine.normalize_features(features)
-        clusters = similarity_engine.cluster_songs(normalized)
-        coords2d = similarity_engine.reduce_dimensions_pca(normalized, 2)
-        coords3d = similarity_engine.reduce_dimensions_3d(normalized)
+            songs_data = [serialize_doc(dict(song)) for song in songs]
+            features = similarity_engine.extract_features(songs_data)
+            normalized = similarity_engine.normalize_features(features)
+            clusters = similarity_engine.cluster_songs(normalized)
+            coords2d = similarity_engine.reduce_dimensions_pca(normalized, 2)
+            coords3d = similarity_engine.reduce_dimensions_3d(normalized)
 
-        for index, song in enumerate(songs):
-            mongo.db.songs.update_one(
-                {"_id": song["_id"]},
-                {
-                    "$set": {
-                        "cluster_id": int(clusters[index]),
-                        "map_coordinates": {"x": float(coords2d[index][0]), "y": float(coords2d[index][1])},
-                        "map_coords_3d": {
-                            "x": float(coords3d[index][0]),
-                            "y": float(coords3d[index][1]),
-                            "z": float(coords3d[index][2]),
-                        },
-                    }
-                },
-            )
+            for index, song in enumerate(songs):
+                mongo.db.songs.update_one(
+                    {"_id": song["_id"]},
+                    {
+                        "$set": {
+                            "cluster_id": int(clusters[index]),
+                            "map_coordinates": {"x": float(coords2d[index][0]), "y": float(coords2d[index][1])},
+                            "map_coords_3d": {
+                                "x": float(coords3d[index][0]),
+                                "y": float(coords3d[index][1]),
+                                "z": float(coords3d[index][2]),
+                            },
+                        }
+                    },
+                )
 
-        recommendation_engine.fit_knn(songs_data)
-        logger.info({"event": "map_generated", "songs": len(songs)})
-        return api_success({"message": "Map generated", "total_songs": len(songs)})
+            recommendation_engine.fit_knn(songs_data)
+            logger.info({"event": "map_generated", "songs": len(songs)})
+            return {"message": "Map generated", "total_songs": len(songs)}
+
+        job = job_registry.submit("map-generate", _compute_map, dedupe_key="map-generate")
+        return api_success({"job_id": job["id"], "status": job["status"]}, status=202)
 
     @app.route("/api/map/data", methods=["GET"])
     def get_map_data():
         songs = list(mongo.db.songs.find({"map_coordinates": {"$exists": True}}))
         return api_success([serialize_doc(dict(song)) for song in songs])
+
+    @app.route("/api/jobs/<job_id>", methods=["GET"])
+    def get_job(job_id: str):
+        job = job_registry.get(job_id)
+        if not job:
+            return api_error("Job not found", 404, code="JOB_NOT_FOUND")
+        return api_success(job)
+
+    @app.route("/api/events/listening", methods=["POST"])
+    @require_auth
+    @rate_limit(max_requests=120, window_seconds=60)
+    def ingest_listening_event():
+        data = request.get_json(silent=True) or {}
+        if not data.get("track_id") and not data.get("title"):
+            return api_error("track_id or title required", 400, code="EVENT_TRACK_REQUIRED")
+        event_id = request.headers.get("Idempotency-Key") or data.get("event_id")
+        event = log_event(g.user_id, data, request_id=g.get("request_id"), event_id=event_id)
+        live_signal = summarize_live_signal(g.user_id, limit=24)
+        upsert_online_features_cached(g.user_id, live_signal, source_event_id=event.get("event_id"))
+        return api_success({"event": event}, status=202)
+
+    @app.route("/api/events/listening", methods=["GET"])
+    @require_auth
+    def get_listening_events():
+        limit = min(max(int(request.args.get("limit", 12)), 1), 50)
+        return api_success({"events": get_recent_events(g.user_id, limit=limit)})
+
+    @app.route("/api/events/live-signal", methods=["GET"])
+    @require_auth
+    def get_live_signal():
+        signal = get_live_signal_cached(g.user_id)
+        if not signal:
+            signal = summarize_live_signal(g.user_id, limit=min(max(int(request.args.get("limit", 20)), 4), 40))
+        cached = get_online_features(g.user_id)
+        if not cached or (cached.get("live_signal") or {}).get("eventCount", 0) != signal.get("eventCount", 0):
+            cached = upsert_online_features_cached(g.user_id, signal)
+        return api_success({"liveSignal": signal, "onlineFeatures": cached})
+
+    @app.route("/api/ml/train-embeddings", methods=["POST"])
+    @require_auth
+    @rate_limit(max_requests=6, window_seconds=60)
+    def train_embeddings():
+        job = job_registry.submit("train-embeddings", _train_embedding_snapshot, dedupe_key="train-embeddings")
+        return api_success({"job_id": job["id"], "status": job["status"]}, status=202)
+
+    @app.route("/api/recommendations/candidates", methods=["GET"])
+    @require_auth
+    def recommendation_candidates():
+        top_k = min(max(int(request.args.get("top_k", 100)), 1), 500)
+        retrieval = RetrievalService()
+        start = time.time()
+        candidates = retrieval.retrieve_track_candidates(g.user_id, top_k=top_k, fallback_profile=_snapshot_profile(g.user_id))
+        latency_ms = round((time.time() - start) * 1000, 2)
+        log_model_latency("retrieval", retrieval.embedding_version, latency_ms)
+        log_candidate_count("retrieval_candidates", retrieval.embedding_version, len(candidates))
+        if not candidates:
+            log_recommendation_fallback("retrieval", "no_candidates")
+        request_trace = {
+            "request_id": g.get("request_id"),
+            "user_id": g.user_id,
+            "candidates": candidates[:50],
+            "retrieval_model_version": retrieval.embedding_version,
+            "latency_ms": latency_ms,
+        }
+        write_request_trace(g.get("request_id"), request_trace)
+        publish_event(request_trace, topic=Config.kafka_recommendation_request_topic, key=g.get("request_id"))
+        log_recommendation_trace(request_trace)
+        return api_success(
+            {
+                "candidates": candidates,
+                "modelVersion": retrieval.embedding_version,
+                "fallbackUsed": not bool(candidates),
+                "requestId": g.get("request_id"),
+                "sessionId": _derive_session_id(),
+            }
+        )
+
+    @app.route("/api/recommendations/ranked", methods=["GET"])
+    @require_auth
+    def recommendation_ranked():
+        top_k = min(max(int(request.args.get("top_k", 100)), 1), 500)
+        retrieval = RetrievalService()
+        ranking = RankingService()
+        start = time.time()
+        fallback_profile = _snapshot_profile(g.user_id)
+        candidates = retrieval.retrieve_track_candidates(g.user_id, top_k=top_k, fallback_profile=fallback_profile)
+        ranked = ranking.rank_candidates(g.user_id, candidates, profile=fallback_profile)
+        latency_ms = round((time.time() - start) * 1000, 2)
+        log_model_latency("ranking", ranking.model_version, latency_ms)
+        log_candidate_count("ranking_candidates", ranking.model_version, len(ranked))
+        if not ranked:
+            log_recommendation_fallback("ranking", "no_ranked_results")
+        request_trace = {
+            "request_id": g.get("request_id"),
+            "user_id": g.user_id,
+            "candidates": candidates[:100],
+            "ranked": ranked[:50],
+            "retrieval_model_version": retrieval.embedding_version,
+            "ranking_model_version": ranking.model_version,
+            "latency_ms": latency_ms,
+        }
+        write_request_trace(g.get("request_id"), request_trace)
+        publish_event(request_trace, topic=Config.kafka_recommendation_request_topic, key=g.get("request_id"))
+        log_recommendation_trace(request_trace)
+        return api_success(
+            {
+                "ranked": ranked,
+                "retrievalModelVersion": retrieval.embedding_version,
+                "rankingModelVersion": ranking.model_version,
+                "fallbackUsed": not bool(ranked),
+                "requestId": g.get("request_id"),
+                "sessionId": _derive_session_id(),
+            }
+        )
 
     @app.route("/api/songs/search", methods=["GET"])
     @rate_limit(max_requests=30, window_seconds=60)
@@ -378,14 +817,86 @@ def register_routes(app: Flask) -> None:
             recommendation_engine = get_recommendation_engine()
             if not recommendation_engine:
                 return api_error("ML engine unavailable", 503, code="ML_ENGINE_UNAVAILABLE")
-            interactions = list(mongo.db.interactions.find({"user_id": ObjectId(user_id)}))
+            try:
+                interaction_query = {"user_id": ObjectId(user_id)}
+            except Exception:
+                interaction_query = {"user_id": user_id}
+            interactions = list(mongo.db.interactions.find(interaction_query))
             songs = [serialize_doc(dict(song)) for song in mongo.db.songs.find()]
             profile = recommendation_engine.build_user_profile(interactions, songs)
-            recs = recommendation_engine.hybrid_recommendation(user_id, profile, interactions, songs, 20)
-            return api_success(recs)
+            baseline_recs = recommendation_engine.hybrid_recommendation(user_id, profile, interactions, songs, 20)
+            session_id = _derive_session_id()
+            shadow_result = None
+            if Config.enable_shadow_retrieval or Config.enable_shadow_ranker:
+                shadow_result = _shadow_retrieval_and_ranking(user_id, profile=profile if isinstance(profile, dict) else None)
+
+            canary_enabled = _canary_enabled_for_user(user_id)
+            served_mode = "baseline"
+            fallback_used = False
+            response_items = _hydrate_recommendation_items(
+                baseline_recs,
+                songs,
+                mode="baseline",
+                request_id=g.get("request_id"),
+                session_id=session_id,
+                retrieval_model_version=None,
+                ranking_model_version=None,
+                candidate_source="heuristic",
+            )
+            retrieval_model_version = None
+            ranking_model_version = None
+            learned_candidates = []
+            learned_ranked = []
+            if canary_enabled:
+                try:
+                    retrieval = RetrievalService()
+                    ranking = RankingService()
+                    learned_candidates = retrieval.retrieve_track_candidates(user_id, top_k=50, fallback_profile=profile if isinstance(profile, dict) else None)
+                    if learned_candidates:
+                        learned_ranked = ranking.rank_candidates(user_id, learned_candidates, profile=profile if isinstance(profile, dict) else None)
+                    if learned_ranked:
+                        retrieval_model_version = retrieval.embedding_version
+                        ranking_model_version = ranking.model_version
+                        response_items = _hydrate_recommendation_items(
+                            learned_ranked,
+                            songs,
+                            mode="canary_learned",
+                            request_id=g.get("request_id"),
+                            session_id=session_id,
+                            retrieval_model_version=retrieval_model_version,
+                            ranking_model_version=ranking_model_version,
+                            candidate_source="ranker",
+                        )
+                        served_mode = "canary_learned"
+                    else:
+                        served_mode = "canary_fallback"
+                        fallback_used = True
+                        log_recommendation_fallback("serve", "learned_stack_empty")
+                except Exception as exc:
+                    served_mode = "canary_fallback"
+                    fallback_used = True
+                    logger.warning({"event": "learned_recommendation_failed", "error": str(exc), "user_id": user_id})
+                    log_recommendation_fallback("serve", "learned_stack_failed")
+            payload = {
+                "items": response_items,
+                "mode": served_mode,
+                "fallbackUsed": fallback_used,
+                "retrievalModelVersion": retrieval_model_version,
+                "rankingModelVersion": ranking_model_version,
+                "candidateSource": "ranker" if served_mode == "canary_learned" else "heuristic",
+                "shadowRun": shadow_result,
+                "requestId": g.get("request_id"),
+                "sessionId": session_id,
+            }
+            log_recommendation_trace({"request_id": g.get("request_id"), "mode": served_mode, "user_id": user_id, "item_count": len(response_items)})
+            return api_success(payload)
         except Exception as exc:
             logger.error({"event": "recommendations_failed", "error": str(exc), "user_id": user_id})
             return api_success([], warnings=[{"code": "RECOMMENDATIONS_DEGRADED", "message": "Recommendation pipeline degraded"}])
+
+    @app.route("/metrics", methods=["GET"])
+    def metrics():
+        return app.response_class(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
     @app.route("/api/interactions", methods=["POST"])
     @require_auth

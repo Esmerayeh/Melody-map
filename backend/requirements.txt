@@ -14,3 +14,10 @@ bcrypt==4.1.2
 PyJWT==2.8.0
 gunicorn==21.2.0
 pytest==8.3.3
+torch==2.11.0
+faiss-cpu==1.13.0
+redis==7.0.1
+mlflow==3.12.0
+prometheus-client==0.23.1
+pyarrow==23.0.0
+kafka-python==2.3.1

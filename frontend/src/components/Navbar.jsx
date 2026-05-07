@@ -2,7 +2,10 @@ import React, { useState } from 'react'
 import { NavLink, useNavigate } from 'react-router-dom'
 import { Music2, Compass, ListMusic, BarChart3, Heart, Sparkles, LayoutDashboard, Disc3, LogOut, Menu, X } from 'lucide-react'
 import useStore from '../store/useStore'
+import useAuthStore from '../store/useAuthStore'
+import useProfileStore from '../store/useProfileStore'
 import { ProviderBadge } from './MusicSourceCard'
+import { authAPI } from '../services/api'
 
 const navItems = [
   { path: '/',          icon: LayoutDashboard, label: 'Dashboard' },
@@ -10,17 +13,27 @@ const navItems = [
   { path: '/discover',  icon: Compass,         label: 'Discover' },
   { path: '/playlists', icon: ListMusic,       label: 'Playlists' },
   { path: '/analytics', icon: BarChart3,       label: 'Analytics' },
-  { path: '/soulmate',  icon: Heart,           label: 'Soulmate' },
+  { path: '/soulmates', icon: Heart,           label: 'Soulmates' },
   { path: '/aesthetic', icon: Sparkles,        label: 'Aesthetic' },
 ]
 
 const Navbar = () => {
   const [mobileOpen, setMobileOpen] = useState(false)
   const logout = useStore((s) => s.logout)
+  const clearAllAuth = useAuthStore((s) => s.clearAllAuth)
+  const clearProfile = useProfileStore((s) => s.clearProfile)
   const navigate = useNavigate()
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    try {
+      await authAPI.logout()
+      await Promise.allSettled([authAPI.logoutSpotify(), authAPI.logoutLastfm()])
+    } catch {
+      // Local logout still needs to succeed if the network is unavailable.
+    }
     logout()
+    clearAllAuth()
+    clearProfile()
     navigate('/login')
   }
 
@@ -69,7 +82,7 @@ const Navbar = () => {
               <LogOut className="w-4 h-4" />
             </button>
             <button
-              className="md:hidden p-2 rounded-lg text-gray-400 hover:text-white hover:bg-white/5"
+              className="touch-target md:hidden rounded-lg p-2 text-gray-400 hover:bg-white/5 hover:text-white"
               onClick={() => setMobileOpen(!mobileOpen)}
             >
               {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -98,7 +111,7 @@ const Navbar = () => {
             ))}
             <button
               onClick={handleLogout}
-              className="flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-gray-400 hover:text-white hover:bg-white/5 w-full"
+              className="touch-target flex w-full items-center gap-3 rounded-lg px-4 py-3 text-sm text-gray-400 hover:bg-white/5 hover:text-white"
             >
               <LogOut className="w-4 h-4" />
               Logout

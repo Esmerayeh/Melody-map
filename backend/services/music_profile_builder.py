@@ -17,6 +17,9 @@ from datetime import datetime, timezone
 import math
 
 import requests as req
+from ml.graph_topology import build_galaxy_topology
+from ml.graph_walk_embeddings import GRAPH_EMBEDDING_VERSION, project_node_vectors
+from ml.representation_learning import summarize_profile_embeddings
 from services.spotify_service import SpotifyService
 
 PROFILE_SCHEMA_VERSION = '2026-03-profile-v2'
@@ -995,7 +998,7 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'followers': user_profile_raw.get('followers', {}).get('total', 0),
     } if user_profile_raw else {}
 
-    return {
+    profile = {
         'profileSchemaVersion': PROFILE_SCHEMA_VERSION,
         'provider': 'spotify',
         'generatedAt': now_iso,
@@ -1022,3 +1025,9 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'identityReadiness': identity_readiness,
         'soulmateReadiness': soulmate_readiness,
     }
+    profile['representations'] = summarize_profile_embeddings(profile)
+    profile['galaxyTopology'] = build_galaxy_topology(galaxy_nodes)
+    node_vectors = profile['galaxyTopology'].get('nodeVectors') or {}
+    profile['galaxyTopology']['projectionVersion'] = GRAPH_EMBEDDING_VERSION
+    profile['galaxyTopology']['stableCoordinates'] = project_node_vectors(node_vectors)
+    return profile

@@ -10,6 +10,8 @@ from services.music_profile_builder import (
     _confidence_from_ratio,
     _score_personality_archetypes,
 )
+from ml.graph_topology import build_galaxy_topology
+from ml.representation_learning import cosine_similarity, summarize_profile_embeddings
 
 
 def test_build_analytics_returns_null_for_missing_audio_metrics():
@@ -148,3 +150,33 @@ def test_fetch_audio_features_falls_back_to_single_track_endpoint(monkeypatch):
     assert diagnostics['fallbackUsed'] is True
     assert diagnostics['source'] == 'spotify_single_user_token'
     assert any('/audio-features/track-1' in call[0] for call in calls)
+
+
+def test_profile_representation_vectors_are_deterministic():
+    profile = {
+        'topArtists': [{'name': 'Beach House', 'genres': ['dream pop']}],
+        'topTracks': [{'title': 'Space Song', 'artist': 'Beach House'}],
+        'genres': [{'genre': 'dream pop', 'count': 3}],
+        'audioFeatures': {'energy': 0.3, 'valence': 0.2, 'danceability': 0.4},
+        'analyticsMetrics': {'mood': 'dreamy'},
+        'mbtiType': 'INFP',
+    }
+
+    first = summarize_profile_embeddings(profile)
+    second = summarize_profile_embeddings(profile)
+
+    assert first['embeddingVersion']
+    assert first['profileVector'] == second['profileVector']
+    assert cosine_similarity(first['profileVector'], second['profileVector']) >= 0.99
+
+
+def test_galaxy_topology_assigns_communities():
+    topology = build_galaxy_topology([
+        {'id': 'g1', 'type': 'genre', 'label': 'dream pop'},
+        {'id': 'a1', 'type': 'artist', 'name': 'Beach House', 'genre': 'dream pop'},
+        {'id': 'a2', 'type': 'artist', 'name': 'Cocteau Twins', 'genre': 'dream pop'},
+    ])
+
+    assert topology['communityCount'] >= 1
+    assert 'a1' in topology['communities']
+    assert 'a2' in topology['nodeVectors']

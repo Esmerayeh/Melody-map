@@ -646,25 +646,25 @@ export default function MusicAesthetic() {
   }
 
   return (
-    <div className="relative min-h-screen bg-[#080b1a] text-white overflow-x-hidden">
+    <div className="relative min-h-[100dvh] bg-[#080b1a] text-white overflow-x-hidden">
       {aesthetic && <CosmicBackground palette={aesthetic.palette} />}
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
 
         {/* Page header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <p className="page-header-kicker mb-2">The Mood Shrine</p>
             <h1 className="page-header-title text-gradient-aurora">Atmosphere</h1>
             <p className="page-header-copy mt-3">Your listening, translated into color, texture, and late-night light.</p>
           </div>
           {aesthetic && (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
               <motion.button
                 onClick={handleRegenerate}
                 disabled={loading}
                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-gray-300 transition-all disabled:opacity-50"
+                className="touch-target flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-300 transition-all disabled:opacity-50 hover:bg-white/10"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 Shape again
@@ -672,7 +672,7 @@ export default function MusicAesthetic() {
               <motion.button
                 onClick={handleShare}
                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-sm text-gray-300 transition-all"
+                className="touch-target flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-300 transition-all hover:bg-white/10"
               >
                 <Share2 className="w-4 h-4" /> Share this mood
               </motion.button>

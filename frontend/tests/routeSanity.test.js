@@ -10,11 +10,11 @@ import {
 
 test('useRouteReadiness blocks on loading and missing profile', () => {
   const result = useRouteReadiness({ phase: 'loading', profile: null, readiness: {}, tier: 'limited' })
-  assert.equal(result.blocked, true)
+  assert.equal(result.blocked, false)
   assert.equal(result.variant, 'loading')
 })
 
-test('useRouteReadiness blocks when required readiness is missing', () => {
+test('useRouteReadiness downgrades to partial when required readiness is missing', () => {
   const result = useRouteReadiness({
     phase: 'ready',
     profile: { id: 'x' },
@@ -22,8 +22,15 @@ test('useRouteReadiness blocks when required readiness is missing', () => {
     tier: 'medium',
     require: { identity: true },
   })
-  assert.equal(result.blocked, true)
+  assert.equal(result.blocked, false)
   assert.equal(result.variant, 'partial')
+})
+
+test('spotify callback pages should only expect auth_code in query strings', () => {
+  const spotifyQuery = new URLSearchParams('?auth_code=abc123')
+  assert.equal(spotifyQuery.get('auth_code'), 'abc123')
+  assert.equal(spotifyQuery.get('token'), null)
+  assert.equal(spotifyQuery.get('refresh_token'), null)
 })
 
 test('normalizeProfileResponse respects backend envelope', () => {

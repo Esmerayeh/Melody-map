@@ -21,6 +21,7 @@ export default function useSoulOrbController({
   genres,
   topArtists,
   resonance,
+  liveSignal,
   mode = null,
 }) {
   return useMemo(() => {
@@ -43,7 +44,23 @@ export default function useSoulOrbController({
       : getSoulOrbVariant(blendedProfile, resonance)
     const variant = SOUL_ORB_VARIANTS[variantName] || SOUL_ORB_VARIANTS.idle
     const palette = buildSoulOrbPalette(blendedProfile, resonance, variant)
-    const behavior = buildSoulOrbBehavior(blendedProfile, variant)
+    const baseBehavior = buildSoulOrbBehavior(blendedProfile, variant)
+    const sessionIntensity = Math.max(0, Math.min(1, liveSignal?.sessionIntensity || 0))
+    const noveltyScore = Math.max(0, Math.min(1, liveSignal?.noveltyScore || 0))
+    const repeatScore = Math.max(0, Math.min(1, liveSignal?.repeatScore || 0))
+    const eventCount = liveSignal?.eventCount || 0
+    const behavior = {
+      ...baseBehavior,
+      pulseSpeed: baseBehavior.pulseSpeed * (1 + sessionIntensity * 0.22),
+      glowIntensity: baseBehavior.glowIntensity * (1 + sessionIntensity * 0.18),
+      rotationSpeed: baseBehavior.rotationSpeed * (1 + noveltyScore * 0.2),
+      particleOpacity: Math.min(0.98, baseBehavior.particleOpacity + sessionIntensity * 0.12),
+      duality: Math.min(1, baseBehavior.duality + noveltyScore * 0.08),
+      coherence: Math.min(1, baseBehavior.coherence + repeatScore * 0.05),
+      focusIntensity: Math.min(1, baseBehavior.focusIntensity + sessionIntensity * 0.08),
+      noiseSpeed: baseBehavior.noiseSpeed * (1 + sessionIntensity * 0.16),
+      satelliteCount: Math.max(baseBehavior.satelliteCount, baseBehavior.satelliteCount + Math.round(eventCount / 6)),
+    }
     const caption = buildSoulOrbCaption(blendedProfile, resonance, variantName)
 
     return {
@@ -69,6 +86,18 @@ export default function useSoulOrbController({
         opacity: variant.threadOpacity,
         count: resonance?.kind === 'edge' ? 2 : resonance ? 1 : 0,
       },
+      liveSignal: {
+        eventCount,
+        sessionIntensity,
+        noveltyScore,
+        repeatScore,
+      },
+      caption: {
+        ...caption,
+        detail: eventCount
+          ? `${caption.detail} Recent listening is actively shaping the entity through ${eventCount} live event${eventCount === 1 ? '' : 's'}.`
+          : caption.detail,
+      },
     }
   }, [
     analyticsMetrics,
@@ -82,6 +111,7 @@ export default function useSoulOrbController({
     personality,
     personalityMeta,
     resonance,
+    liveSignal,
     topArtists,
   ])
 }

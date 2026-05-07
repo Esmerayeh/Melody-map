@@ -13,7 +13,7 @@ export default function GalaxyLegend({
   const topRegions = regions.slice(0, 4)
 
   return (
-    <motion.div layout transition={MOTION_TOKENS.focus} className="absolute bottom-5 left-5 flex max-w-sm flex-col gap-3">
+    <motion.div layout transition={MOTION_TOKENS.focus} className="absolute bottom-[5.75rem] left-3 right-3 flex max-w-none flex-col gap-3 sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-sm">
       {density && (
         <motion.div layout transition={MOTION_TOKENS.panel} className="noire-info-card px-3.5 py-3 text-[11px] text-gray-300">
           <div className="flex flex-wrap items-center gap-2">

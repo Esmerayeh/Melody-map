@@ -1,0 +1,21 @@
+name: Preview Deploy Readiness
+
+on:
+  pull_request:
+    branches: [master]
+
+jobs:
+  preview-ready:
+    name: Preview Deployment Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Summarize preview expectations
+        run: |
+          echo "This workflow is the policy gate for preview environments."
+          echo "Hook your Vercel preview deployment and next-gen API staging deployment here."
+          echo "Expected follow-ups:"
+          echo "1. Deploy frontend preview"
+          echo "2. Deploy backend staging preview"
+          echo "3. Run smoke auth/bootstrap checks"
