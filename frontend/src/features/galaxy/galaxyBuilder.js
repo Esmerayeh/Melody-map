@@ -10,9 +10,20 @@ import {
   similarityScore,
   sonicColor,
   stableHash,
+  buildSemanticPosition,
+  averageFeatures,
 } from './galaxyScoring.js'
 
-export const GALAXY_LAYOUT_VERSION = 'canonical-galaxy-v2'
+export const GALAXY_LAYOUT_VERSION = 'canonical-galaxy-v3'
+
+// ── Axis coordinate meanings (exposed in metadata so Auralith can explain distances)
+export const COORDINATE_MEANING = {
+  x: 'valence — emotional brightness: dark/melancholic (−) ↔ bright/joyful (+)',
+  y: 'energy — intensity: quiet/ambient (−) ↔ loud/intense (+)',
+  z: 'texture — organic/still (−) ↔ electronic/kinetic (+)',
+}
+export const SIMILARITY_BASIS = 'euclidean distance in [valence, energy, organic-texture] audio-feature space'
+export const LAYOUT_METHOD    = 'audio-feature-projection-v1'
 
 const clamp = (value, min = 0, max = 1) => Math.max(min, Math.min(max, value ?? 0))
 const slugify = (value = '') => value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
@@ -94,7 +105,7 @@ function normalizeLegacyNode(node = {}) {
     size: node.size || (0.3 + clamp((node.popularity ?? 50) / 100)),
     clusterId: node.type === 'genre' ? `cluster:${slugify(node.genre || node.label || 'genre')}` : 'cluster:legacy',
     regionLabel: 'legacy',
-    explanation: 'Legacy galaxy node adapted into the canonical model.',
+    explanation: node.explanation || 'Legacy galaxy node adapted into the canonical model.',
     spotifyUrl: node.spotify_url || null,
     connections: node.connections || [],
     detailLevel: node.type === 'genre' ? 'macro' : 'mid',
@@ -172,15 +183,68 @@ export function buildLegacyGalaxyModel(rawNodes = [], source = 'legacy') {
   }
 }
 
-function buildGenreAnchors(genres = [], profileFeatures = {}) {
+/**
+ * buildGenreAnchors
+ * -----------------
+ * Places genre nodes in semantic space derived from their member artists'
+ * audio features.  If no artist features are available for a genre, falls
+ * back to the ring layout (same as before) so the result degrades gracefully.
+ *
+ * This makes genre nebulae semantically true:
+ *   - Dream pop (low energy, high acousticness) → quiet, organic quadrant
+ *   - Dance music (high energy, high danceability) → intense, kinetic quadrant
+ */
+function buildGenreAnchors(genres = [], profileFeatures = {}, artists = []) {
   const topGenreCount = genres[0]?.count || 1
+
+  // Build a lookup: genre slug → audio features of member artists
+  const genreFeatureMap = new Map()
+  artists.forEach((artist) => {
+    const af = artist.audioFeatures || {}
+    if (Object.keys(af).length === 0) return
+    ;(artist.genres || []).forEach((genre) => {
+      const key = genre.toLowerCase()
+      if (!genreFeatureMap.has(key)) genreFeatureMap.set(key, [])
+      genreFeatureMap.get(key).push(af)
+    })
+  })
+
   return genres.slice(0, 14).map((genre, index) => {
-    const angle = (index / Math.max(genres.length, 1)) * Math.PI * 2
-    const weight = clamp((genre.count ?? 1) / topGenreCount)
-    const radius = 9 + (weight * 6)
-    const orbital = seededOffset(`genre:${genre.genre}`, 1.4)
-    const verticalBias = ((profileFeatures.energy ?? 0.5) - 0.5) * 5
-    const node = {
+    const weight    = clamp((genre.count ?? 1) / topGenreCount)
+    const genreKey  = genre.genre.toLowerCase()
+    const memberFeatures = genreFeatureMap.get(genreKey) || []
+    const avgFeatures    = memberFeatures.length >= 2
+      ? averageFeatures(memberFeatures)
+      : null
+
+    let position
+    if (avgFeatures && avgFeatures.valence != null && avgFeatures.energy != null) {
+      // SEMANTIC: position from average audio features of member artists
+      const sem = buildSemanticPosition(
+        { ...avgFeatures, ...Object.fromEntries(Object.entries(profileFeatures).filter(([, v]) => v != null)) },
+        `genre:${genre.genre}`,
+        { jitterScale: 0.7, radialBoost: 1.0 },
+      )
+      // Genre nodes cluster slightly outward from artist positions for visibility
+      position = {
+        x: Number((sem.x * 0.88 + seededOffset(`genre-spread:${genre.genre}`, 0.5).x).toFixed(2)),
+        y: Number((sem.y * 0.88 + seededOffset(`genre-spread:${genre.genre}`, 0.5).y).toFixed(2)),
+        z: Number((sem.z * 0.88 + seededOffset(`genre-spread:${genre.genre}`, 0.5).z).toFixed(2)),
+      }
+    } else {
+      // FALLBACK: deterministic ring for genres without enough artist feature data
+      const angle       = (index / Math.max(genres.length, 1)) * Math.PI * 2
+      const radius      = 9 + weight * 5
+      const orbital     = seededOffset(`genre:${genre.genre}`, 0.9)
+      const verticalBias = ((profileFeatures.energy ?? 0.5) - 0.5) * 4
+      position = {
+        x: Number((Math.cos(angle) * radius + orbital.x).toFixed(2)),
+        y: Number((verticalBias * 0.18 + orbital.y * 0.7).toFixed(2)),
+        z: Number((Math.sin(angle) * radius + orbital.z).toFixed(2)),
+      }
+    }
+
+    return {
       id: `genre:${slugify(genre.genre)}`,
       type: 'genre',
       label: genre.genre,
@@ -189,46 +253,83 @@ function buildGenreAnchors(genres = [], profileFeatures = {}) {
       popularity: Math.round(weight * 100),
       significance: weight,
       rarity: Number((1 - weight).toFixed(3)),
-      confidence: 0.92,
-      audioFeatures: {},
+      confidence: avgFeatures ? 0.92 : 0.72,
+      audioFeatures: avgFeatures || {},
       metrics: buildGenreMetrics(genre, topGenreCount),
-      position: {
-        x: Number((Math.cos(angle) * radius + orbital.x).toFixed(2)),
-        y: Number((verticalBias * 0.18 + orbital.y * 0.9).toFixed(2)),
-        z: Number((Math.sin(angle) * radius + orbital.z).toFixed(2)),
-      },
+      position,
       color: genreColor(genre.genre),
       size: Number((0.95 + weight * 1.6).toFixed(2)),
       clusterId: `cluster:${slugify(genre.genre)}`,
       regionLabel: 'genre-field',
-      explanation: `${genre.genre} behaves like a major stellar territory because it repeats strongly across your top artists.`,
+      explanation: avgFeatures
+        ? `${genre.genre} is positioned in the galaxy from the average audio signature of your ${genre.genre} artists — not randomly.`
+        : `${genre.genre} appears here from listening frequency. More audio data would sharpen its position.`,
       spotifyUrl: null,
       connections: [],
       detailLevel: 'macro',
       role: 'anchor',
+      layoutBasis: avgFeatures ? 'semantic-audio-features' : 'deterministic-ring-fallback',
     }
-    return node
   })
 }
 
+/**
+ * buildArtistStars
+ * ----------------
+ * Positions artists using audio-feature-driven semantic coordinates.
+ *
+ * Layout formula (by priority):
+ *   1. Semantic position from artist's own audio features         (80%)
+ *   2. Weighted pull toward matching genre centroid               (20%)
+ *   3. Small deterministic jitter to prevent exact overlap
+ *   4. Frontier push for discovery artists (moves them outward)
+ *
+ * When audio features are absent, falls back to genre centroid +
+ * profile-level features with a slightly larger jitter.
+ *
+ * This means:
+ *   - Artists with similar [valence, energy, texture] cluster together
+ *   - The distance between any two artist nodes reflects audio similarity
+ *   - Genre biomes remain coherent because genres share feature space
+ */
 function buildArtistStars(artists = [], genreNodes = [], profileFeatures = {}) {
   const genreMap = Object.fromEntries(genreNodes.map((node) => [node.label.toLowerCase(), node]))
+
   return artists.slice(0, 50).map((artist, index) => {
-    const artistGenres = (artist.genres || []).filter(Boolean)
-    const matchedGenres = artistGenres.map((genre) => genreMap[genre.toLowerCase()]).filter(Boolean)
+    const artistGenres    = (artist.genres || []).filter(Boolean)
+    const matchedGenres   = artistGenres.map((genre) => genreMap[genre.toLowerCase()]).filter(Boolean)
     const dominantGenreNode = matchedGenres[0] || genreNodes[0] || null
-    const anchor = averagePosition(matchedGenres.map((node) => node.position))
-    const features = artist.audioFeatures || profileFeatures || {}
-    const metrics = buildArtistMetrics(artist, index, artists.length)
-    const audioVector = {
-      x: ((clamp(features.valence, 0, 1) - 0.5) * 10),
-      y: ((clamp(features.energy, 0, 1) - 0.5) * 10),
-      z: ((clamp(features.danceability, 0, 1) - 0.5) * 10),
+    const genreCentroid   = averagePosition(matchedGenres.map((node) => node.position))
+
+    // Resolve audio features: own → genre average → profile average
+    const ownFeatures     = artist.audioFeatures || {}
+    const hasOwnFeatures  = Object.keys(ownFeatures).some((k) => ownFeatures[k] != null)
+    const features        = hasOwnFeatures ? ownFeatures : (profileFeatures || {})
+    const featureBasis    = hasOwnFeatures ? 'artist_audio_features' : 'profile_average_fallback'
+
+    const metrics       = buildArtistMetrics(artist, index, artists.length)
+    const regionLabel   = deriveMoodRegion(features)
+
+    // Radial boost: frontier/discovery artists sit further from centre
+    const radialBoost   = 0.85 + metrics.discoveryScore * 0.65
+    // Jitter: smaller than before so audio features dominate
+    const jitterScale   = hasOwnFeatures ? 0.75 : 1.1
+
+    // Semantic core position (PRIMARY — 80%)
+    const sem = buildSemanticPosition(features, artist.id || artist.name || `artist-${index}`, {
+      jitterScale,
+      radialBoost,
+    })
+
+    // Genre centroid attraction (SECONDARY — 20% pull when matched genre exists)
+    const genrePull = matchedGenres.length > 0 ? 0.20 : 0
+
+    const position = {
+      x: Number((sem.x * (1 - genrePull) + genreCentroid.x * genrePull).toFixed(2)),
+      y: Number((sem.y * (1 - genrePull) + genreCentroid.y * genrePull + (metrics.significance - 0.5) * 1.2).toFixed(2)),
+      z: Number((sem.z * (1 - genrePull) + genreCentroid.z * genrePull).toFixed(2)),
     }
-    const jitter = seededOffset(artist.id || artist.name || `${index}`, 1.5 + metrics.discoveryScore)
-    const radialScale = 0.75 + metrics.discoveryScore * 1.45
-    const frontierPush = 5.5 * metrics.frontierScore
-    const regionLabel = deriveMoodRegion(features)
+
     return {
       id: `artist:${artist.id || slugify(artist.name) || index}`,
       type: 'artist',
@@ -241,22 +342,25 @@ function buildArtistStars(artists = [], genreNodes = [], profileFeatures = {}) {
       confidence: matchedGenres.length ? 0.84 : 0.6,
       audioFeatures: features,
       metrics,
-      position: {
-        x: Number((anchor.x * 0.55 + audioVector.x * radialScale + jitter.x + frontierPush * (jitter.x > 0 ? 0.25 : -0.25)).toFixed(2)),
-        y: Number((anchor.y * 0.35 + audioVector.y + jitter.y + (metrics.significance - 0.5) * 2.9).toFixed(2)),
-        z: Number((anchor.z * 0.55 + audioVector.z * radialScale + jitter.z + frontierPush * (jitter.z > 0 ? 0.25 : -0.25)).toFixed(2)),
-      },
+      position,
       color: sonicColor(features, matchedGenres.length ? 0.84 : 0.62),
       size: Number((0.34 + metrics.significance * 0.95 + metrics.bridgeScore * 0.18).toFixed(2)),
       clusterId: dominantGenreNode?.clusterId || 'cluster:core',
       regionLabel,
-      explanation: artistGenres.length
-        ? `${artist.name} is pulled toward ${artistGenres.slice(0, 2).join(' and ')} while its sonic profile shapes the exact orbit.`
-        : `${artist.name} is positioned from sonic character and significance because its genre data is thin.`,
+      explanation: hasOwnFeatures
+        ? `${artist.name} is placed from its own audio signature — valence ${+((features.valence ?? 0.5).toFixed(2))}, energy ${+((features.energy ?? 0.5).toFixed(2))}. Nearby artists share these characteristics.`
+        : `${artist.name} is positioned from genre affinity and profile-level audio signals.`,
+      layoutBasis: featureBasis,
       spotifyUrl: artist.spotify_url || null,
       connections: [],
       detailLevel: metrics.significance > 0.7 ? 'macro' : metrics.discoveryScore > 0.55 ? 'micro' : 'mid',
       role: metrics.bridgeScore > 0.5 ? 'bridge-star' : metrics.significance > 0.72 ? 'anchor-star' : 'star',
+      // Surge/ghost flags preserved from raw profile data
+      metrics: {
+        ...metrics,
+        isSurge: artist.metrics?.isSurge || false,
+        isGhost: artist.metrics?.isGhost || false,
+      },
     }
   })
 }
@@ -514,7 +618,8 @@ export function buildGalaxyModel(profile = null) {
   }
 
   const profileFeatures = profile.audioFeatures || {}
-  const genreNodesBase = buildGenreAnchors(genres, profileFeatures)
+  // Pass artists so genre nodes can be positioned from their members' audio features
+  const genreNodesBase  = buildGenreAnchors(genres, profileFeatures, artists)
   const artistNodesBase = buildArtistStars(artists, genreNodesBase, profileFeatures)
   const coreArtists = artistNodesBase
     .filter((node) => node.metrics.anchorScore > 0.68)
@@ -573,13 +678,22 @@ export function buildGalaxyModel(profile = null) {
     node.explanation = describeNode(node, clusterMap[node.clusterId])
   })
 
+  // Measure how many artists have own audio features (layout quality indicator)
+  const semanticCoverage = artistNodesBase.length > 0
+    ? Number((artistNodesBase.filter((n) => n.layoutBasis === 'artist_audio_features').length / artistNodesBase.length).toFixed(3))
+    : 0
+
   return {
     nodes,
     edges,
     clusters,
     regions: slimRegions,
     metadata: {
-      layoutVersion: 'canonical-profile-v2',
+      layoutVersion: 'audio-feature-semantic-v1',
+      layoutMethod: LAYOUT_METHOD,
+      coordinateMeaning: COORDINATE_MEANING,
+      similarityBasis: SIMILARITY_BASIS,
+      semanticCoverage,
       galaxyDataVersion: GALAXY_LAYOUT_VERSION,
       generatedAt: new Date().toISOString(),
       source: 'profile',
@@ -645,6 +759,33 @@ function buildSongSimilarityEdges(nodes = []) {
   }
 
   return edges.slice(0, 120)
+}
+
+// ── Scene safety guard ───────────────────────────────────────────────────────
+// A single normalization pass applied to whatever model reaches the 3D scene,
+// regardless of which builder produced it (client, legacy, or server artifact).
+// One node with a non-finite position or invalid color must never be able to
+// throw and take down the whole galaxy (which a render error otherwise would).
+const isFiniteVec = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)
+const isValidColor = (c) => typeof c === 'string' && c.trim().length > 0
+
+export function guardGalaxyModel(model) {
+  if (!model) return model
+  const rawNodes = model.nodes || []
+  const kept = []
+  let dropped = 0
+  for (const node of rawNodes) {
+    if (!isFiniteVec(node.position)) { dropped += 1; continue }
+    kept.push(isValidColor(node.color) ? node : { ...node, color: '#7c6fff' })
+  }
+  if (dropped > 0) {
+    // eslint-disable-next-line no-console
+    console.warn(`[GALAXY_GUARD] dropped ${dropped} node(s) with non-finite position`)
+  }
+  const keepIds = new Set(kept.map((node) => node.id))
+  const edges = (model.edges || []).filter((edge) => keepIds.has(edge.source) && keepIds.has(edge.target))
+  const regions = (model.regions || []).filter((region) => isFiniteVec(region.centroid))
+  return { ...model, nodes: kept, edges, regions }
 }
 
 export function buildGalaxyModeModel(model, galaxyMode = 'universal') {

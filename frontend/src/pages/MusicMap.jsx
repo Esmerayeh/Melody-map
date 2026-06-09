@@ -7,7 +7,7 @@ import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import useLiveTasteSignal from '../hooks/useLiveTasteSignal'
 import useExperienceStore from '../store/useExperienceStore'
-import { buildGalaxyModeModel, buildGalaxyModel, buildLegacyGalaxyModel } from '../features/galaxy/galaxyBuilder'
+import { buildGalaxyModeModel, buildGalaxyModel, buildLegacyGalaxyModel, guardGalaxyModel } from '../features/galaxy/galaxyBuilder'
 import useGalaxyArtifact from '../features/galaxy/useGalaxyArtifact'
 import GalaxyControls from '../features/galaxy/GalaxyControls'
 import GalaxyInspector from '../features/galaxy/GalaxyInspector'
@@ -25,13 +25,36 @@ import HaloButton from '../components/premium/HaloButton'
 import ShimmerDivider from '../components/premium/ShimmerDivider'
 import NebulaLoader from '../components/premium/NebulaLoader'
 import useAdaptiveExperience from '../hooks/useAdaptiveExperience'
+import AuralithNodeExplainer from '../features/universe/AuralithNodeExplainer'
+import SemanticLegend        from '../features/universe/SemanticLegend'
+import useArtistTimelines, { applyTimelineClassifications } from '../hooks/useArtistTimelines'
 
+// A full, intentional demo galaxy — this is the default first impression for any
+// visitor (logged-out, no backend, cold API). Genre anchors + artist stars with
+// connections so clusters, bridges, and a populated field render, not a few
+// lonely points. Positions are spread across the audio-feature cube.
 const DEMO_NODES = [
-  { _id: 'demo-1', title: 'Only Shallow', artist: 'My Bloody Valentine', genres: ['shoegaze'], popularity: 80, sonic_color: 'hsl(253, 88%, 72%)', map_coords_3d: { x: -2, y: 4, z: -1 } },
-  { _id: 'demo-2', title: 'Cherry-Coloured Funk', artist: 'Cocteau Twins', genres: ['dream pop'], popularity: 68, sonic_color: 'hsl(272, 72%, 74%)', map_coords_3d: { x: 3, y: 2, z: 1 } },
-  { _id: 'demo-3', title: 'Fade Into You', artist: 'Mazzy Star', genres: ['dream pop', 'folk'], popularity: 85, sonic_color: 'hsl(220, 70%, 78%)', map_coords_3d: { x: -1, y: -3, z: -2 } },
-  { _id: 'demo-4', title: 'Karma Police', artist: 'Radiohead', genres: ['alternative rock'], popularity: 92, sonic_color: 'hsl(318, 52%, 70%)', map_coords_3d: { x: -4, y: 1, z: -2 } },
+  // Genre anchors
+  { _id: 'g-shoegaze',  title: 'Shoegaze',         type: 'genre', genres: ['shoegaze'],         popularity: 70, sonic_color: 'hsl(253, 88%, 72%)', map_coords_3d: { x: -5, y: 4, z: -2 },  connections: ['a-mbv', 'a-slowdive', 'a-rideband'] },
+  { _id: 'g-dreampop',  title: 'Dream Pop',        type: 'genre', genres: ['dream pop'],        popularity: 74, sonic_color: 'hsl(272, 72%, 74%)', map_coords_3d: { x: 4, y: 3, z: 1 },    connections: ['a-cocteau', 'a-mazzy', 'a-beachhouse'] },
+  { _id: 'g-ambient',   title: 'Ambient',          type: 'genre', genres: ['ambient'],          popularity: 60, sonic_color: 'hsl(196, 70%, 72%)', map_coords_3d: { x: 1, y: -5, z: 4 },   connections: ['a-tycho', 'a-boards'] },
+  { _id: 'g-artrock',   title: 'Art Rock',         type: 'genre', genres: ['art rock'],         popularity: 82, sonic_color: 'hsl(318, 52%, 70%)', map_coords_3d: { x: -4, y: -2, z: -4 }, connections: ['a-radiohead', 'a-portishead'] },
+  // Artist stars
+  { _id: 'a-mbv',        title: 'My Bloody Valentine', artist: 'My Bloody Valentine', genres: ['shoegaze'],            popularity: 80, sonic_color: 'hsl(250, 84%, 70%)', map_coords_3d: { x: -7, y: 5, z: -1 },  connections: ['a-slowdive'] },
+  { _id: 'a-slowdive',   title: 'Slowdive',            artist: 'Slowdive',            genres: ['shoegaze', 'dream pop'], popularity: 72, sonic_color: 'hsl(262, 70%, 73%)', map_coords_3d: { x: -3, y: 6, z: -3 },  connections: ['a-rideband', 'a-beachhouse'] },
+  { _id: 'a-rideband',   title: 'Ride',                artist: 'Ride',                genres: ['shoegaze'],            popularity: 64, sonic_color: 'hsl(243, 76%, 74%)', map_coords_3d: { x: -6, y: 2, z: 1 } },
+  { _id: 'a-cocteau',    title: 'Cocteau Twins',       artist: 'Cocteau Twins',       genres: ['dream pop'],           popularity: 68, sonic_color: 'hsl(286, 68%, 76%)', map_coords_3d: { x: 6, y: 4, z: 2 },    connections: ['a-beachhouse'] },
+  { _id: 'a-mazzy',      title: 'Mazzy Star',          artist: 'Mazzy Star',          genres: ['dream pop', 'folk'],   popularity: 78, sonic_color: 'hsl(222, 70%, 78%)', map_coords_3d: { x: 3, y: 1, z: 4 } },
+  { _id: 'a-beachhouse', title: 'Beach House',         artist: 'Beach House',         genres: ['dream pop'],           popularity: 81, sonic_color: 'hsl(300, 60%, 76%)', map_coords_3d: { x: 5, y: 1, z: -1 } },
+  { _id: 'a-tycho',      title: 'Tycho',               artist: 'Tycho',               genres: ['ambient', 'electronic'], popularity: 70, sonic_color: 'hsl(188, 72%, 70%)', map_coords_3d: { x: 2, y: -6, z: 5 } },
+  { _id: 'a-boards',     title: 'Boards of Canada',    artist: 'Boards of Canada',    genres: ['ambient', 'idm'],      popularity: 73, sonic_color: 'hsl(168, 58%, 66%)', map_coords_3d: { x: -1, y: -4, z: 6 } },
+  { _id: 'a-radiohead',  title: 'Radiohead',           artist: 'Radiohead',           genres: ['art rock', 'alternative rock'], popularity: 92, sonic_color: 'hsl(318, 56%, 70%)', map_coords_3d: { x: -5, y: -1, z: -5 }, connections: ['a-portishead'] },
+  { _id: 'a-portishead', title: 'Portishead',          artist: 'Portishead',          genres: ['trip hop', 'art rock'], popularity: 75, sonic_color: 'hsl(338, 50%, 68%)', map_coords_3d: { x: -2, y: -3, z: -6 } },
 ]
+
+// Prebuilt once at module load so the very first render already has a populated
+// model — no null window, no waiting on data, no empty starfield.
+const DEMO_MODEL = buildLegacyGalaxyModel(DEMO_NODES, 'demo')
 
 function ClusterOverlay({ cluster, region }) {
   const item = cluster || region
@@ -56,7 +79,49 @@ export default function MusicMap() {
   const cinemaMode = useStore((state) => state.cinemaMode)
   const setCinemaMode = useStore((state) => state.setCinemaMode)
   const { signal: liveSignal, hasLiveSignal } = useLiveTasteSignal({ enabled: Boolean(musicProfile), pollMs: 12000 })
-  const adaptive = useAdaptiveExperience()
+  const adaptive   = useAdaptiveExperience()
+  // Real Memory Belt — fetch short_term vs long_term diff
+  const timelines  = useArtistTimelines({ profile: musicProfile, isDemo: false, enabled: Boolean(musicProfile) })
+
+  // ── All interaction store hooks MUST be declared before any conditional return ──
+  const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
+  const viewMode = useGalaxyInteractionStore((state) => state.viewMode)
+  const constellationMode = useGalaxyInteractionStore((state) => state.constellationMode)
+  const constellationOrigin = useGalaxyInteractionStore((state) => state.constellationOrigin)
+  const showTracks = useGalaxyInteractionStore((state) => state.showTracks)
+  const showMoodRegions = useGalaxyInteractionStore((state) => state.showMoodRegions)
+  const searchQuery = useGalaxyInteractionStore((state) => state.searchQuery)
+  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const setGalaxyMode = useGalaxyInteractionStore((state) => state.setGalaxyMode)
+  const setViewMode = useGalaxyInteractionStore((state) => state.setViewMode)
+  const toggleTracks = useGalaxyInteractionStore((state) => state.toggleTracks)
+  const toggleMoodRegions = useGalaxyInteractionStore((state) => state.toggleMoodRegions)
+  const setSearchQuery = useGalaxyInteractionStore((state) => state.setSearchQuery)
+  const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
+  const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
+  const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
+  const setNodeData = useGalaxyInteractionStore((state) => state.setNodeData)
+  const setLayoutData = useGalaxyInteractionStore((state) => state.setLayoutData)
+  const setMotionState = useGalaxyInteractionStore((state) => state.setMotionState)
+  const resetGalaxyInteraction = useGalaxyInteractionStore((state) => state.resetGalaxyInteraction)
+  const setExperienceHoveredObject = useExperienceStore((state) => state.setHoveredObject)
+  const setExperienceSelectedObject = useExperienceStore((state) => state.setSelectedObject)
+
+  // Demo-first: the scene is never starved of a model. Real data replaces this
+  // once it resolves; until then the visitor sees a full, intentional galaxy.
+  const [model, setModel] = useState(DEMO_MODEL)
+  const [loading, setLoading] = useState(true)
+  const [isDemo, setIsDemo] = useState(true)
+  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
+  // Hard cap on any boot/loading panel: after ~1.2s the route renders the scene
+  // with whatever model exists (demo if nothing else), so the galaxy can never
+  // sit behind a loader waiting on the network.
+  const [bootWindowElapsed, setBootWindowElapsed] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setBootWindowElapsed(true), 1200)
+    return () => clearTimeout(timer)
+  }, [])
 
   const boot = useRouteReadiness({
     phase,
@@ -101,35 +166,6 @@ export default function MusicMap() {
     )
   }
 
-  const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
-  const viewMode = useGalaxyInteractionStore((state) => state.viewMode)
-  const constellationMode = useGalaxyInteractionStore((state) => state.constellationMode)
-  const constellationOrigin = useGalaxyInteractionStore((state) => state.constellationOrigin)
-  const showTracks = useGalaxyInteractionStore((state) => state.showTracks)
-  const showMoodRegions = useGalaxyInteractionStore((state) => state.showMoodRegions)
-  const searchQuery = useGalaxyInteractionStore((state) => state.searchQuery)
-  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
-  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
-  const setGalaxyMode = useGalaxyInteractionStore((state) => state.setGalaxyMode)
-  const setViewMode = useGalaxyInteractionStore((state) => state.setViewMode)
-  const toggleTracks = useGalaxyInteractionStore((state) => state.toggleTracks)
-  const toggleMoodRegions = useGalaxyInteractionStore((state) => state.toggleMoodRegions)
-  const setSearchQuery = useGalaxyInteractionStore((state) => state.setSearchQuery)
-  const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
-  const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
-  const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
-  const setNodeData = useGalaxyInteractionStore((state) => state.setNodeData)
-  const setLayoutData = useGalaxyInteractionStore((state) => state.setLayoutData)
-  const setMotionState = useGalaxyInteractionStore((state) => state.setMotionState)
-  const resetGalaxyInteraction = useGalaxyInteractionStore((state) => state.resetGalaxyInteraction)
-  const setExperienceHoveredObject = useExperienceStore((state) => state.setHoveredObject)
-  const setExperienceSelectedObject = useExperienceStore((state) => state.setSelectedObject)
-
-  const [model, setModel] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [isDemo, setIsDemo] = useState(false)
-  const [isCoarsePointer, setIsCoarsePointer] = useState(false)
-
   const resolveFocusPosition = useCallback((ids = []) => {
     if (!model) return null
     const targets = ids.map((id) => model.nodes.find((node) => node.id === id)).filter(Boolean)
@@ -152,18 +188,28 @@ export default function MusicMap() {
     setLoading(true)
     try {
       if (profileLoading && !musicProfile) {
-        setModel(null)
+        // Keep the demo galaxy on screen while the profile resolves — never null.
+        setModel(DEMO_MODEL)
+        setIsDemo(true)
         return
       }
 
       if (generatedGalaxy) {
-        setModel(generatedGalaxy)
+        // Apply real timeline classification to the server-generated artifact
+        const enriched = (!timelines.loading && timelines.basis !== 'unavailable')
+          ? applyTimelineClassifications(generatedGalaxy, timelines)
+          : generatedGalaxy
+        setModel(enriched)
         setIsDemo(false)
         return
       }
 
       if (musicProfile?.topArtists?.length || musicProfile?.genres?.length) {
-        setModel(buildGalaxyModel(musicProfile))
+        let built = buildGalaxyModel(musicProfile)
+        if (!timelines.loading && timelines.basis !== 'unavailable') {
+          built = applyTimelineClassifications(built, timelines)
+        }
+        setModel(built)
         setIsDemo(false)
         return
       }
@@ -184,7 +230,7 @@ export default function MusicMap() {
     } finally {
       setLoading(false)
     }
-  }, [generatedGalaxy, musicProfile, profileLoading])
+  }, [generatedGalaxy, musicProfile, profileLoading, timelines.ghostIds, timelines.surgeIds, timelines.loading])
 
   useEffect(() => {
     loadData()
@@ -198,7 +244,12 @@ export default function MusicMap() {
     setIsCoarsePointer(adaptive.isCoarsePointer)
   }, [adaptive.isCoarsePointer])
 
-  const activeModel = useMemo(() => buildGalaxyModeModel(model, galaxyMode), [galaxyMode, model])
+  const activeModel = useMemo(() => {
+    // Always yields a guarded, non-null model: real model when present, demo
+    // otherwise. guardGalaxyModel strips any node that could crash the scene.
+    const built = buildGalaxyModeModel(model, galaxyMode) || buildGalaxyModeModel(DEMO_MODEL, galaxyMode)
+    return guardGalaxyModel(built)
+  }, [galaxyMode, model])
 
   useEffect(() => {
     if (!activeModel) return
@@ -395,6 +446,9 @@ export default function MusicMap() {
     if (!['profile', 'nextgen-galaxy'].includes(activeModel.metadata?.source)) return 'some structures are still arriving from an older local model.'
     if (activeModel.metadata?.profileTier === 'partial') return 'this galaxy is still forming. regions and bridges stay sparse on purpose.'
     if ((activeModel.metadata?.confidence?.galaxy?.score || 0) < 0.5) return 'the pattern is real, but still faint in places.'
+    // Semantic coverage indicator
+    const coverage = activeModel.metadata?.semanticCoverage ?? 1
+    if (coverage < 0.5) return `${Math.round(coverage * 100)}% of star positions are from real audio features. Connect Spotify for a fuller signal.`
     return null
   }, [activeModel, galaxyError, hasLiveSignal, isDemo, jobStatus, liveSignal])
 
@@ -426,7 +480,10 @@ export default function MusicMap() {
   const hoveredCluster = hoveredEntity.cluster || (hoveredEntity.node?.clusterId ? activeModel?.clusters?.find((cluster) => cluster.id === hoveredEntity.node.clusterId) : null)
   const hoveredRegion = hoveredEntity.region || (hoveredEntity.node?.regionLabel ? activeModel?.regions?.find((region) => region.label === hoveredEntity.node.regionLabel) : null)
   const sparseMode = tier === 'sparse' || Boolean(musicProfile && !readiness?.galaxy)
-  const showBootPanel = (loading || galaxyLoading) && !activeModel && !cinemaMode
+  // Loader may only show in the first ~1.2s AND only if there is genuinely no
+  // model yet. With demo-first models, activeModel is always populated, so in
+  // practice the scene paints immediately; this is the hard safety cap.
+  const showInlineLoader = !activeModel && (loading || galaxyLoading) && !bootWindowElapsed
 
   const scene = (
     <div className="relative h-full w-full overflow-hidden">
@@ -464,7 +521,7 @@ export default function MusicMap() {
   if (cinemaMode) {
     return (
       <div className="fixed inset-0 z-50 bg-black">
-        {loading || galaxyLoading ? (
+        {showInlineLoader ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <NebulaLoader compact label="Opening cinema mode" detail="The universe is settling into a wider frame." />
           </div>
@@ -476,7 +533,7 @@ export default function MusicMap() {
     )
   }
 
-  if (showBootPanel) {
+  if (showInlineLoader) {
     return (
       <ProfileBootPanel
         variant="loading"
@@ -508,13 +565,14 @@ export default function MusicMap() {
         </div>
       </div>
 
-      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-end">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <SemanticLegend semanticCoverage={activeModel?.metadata?.semanticCoverage ?? null} />
         <GalaxyControls {...controlProps} onToggleCinema={() => setCinemaMode(true)} />
       </div>
 
       <div className="relative h-[62dvh] min-h-[420px] overflow-hidden rounded-[28px] border border-white/10 bg-[#040610] shadow-[0_30px_120px_rgba(2,4,12,0.6)] sm:h-[680px]">
         <AtmosphereBackground variant="galaxy" intensity="medium" anchored />
-        {(loading || galaxyLoading) ? (
+        {showInlineLoader ? (
           <div className="absolute inset-0 p-6">
             <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
               <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_50%_42%,rgba(139,124,255,0.12),transparent_16%),linear-gradient(180deg,rgba(10,11,22,0.82),rgba(5,6,15,0.92))] p-6">
@@ -584,6 +642,8 @@ export default function MusicMap() {
             cluster={focusedEntity.cluster}
             region={focusedEntity.region}
           />
+          {/* Auralith meaning engine — explains focused galaxy objects */}
+          <AuralithNodeExplainer entity={focusedEntity} profile={musicProfile} />
         </div>
       </div>
     </div>
