@@ -496,13 +496,15 @@ function TasteCore({ core, model, galaxyMode }) {
   const motionState = useGalaxyInteractionStore((state) => state.motionState)
   const selected = focusedObject?.type === 'core'
   const hovered = hoveredObject?.type === 'core'
-  const coreArtists = (core.supportingArtists || [])
+  const coreArtists = (core?.supportingArtists || [])
     .map((artistId) => model?.nodes?.find((node) => node.id === artistId))
     .filter(Boolean)
     .slice(0, 4)
 
   const corePosition = core?.position || { x: 0, y: 0, z: 0 }
-  const coreValid = Number.isFinite(corePosition.x) && Number.isFinite(corePosition.y) && Number.isFinite(corePosition.z)
+  // `core` is absent on legacy/demo models (no metadata.core). Treat that as
+  // "no core to render" rather than crashing on core.supportingArtists/.color.
+  const coreValid = Boolean(core) && Number.isFinite(corePosition.x) && Number.isFinite(corePosition.y) && Number.isFinite(corePosition.z)
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
