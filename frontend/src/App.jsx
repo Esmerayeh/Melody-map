@@ -13,6 +13,7 @@ import useAuthStore from './store/useAuthStore'
 import AuthBootstrap from './app/AuthBootstrap'
 import { applyVibeTheme, resetVibeTheme } from './services/vibeTheme'
 import ShellSkeleton from './components/shell/ShellSkeleton'
+import useGalaxyStage from './features/galaxy/useGalaxyStage'
 
 const MusicMap       = lazy(() => import('./pages/MusicMap'))
 const Discover       = lazy(() => import('./pages/Discover'))
@@ -31,6 +32,46 @@ const IdentityDrift  = lazy(() => import('./pages/IdentityDrift'))
 // New routes
 const Demo           = lazy(() => import('./pages/Demo'))
 const Universe       = lazy(() => import('./pages/Universe'))
+
+// The ONE persistent galaxy canvas (immersive shell). Mounted once, above the
+// route swap, so it never remounts on navigation. Driven by the galaxy-stage
+// store, which each galaxy route publishes into. Inert until a route opts in.
+const GalaxyStage = lazy(() => import('./features/galaxy/GalaxyScene'))
+
+function PersistentGalaxy() {
+  const active           = useGalaxyStage((s) => s.active)
+  const model            = useGalaxyStage((s) => s.model)
+  const sparseMode       = useGalaxyStage((s) => s.sparseMode)
+  const lowPower         = useGalaxyStage((s) => s.lowPower)
+  const reducedMotion    = useGalaxyStage((s) => s.reducedMotion)
+  const webglEnabled     = useGalaxyStage((s) => s.webglEnabled)
+  const traversalEnabled = useGalaxyStage((s) => s.traversalEnabled)
+  const scanPulseCount   = useGalaxyStage((s) => s.scanPulseCount)
+  const onScanPulse      = useGalaxyStage((s) => s.onScanPulse)
+  const autoRotateSpeed  = useGalaxyStage((s) => s.autoRotateSpeed)
+  const extraChildren    = useGalaxyStage((s) => s.extraChildren)
+
+  if (!active) return null
+
+  return (
+    <div className="fixed inset-0 z-0" aria-hidden="true">
+      <Suspense fallback={null}>
+        <GalaxyStage
+          model={model}
+          sparseMode={sparseMode}
+          lowPower={lowPower}
+          reducedMotion={reducedMotion}
+          webglEnabled={webglEnabled}
+          traversalEnabled={traversalEnabled}
+          scanPulseCount={scanPulseCount}
+          onScanPulse={onScanPulse}
+          autoRotateSpeed={autoRotateSpeed}
+          extraChildren={extraChildren}
+        />
+      </Suspense>
+    </div>
+  )
+}
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -407,19 +448,20 @@ export default function App() {
     <QueryClientProvider client={queryClient}>
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <AuthBootstrap />
+        <PersistentGalaxy />
         <AnimatedRoutes />
 
         <Toaster
           position="bottom-right"
           toastOptions={{
             style: {
-              background: 'linear-gradient(180deg, rgba(23,20,43,0.92), rgba(12,11,24,0.96))',
-              color: '#f3efff',
-              border: '1px solid rgba(143,117,255,0.28)',
+              background: 'linear-gradient(160deg, rgba(20,14,30,0.92), rgba(8,5,18,0.96))',
+              color: '#f6f1e8',
+              border: '1px solid rgba(255,220,200,0.16)',
               backdropFilter: 'blur(24px)',
               boxShadow: '0 16px 38px rgba(0,0,0,0.4)',
             },
-            success: { iconTheme: { primary: '#8f75ff', secondary: '#fff' } },
+            success: { iconTheme: { primary: '#e0a35c', secondary: '#fff' } },
           }}
         />
       </Router>
