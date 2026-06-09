@@ -50,7 +50,12 @@ function ParallaxStarfield({ density, sparseMode, lowPower = false }) {
       buildStarGeometry(3000 + (artistDensity + trackDensity) * 12, 115, 1.08),
       buildStarGeometry(900 + artistDensity * 5, 52, 0.96),
     ]
-  }, [density, sparseMode])
+  }, [density, sparseMode, lowPower])
+
+  // Dispose star buffer geometries when they are replaced or the field unmounts.
+  useEffect(() => () => {
+    [foreground, midground, background, dust].forEach((geometry) => geometry?.dispose?.())
+  }, [foreground, midground, background, dust])
 
   useFrame(({ camera, clock }) => {
     const drift = Math.sin(clock.getElapsedTime() * 0.06) * 0.05
@@ -80,8 +85,21 @@ function ParallaxStarfield({ density, sparseMode, lowPower = false }) {
   )
 }
 
-function CameraTracker({ onDistance }) {
-  useFrame(({ camera }) => onDistance(camera.position.length()))
+function CameraTracker({ onDistance, distanceRef }) {
+  const last = useRef({ t: 0, d: 0 })
+  useFrame(({ camera, clock }) => {
+    const d = camera.position.length()
+    // Always keep the ref hot for frame-loop consumers (no React re-render).
+    if (distanceRef) distanceRef.current = d
+    // Throttle the React state update that drives label visibility to <=4/sec
+    // and only on a meaningful change, so the scene graph does NOT re-render
+    // every frame (previously ~60 re-renders/sec of the whole SceneContents).
+    const now = clock.getElapsedTime()
+    if (now - last.current.t > 0.25 && Math.abs(d - last.current.d) > 0.4) {
+      last.current = { t: now, d }
+      onDistance(d)
+    }
+  })
   return null
 }
 
@@ -760,30 +778,40 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
 const GalaxyEdges = GalaxyEdgesBatch
 
 function ConstellationLines({ model, originId }) {
-  const origin = (model?.nodes || []).find((node) => node.id === originId)
-  if (!origin) return null
+  // Build line geometries once per (model, originId) instead of allocating a new
+  // THREE.BufferGeometry on every render (which previously leaked GPU memory),
+  // and dispose them on unmount / when they change.
+  const lines = useMemo(() => {
+    const origin = (model?.nodes || []).find((node) => node.id === originId)
+    if (!origin) return []
+    const nodeMap = new Map((model?.nodes || []).map((node) => [node.id, node]))
+    const out = []
+    ;(model?.edges || [])
+      .filter((edge) => edge.source === originId || edge.target === originId)
+      .slice(0, 12)
+      .forEach((edge) => {
+        const other = nodeMap.get(edge.source === originId ? edge.target : edge.source)
+        if (!other) return
+        const geometry = new THREE.BufferGeometry().setFromPoints([
+          new THREE.Vector3(origin.position.x, origin.position.y, origin.position.z),
+          new THREE.Vector3(other.position.x, other.position.y, other.position.z),
+        ])
+        out.push({ id: edge.id, geometry, color: origin.color, opacity: 0.28 + (edge.weight || 0) * 0.36 })
+      })
+    return out
+  }, [model, originId])
 
-  const related = (model?.edges || [])
-    .filter((edge) => edge.source === originId || edge.target === originId)
-    .slice(0, 12)
+  useEffect(() => () => { lines.forEach((line) => line.geometry.dispose()) }, [lines])
+
+  if (!lines.length) return null
 
   return (
     <>
-      {related.map((edge) => {
-        const otherId = edge.source === originId ? edge.target : edge.source
-        const other = (model?.nodes || []).find((node) => node.id === otherId)
-        if (!other) return null
-        const points = [
-          new THREE.Vector3(origin.position.x, origin.position.y, origin.position.z),
-          new THREE.Vector3(other.position.x, other.position.y, other.position.z),
-        ]
-        const geometry = new THREE.BufferGeometry().setFromPoints(points)
-        return (
-          <line key={edge.id} geometry={geometry}>
-            <lineBasicMaterial color={origin.color} transparent opacity={0.28 + (edge.weight || 0) * 0.36} />
-          </line>
-        )
-      })}
+      {lines.map((line) => (
+        <line key={line.id} geometry={line.geometry}>
+          <lineBasicMaterial color={line.color} transparent opacity={line.opacity} />
+        </line>
+      ))}
     </>
   )
 }
@@ -830,6 +858,7 @@ function SceneContents({
   autoRotateSpeed  = 0.18,
 }) {
   const [cameraDistance, setCameraDistance] = useState(24)
+  const cameraDistanceRef = useRef(24)
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
   const viewMode = useGalaxyInteractionStore((state) => state.constellationMode ? 'constellation' : state.viewMode)
   const showTracks = useGalaxyInteractionStore((state) => state.showTracks)
@@ -918,7 +947,7 @@ function SceneContents({
         />
       ))}
 
-      <CameraTracker onDistance={setCameraDistance} />
+      <CameraTracker onDistance={setCameraDistance} distanceRef={cameraDistanceRef} />
       <FocusController focusTarget={focusTarget} controlsRef={controlsRef} />
       <OrbitControls
         ref={controlsRef}
