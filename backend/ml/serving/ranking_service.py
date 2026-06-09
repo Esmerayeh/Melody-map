@@ -2,10 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import torch
-
 from config import Config
-from ml.training.models.ranker import DeepRanker
 from services.feature_store import get_embedding, get_online_features
 from services.metrics_logger import log_model_latency
 
@@ -18,6 +15,8 @@ class RankingService:
         self._load_model()
 
     def _load_model(self) -> None:
+        import torch  # lazy import — keep torch out of gunicorn worker startup
+        from ml.training.models.ranker import DeepRanker  # lazy — pulls torch transitively
         artifact_path = Path("backend/data/models/ranker") / self.model_version / "ranker.pt"
         if not artifact_path.exists():
             return
@@ -80,6 +79,7 @@ class RankingService:
         return [retrieval_score, popularity, novelty, repeat_pressure, mood_compatibility, freshness]
 
     def _score_candidates(self, candidates: list[dict], user_vector: list[float], session_vector: list[float], signal: dict) -> list[dict]:
+        import torch  # lazy import — keep torch out of gunicorn worker startup
         ranked = []
         for candidate in candidates:
             item_embedding = get_embedding("track", candidate["track_key"], Config.retrieval_model_version)

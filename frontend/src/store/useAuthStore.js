@@ -37,7 +37,7 @@ const useAuthStore = create((set, get) => ({
         ? 'session_restoring'
         : payload?.auth_state === 'no_session'
           ? 'login_ready'
-          : 'probing_session',
+          : 'session_ready',
       bootMessage: '',
       user: payload?.user || null,
       sessionToken: payload?.auth_state === 'authenticated' ? 'cookie-session' : null,
