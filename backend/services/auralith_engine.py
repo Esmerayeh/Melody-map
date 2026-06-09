@@ -1,12 +1,174 @@
+"""
+AuralithEngine
+--------------
+The Auralith music oracle.
+
+Retrieval layer (always active):
+  Hash-bucket bag-of-words embedding over the local auralith_songs.json dataset.
+  Produces candidate songs + context that ground every response.
+  Honest label: "melody-map-retrieval-v1"
+
+LLM layer (activated when env vars are set):
+  When AURALITH_LLM_ENDPOINT + AURALITH_LLM_API_KEY are present, the
+  oracle sends a structured prompt (user profile + retrieved songs + question)
+  to a real language model and returns its response as the oracle answer.
+  The retrieval layer still runs — its output becomes context for the LLM.
+  Honest label: "llm-grounded"
+
+If the LLM endpoint is unavailable or returns an error, the engine falls
+back to the deterministic template response and logs the failure.
+"""
 import hashlib
 import json
+import urllib.error
+import urllib.request
 from pathlib import Path
 
-import numpy as np
-
+from config import Config
 from ml.serving.auralith_retriever import AuralithRetriever
 from services.feature_store import get_latest_snapshot, get_recent_events
 from utils.logger import logger
+
+# ─────────────────────────────────────────────────────────────────────────────
+# LLM call helper — provider-aware, never logs the API key
+# ─────────────────────────────────────────────────────────────────────────────
+
+# HTTP status codes that should be surfaced as labelled failures rather than
+# generic "connection error".
+_LLM_LABELLED_ERRORS = {
+    401: "auth_error",
+    403: "auth_error",
+    429: "rate_limited",
+}
+
+
+def _call_llm(
+    system_prompt: str,
+    user_message: str,
+    max_tokens: int | None = None,
+) -> dict:
+    """
+    Call the configured LLM endpoint and return a result dict:
+
+        {
+            "text":           str | None,   # assistant reply; None on failure
+            "provider":       str,          # "groq" | "anthropic" | "openai_compatible" | "none"
+            "llm_model":      str | None,
+            "fallback_reason": str | None,  # set when text is None
+        }
+
+    Provider routing:
+      - provider == "anthropic"       → Anthropic Messages API (x-api-key, anthropic-version)
+      - everything else (incl "groq") → OpenAI-compatible Chat Completions
+                                        (Authorization: Bearer, messages array with system role)
+
+    The API key is NEVER included in log output under any circumstances.
+    """
+    endpoint  = Config.auralith_llm_endpoint
+    api_key   = Config.auralith_llm_api_key
+    provider  = (Config.auralith_llm_provider or "openai_compatible").lower().strip()
+    model_id  = Config.auralith_llm_model or "llama-3.1-8b-instant"
+    timeout   = Config.auralith_llm_timeout          # seconds, from env
+    tokens    = max_tokens if max_tokens is not None else Config.auralith_llm_max_tokens
+
+    _empty: dict = {"text": None, "provider": provider, "llm_model": model_id, "fallback_reason": None}
+
+    if not endpoint or not api_key:
+        return {**_empty, "provider": "none", "fallback_reason": "llm_not_configured"}
+
+    # ── Build request payload ────────────────────────────────────────────────
+    if provider == "anthropic":
+        # Anthropic Messages API: system is a top-level field
+        payload_dict = {
+            "model":      model_id,
+            "max_tokens": tokens,
+            "temperature": 0.45,
+            "system":     system_prompt,
+            "messages":   [{"role": "user", "content": user_message}],
+        }
+        headers = {
+            "Content-Type":       "application/json",
+            "x-api-key":          api_key,
+            "anthropic-version":  "2023-06-01",
+            # Cloudflare (in front of several LLM providers) blocks the default
+            # "Python-urllib/x.y" agent with a 403 / error 1010. A real UA passes.
+            "User-Agent":         "melody-map-auralith/1.0",
+        }
+    else:
+        # OpenAI-compatible: Groq, OpenAI, local Ollama, etc.
+        payload_dict = {
+            "model":      model_id,
+            "max_tokens": tokens,
+            "temperature": 0.45,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user",   "content": user_message},
+            ],
+        }
+        headers = {
+            "Content-Type":  "application/json",
+            "Authorization": f"Bearer {api_key}",
+            # Cloudflare (in front of Groq/OpenAI-compatible gateways) blocks the
+            # default "Python-urllib/x.y" agent with a 403 / error 1010. A real UA passes.
+            "User-Agent":    "melody-map-auralith/1.0",
+        }
+
+    payload_bytes = json.dumps(payload_dict).encode("utf-8")
+    req = urllib.request.Request(
+        url=endpoint,
+        data=payload_bytes,
+        method="POST",
+        headers=headers,
+    )
+
+    # ── Execute request ──────────────────────────────────────────────────────
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            body = json.loads(resp.read().decode("utf-8"))
+
+            # OpenAI / Groq chat completions format
+            if "choices" in body:
+                text = (body["choices"][0].get("message") or {}).get("content") or ""
+                if not text.strip():
+                    return {**_empty, "fallback_reason": "llm_empty_response"}
+                return {**_empty, "text": text.strip()}
+
+            # Anthropic messages format (fallback detection)
+            if "content" in body and isinstance(body["content"], list):
+                text = (body["content"][0] or {}).get("text", "")
+                if not text.strip():
+                    return {**_empty, "fallback_reason": "llm_empty_response"}
+                return {**_empty, "text": text.strip()}
+
+            return {**_empty, "fallback_reason": "llm_unrecognised_response_shape"}
+
+    except urllib.error.HTTPError as exc:
+        label = _LLM_LABELLED_ERRORS.get(exc.code, "http_error")
+        logger.warning({
+            "event":    "auralith_llm_failed",
+            "provider": provider,
+            "model":    model_id,
+            "reason":   label,
+            "status":   exc.code,
+            # Never log exc.headers or the request headers — key is there
+        })
+        return {**_empty, "fallback_reason": label}
+
+    except urllib.error.URLError as exc:
+        # Catches timeout (socket.timeout wraps to URLError in Python ≥3.11)
+        reason = "llm_timeout" if "timed out" in str(exc.reason).lower() else "llm_connection_error"
+        logger.warning({"event": "auralith_llm_failed", "provider": provider, "model": model_id, "reason": reason})
+        return {**_empty, "fallback_reason": reason}
+
+    except (json.JSONDecodeError, KeyError, IndexError) as exc:
+        logger.warning({"event": "auralith_llm_failed", "provider": provider, "model": model_id, "reason": "llm_parse_error", "detail": str(exc)})
+        return {**_empty, "fallback_reason": "llm_parse_error"}
+
+
+def _np():
+    """Lazy numpy import — keeps numpy out of gunicorn worker startup."""
+    import numpy as _numpy  # noqa: PLC0415
+    return _numpy
 
 
 class AuralithEngine:
@@ -36,7 +198,8 @@ class AuralithEngine:
         digest = hashlib.sha256(token.encode("utf-8")).hexdigest()
         return int(digest, 16) % self.dimension
 
-    def _embed(self, text: str) -> np.ndarray:
+    def _embed(self, text: str):
+        np = _np()
         vector = np.zeros(self.dimension, dtype="float32")
         normalized = text.lower().replace("/", " ").replace(",", " ").replace("-", " ")
         tokens = [token for token in normalized.split() if token]
@@ -47,32 +210,61 @@ class AuralithEngine:
         norm = np.linalg.norm(vector)
         return vector if norm == 0 else vector / norm
 
-    def _embed_many(self, texts) -> np.ndarray:
+    def _embed_many(self, texts):
+        np = _np()
         return np.vstack([self._embed(text) for text in texts]).astype("float32")
+
+    def _item_label(self, item, *keys: str) -> str:
+        if isinstance(item, str):
+            return item.strip()
+        if isinstance(item, dict):
+            for key in keys:
+                value = item.get(key)
+                if value:
+                    return str(value).strip()
+        return ""
+
+    def _track_label(self, item) -> str:
+        if isinstance(item, str):
+            return item.strip()
+        if not isinstance(item, dict):
+            return ""
+        title = item.get("title") or item.get("name") or ""
+        artist = item.get("artist") or ""
+        if title and artist:
+            return f"{title} by {artist}"
+        return title or artist
 
     def _profile_context(self, profile: dict | None) -> dict:
         profile = profile or {}
-        genres = [item for item in profile.get("genres", []) if item][:6]
-        top_artists = [item for item in (profile.get("topArtists") or profile.get("favoriteArtists") or []) if item][:6]
-        top_tracks = [item for item in profile.get("topTracks", []) if item][:6]
-        recent_tracks = [item for item in profile.get("recentlyPlayed", []) if item][:6]
-        liked_songs = [item for item in profile.get("likedSongs", []) if item][:6]
-        saved_playlists = [item for item in profile.get("savedPlaylists", []) if item][:4]
+        genres = [self._item_label(item, "genre", "name") for item in profile.get("genres", []) if item][:6]
+        top_artists = [self._item_label(item, "name", "artist") for item in (profile.get("topArtists") or profile.get("favoriteArtists") or []) if item][:6]
+        top_tracks = [self._track_label(item) for item in profile.get("topTracks", []) if item][:6]
+        recent_tracks = [self._track_label(item) for item in profile.get("recentlyPlayed", []) if item][:6]
+        liked_songs = [self._track_label(item) for item in profile.get("likedSongs", []) if item][:6]
+        saved_playlists = [self._item_label(item, "name", "title") for item in profile.get("savedPlaylists", []) if item][:4]
         aesthetic_tags = [item for item in profile.get("aestheticTags", []) if item][:6]
         mood_preferences = [item for item in profile.get("moodPreferences", []) if item][:4]
         audio = profile.get("audioFeatures") or {}
         analytics = profile.get("analyticsMetrics") or {}
+        identity_signals = [
+            item for item in (profile.get("identitySignals") or [])
+            if isinstance(item, dict) and item.get("available", True) and item.get("evidence")
+        ][:6]
         return {
-            "genres": genres,
-            "top_artists": top_artists,
-            "top_tracks": top_tracks,
-            "recent_tracks": recent_tracks,
-            "liked_songs": liked_songs,
-            "saved_playlists": saved_playlists,
+            "genres": [item for item in genres if item],
+            "top_artists": [item for item in top_artists if item],
+            "top_tracks": [item for item in top_tracks if item],
+            "recent_tracks": [item for item in recent_tracks if item],
+            "liked_songs": [item for item in liked_songs if item],
+            "saved_playlists": [item for item in saved_playlists if item],
             "aesthetic_tags": aesthetic_tags,
             "mood_preferences": mood_preferences,
             "personality": profile.get("personality") or "",
             "mbti": profile.get("mbti") or "",
+            "identity_signals": identity_signals,
+            "living_identity": profile.get("livingIdentity") or {},
+            "spotify_evidence": profile.get("spotifyEvidence") or profile.get("listeningEvidence") or {},
             "time_range": profile.get("timeRange") or "medium_term",
             "user_name": (profile.get("userProfile") or {}).get("name") or "",
             "audio": audio,
@@ -98,11 +290,20 @@ class AuralithEngine:
         parts.extend(context["aesthetic_tags"])
         parts.extend(context["mood_preferences"])
         if context["personality"]:
-            parts.append(context["personality"])
+            if isinstance(context["personality"], list):
+                parts.extend(self._item_label(item, "label", "name", "id") for item in context["personality"])
+            else:
+                parts.append(str(context["personality"]))
         if context["mbti"]:
-            parts.append(context["mbti"])
+            if isinstance(context["mbti"], dict):
+                parts.extend([str(context["mbti"].get("type") or ""), str(context["mbti"].get("name") or "")])
+            else:
+                parts.append(str(context["mbti"]))
         if context["analytics"].get("mood"):
             parts.append(context["analytics"]["mood"])
+        for signal in context["identity_signals"][:4]:
+            parts.append(signal.get("label") or "")
+            parts.extend(signal.get("evidence") or [])
         return " ".join(parts)
 
     def _profile_fit(self, song: dict, profile: dict | None) -> tuple[int, list[str]]:
@@ -189,9 +390,9 @@ class AuralithEngine:
     def describe_profile(self, songs: list[dict]) -> dict:
         if not songs:
             return {
-                "tempo": "mid-tempo",
-                "energy": "measured",
-                "texture": "atmospheric",
+                "tempo": "not enough indexed tracks",
+                "energy": "not enough indexed tracks",
+                "texture": "not enough indexed tracks",
             }
         avg_tempo = sum(song["tempo"] for song in songs) / len(songs)
         avg_energy = sum(song["energy"] for song in songs) / len(songs)
@@ -241,6 +442,10 @@ class AuralithEngine:
             anchors.append(f"it stays close to the {context['analytics']['mood']} current in your profile")
         if history["events"]:
             anchors.append("it reflects the tracks and sessions you touched most recently")
+        for signal in context["identity_signals"][:2]:
+            evidence = (signal.get("evidence") or [None])[0]
+            if evidence:
+                anchors.append(evidence)
         if not anchors and songs:
             anchors.append("it mirrors the pacing and tonal restraint in your current listening")
         return "Why this fits your taste: " + "; ".join(anchors[:3]) + "."
@@ -272,6 +477,20 @@ class AuralithEngine:
     def generate_playlist(self, prompt: str, profile: dict | None = None, limit: int = 8) -> dict:
         songs = self._personalized_search(prompt, profile, limit=max(limit, 8))
         selected = songs[:limit]
+        if not selected:
+            return {
+                "playlist_title": "Auralith needs more indexed music",
+                "mood": "insufficient signal",
+                "vibe_summary": "No playlist was generated because the local song index did not return grounded matches.",
+                "sonic_profile": self.describe_profile([]),
+                "songs": [],
+                "narrative": "Sync or index more Spotify-backed music before Auralith builds an emotional sequence.",
+                "why_this_fits_your_taste": self._taste_fit_summary(profile, []),
+                "retrieved_context": [],
+                "retrieval_trace": self._retrieval_trace(prompt, profile, []),
+                "fallbackUsed": True,
+                "used_model": "melody-map-auralith",
+            }
         return {
             "playlist_title": self._pick_title(prompt, selected),
             "mood": self._mood_line(selected, profile),
@@ -291,32 +510,35 @@ class AuralithEngine:
     def analyze_taste(self, seeds: list[str], profile: dict | None = None) -> dict:
         songs = self.search_by_names(seeds, profile=profile, limit=8)
         context = self._profile_context(profile)
-        dominant_traits = [
-            "Atmosphere before spectacle",
-            "Emotional precision over obvious catharsis",
-            "A preference for pacing that drifts rather than rushes",
-        ]
-        if context["audio"].get("energy", 0.5) > 0.62:
-            dominant_traits[2] = "Controlled tension with a taste for propulsion"
-        hidden_patterns = [
-            "You consistently choose songs with interior pressure instead of loud release",
-            "Texture matters to you as much as melody, even when genres change",
-            "You return to voices and mixes that feel close rather than grand",
-        ]
+        dominant_traits = []
+        for signal in context["identity_signals"][:3]:
+            evidence = (signal.get("evidence") or [None])[0]
+            if evidence:
+                dominant_traits.append(f"{signal.get('label')}: {evidence}")
+        if not dominant_traits and context["audio"]:
+            dominant_traits.append(
+                f"Audio-feature profile: energy {context['audio'].get('energy')}, valence {context['audio'].get('valence')}, danceability {context['audio'].get('danceability')}."
+            )
+        receipts = (context["spotify_evidence"].get("receipts") or [])[:4]
+        hidden_patterns = receipts or ["No long-term Spotify identity receipts are indexed yet."]
         if context["recent_tracks"]:
-            hidden_patterns.append("Your recent listening suggests you test subtle variations in mood before you make sharper genre jumps")
+            hidden_patterns.append(f"Recent Spotify plays include {', '.join(context['recent_tracks'][:4])}.")
+        living = context["living_identity"]
+        profile_line = living.get("summary") or "The taste read is limited to the Spotify artists, tracks, genres, and audio features currently available."
+        mood = context["analytics"].get("mood")
+        emotional_signature = f"{mood} from Spotify energy and valence" if mood else "Not enough Spotify audio-feature signal for a stable emotional signature."
         return {
-            "taste_profile": "Your taste leans toward music that feels intimate, textural, and emotionally exact rather than merely genre-correct.",
+            "taste_profile": profile_line,
             "dominant_traits": dominant_traits,
             "hidden_patterns": hidden_patterns[:4],
             "sonic_preferences": self.describe_profile(songs[:6]),
-            "emotional_signature": "Reflective, dusk-lit, and emotionally precise.",
+            "emotional_signature": emotional_signature,
             "exploration_suggestions": [
-                "Try records that keep intimacy but introduce more rhythmic lift",
-                "Use downtempo or left-field electronic cuts to widen contrast without losing atmosphere",
-                "Follow artists adjacent to your top genres, not only the same canon names",
+                f"Explore adjacent records near {context['genres'][0]}" if context["genres"] else "Add more Spotify top artists before Auralith widens the map.",
+                f"Use {context['top_artists'][0]} as the first anchor, then branch one genre outward" if context["top_artists"] else "Sync top artists to reveal grounded exploration paths.",
+                "Prefer recommendations with visible evidence receipts over broad mood labels.",
             ],
-            "recommendation_direction": "Expand into art pop, downtempo, and left-field electronic releases that preserve closeness while widening dynamic range.",
+            "recommendation_direction": self._taste_fit_summary(profile, songs[:6]),
             "retrieved_context": songs,
             "retrieval_trace": self._retrieval_trace(" ".join(seeds), profile, songs),
             "used_model": "melody-map-auralith",
@@ -324,16 +546,20 @@ class AuralithEngine:
 
     def explain_song(self, prompt: str, profile: dict | None = None) -> dict:
         songs = self.search_by_names([prompt], profile=profile, limit=6)
-        song = songs[0] if songs else {
-            "title": prompt,
-            "artist": "Unknown",
-            "genre": "Unknown",
-            "mood": "Evocative",
-            "energy": 0.4,
-            "valence": 0.4,
-            "tempo": 95,
-            "description": "its structure and texture create a focused emotional impression.",
-        }
+        if not songs:
+            return {
+                "core_feeling": "I could not match that song against the current indexed catalog.",
+                "sonic_breakdown": {},
+                "emotional_effect": "No interpretation was generated because Melody Map does not have enough grounded song evidence.",
+                "why_it_works": "Auralith needs a matched track, artist, or Spotify profile anchor before making a claim.",
+                "listener_alignment": self._taste_fit_summary(profile, []) if profile else "",
+                "similar_vibe": [],
+                "retrieved_context": [],
+                "retrieval_trace": self._retrieval_trace(prompt, profile, []),
+                "fallbackUsed": True,
+                "used_model": "melody-map-auralith",
+            }
+        song = songs[0]
         return {
             "core_feeling": f"{song['title']} feels like controlled emotion slowly turning visible.",
             "sonic_breakdown": self.describe_profile([song]),
@@ -352,6 +578,19 @@ class AuralithEngine:
     def critique_playlist(self, songs_or_artists: list[str], profile: dict | None = None) -> dict:
         songs = self.search_by_names(songs_or_artists, profile=profile, limit=8)
         context = self._profile_context(profile)
+        if not songs:
+            return {
+                "overall_assessment": "Auralith could not match this playlist against the indexed catalog, so no critique was generated.",
+                "strengths": [],
+                "issues": ["No grounded song matches were available."],
+                "flow_analysis": "Sync or index more Spotify-backed tracks before requesting sequencing advice.",
+                "improvements": [],
+                "replacement_suggestions": [],
+                "retrieved_context": [],
+                "retrieval_trace": self._retrieval_trace(" ".join(songs_or_artists), profile, []),
+                "fallbackUsed": True,
+                "used_model": "melody-map-auralith",
+            }
         issues = [
             "Middle transitions blur because adjacent tracks share too much tonal weight",
             "The arc needs one controlled lift or one sharper drop",
@@ -388,6 +627,18 @@ class AuralithEngine:
     def concept_playlist(self, prompt: str, profile: dict | None = None, limit: int = 8) -> dict:
         songs = self._personalized_search(prompt, profile, limit=max(limit, 8))
         selected = songs[:limit]
+        if not selected:
+            return {
+                "interpretation": "Auralith needs grounded song matches before shaping this concept.",
+                "playlist_title": "Concept needs more signal",
+                "emotional_arc": "No emotional arc was inferred because no indexed songs matched the prompt.",
+                "songs": [],
+                "closing_note": "No Spotify-backed evidence, no invented oracle answer.",
+                "retrieved_context": [],
+                "retrieval_trace": self._retrieval_trace(prompt, profile, []),
+                "fallbackUsed": True,
+                "used_model": "melody-map-auralith",
+            }
         return {
             "interpretation": "The concept reads like emotional afterimage: a feeling that has already happened but is still lighting the room.",
             "playlist_title": self._pick_title(prompt, selected),
