@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Billboard, Html, MeshDistortMaterial, OrbitControls, PerspectiveCamera } from '@react-three/drei'
 import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
@@ -8,9 +8,12 @@ import { getNebulaColors } from './galaxyExplainer'
 import { stableHash } from './galaxyScoring'
 import { slugifyInteraction } from './interactionModel.js'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
+import GalaxySceneBoundary from './GalaxySceneBoundary'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
-const GalaxyPostEffects = lazy(() => import('./GalaxyPostEffects'))
+const GalaxyPostEffects   = lazy(() => import('./GalaxyPostEffects'))
+const GalaxyLivingLayer   = lazy(() => import('./GalaxyLivingLayer'))
+const TraversalController = lazy(() => import('./TraversalController'))
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
@@ -211,10 +214,11 @@ function nodeLabelTone(type) {
   return 'border-white/12 bg-[#0a0f23]/88 text-white'
 }
 
-function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset, sparseMode }) {
+function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset, sparseMode, registerRef }) {
   const groupRef = useRef()
   const meshRef = useRef()
   const haloRef = useRef()
+  const nodeRef = useRef(node)
   const position = node.position || { x: 0, y: 0, z: 0 }
   const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
   const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
@@ -224,7 +228,6 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
   const setConstellationOrigin = useGalaxyInteractionStore((state) => state.setConstellationOrigin)
   const constellationMode = useGalaxyInteractionStore((state) => state.constellationMode)
-  const motionState = useGalaxyInteractionStore((state) => state.motionState)
 
   const isClusterNode = node.type === 'cluster'
   const objectType = isClusterNode ? 'cluster' : node.type
@@ -237,33 +240,15 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   const driftSeed = useMemo(() => stableHash(node.id || node.label || 'node'), [node.id, node.label])
   const basePosition = useMemo(() => new THREE.Vector3(position.x, position.y, position.z), [position.x, position.y, position.z])
 
-  useFrame(({ clock }) => {
-    if (groupRef.current) {
-      const t = clock.getElapsedTime()
-      const motionScale = selected ? 0.25 : hovered ? 0.45 : 1
-      const amplitude = (node.type === 'track' ? 0.08 : node.type === 'genre' ? 0.12 : 0.1) * (motionState?.oscillationStrength || 0.28) * motionScale
-      groupRef.current.position.set(
-        basePosition.x + Math.sin(t * 0.08 + driftSeed * 0.001) * amplitude,
-        basePosition.y + Math.cos(t * 0.07 + driftSeed * 0.0017) * amplitude * 0.7,
-        basePosition.z + Math.sin(t * 0.06 + driftSeed * 0.0021) * amplitude,
-      )
-    }
-    if (meshRef.current) {
-      meshRef.current.rotation.y += node.type === 'genre' ? 0.0015 : node.type === 'cluster' ? 0.0012 : 0.0025
-      meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * (node.type === 'track' ? 1.18 : 0.54) + position.x) * 0.08
-      const emphasis = selected ? 1.16 : hovered ? 1.08 : 1
-      meshRef.current.scale.setScalar(emphasis)
-    }
-    if (groupRef.current) {
-      const t = clock.getElapsedTime()
-      const sculpturalTilt = (selected ? 1 : hovered ? 0.7 : 0.32) * MOTION_FLOAT.orb.tilt
-      groupRef.current.rotation.y = Math.cos(t * 0.09 + driftSeed * 0.0014) * sculpturalTilt
-      groupRef.current.rotation.x = Math.sin(t * 0.07 + driftSeed * 0.0019) * sculpturalTilt * 0.42
-    }
-    if (haloRef.current) {
-      haloRef.current.scale.setScalar(1 + Math.sin(clock.getElapsedTime() * 0.8 + position.y) * 0.03 + (selected ? 0.18 : hovered ? 0.08 : 0))
-    }
-  })
+  // Keep nodeRef current so the parent's single useFrame always sees latest node data.
+  nodeRef.current = node
+
+  // Register this node's refs with the parent animation loop. Runs once per mount
+  // (deps are stable per-node), and cleans up on unmount.
+  useEffect(() => {
+    if (!registerRef) return
+    return registerRef(node.id, { groupRef, meshRef, haloRef, basePosition, driftSeed, nodeRef, objectId, objectType })
+  }, [node.id, registerRef, basePosition, driftSeed, objectId, objectType])
 
   if (!visibility.visible) return null
 
@@ -586,118 +571,193 @@ function TasteCore({ core, model, galaxyMode }) {
   )
 }
 
-function GalaxyEdges({ model, galaxyMode, viewMode }) {
-  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
-  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
-  const setHoveredObject = useGalaxyInteractionStore((state) => state.setHoveredObject)
-  const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
+/**
+ * GalaxyEdgesBatch
+ * ----------------
+ * Renders ALL edges as a SINGLE LineSegments draw call (one BufferGeometry,
+ * one material).  This replaces the previous per-edge approach that created
+ * a new THREE.BufferGeometry object on every React render, leaking GPU memory.
+ *
+ * Highlighted edges (hovered / focused) are rendered on top as a separate,
+ * smaller LineSegments so they can have a different colour and opacity without
+ * changing the main geometry.
+ *
+ * Edge midpoint hit-meshes and tooltips are kept but rendered only for a
+ * filtered subset (bridge_lane + audio_similarity) to avoid hundreds of
+ * invisible hit targets.
+ */
+function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
+  const hoveredObject      = useGalaxyInteractionStore((state) => state.hoveredObject)
+  const focusedObject      = useGalaxyInteractionStore((state) => state.focusedObject)
+  const setHoveredObject   = useGalaxyInteractionStore((state) => state.setHoveredObject)
+  const setFocusedObject   = useGalaxyInteractionStore((state) => state.setFocusedObject)
   const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
 
-  const nodeMap = useMemo(() => Object.fromEntries((model?.nodes || []).map((node) => [node.id, node])), [model])
+  const nodeMap = useMemo(
+    () => Object.fromEntries((model?.nodes || []).map((n) => [n.id, n])),
+    [model],
+  )
+
   const highlightedNodeIds = useMemo(() => {
     const ids = new Set()
-    if (focusedObject?.id) ids.add(focusedObject.id)
+    if (focusedObject?.id)       ids.add(focusedObject.id)
     if (focusedObject?.clusterId) ids.add(focusedObject.clusterId)
-    if (hoveredObject?.id) ids.add(hoveredObject.id)
+    if (hoveredObject?.id)       ids.add(hoveredObject.id)
     if (hoveredObject?.clusterId) ids.add(hoveredObject.clusterId)
     return ids
   }, [focusedObject, hoveredObject])
+
   const visibleEdges = useMemo(() => {
-    const allEdges = model?.edges || []
-    const isHighlighted = (edge) => highlightedNodeIds.has(edge.source) || highlightedNodeIds.has(edge.target)
-    if (viewMode === 'constellation') return allEdges.filter((edge) => edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || isHighlighted(edge)).slice(0, 90)
-    if (galaxyMode === 'song') return allEdges.filter((edge) => edge.type.startsWith('song_') && isHighlighted(edge)).slice(0, 36)
-    if (galaxyMode === 'artist') return allEdges.filter((edge) => (edge.type === 'bridge_lane' || edge.type === 'audio_similarity' || edge.type === 'shared_genre') && (isHighlighted(edge) || (edge.weight || 0) > 0.74)).slice(0, 54)
-    if (galaxyMode === 'genre') return allEdges.filter((edge) => (edge.type === 'genre_affinity' || edge.type === 'bridge_lane') && (isHighlighted(edge) || (edge.weight || 0) > 0.78)).slice(0, 48)
-    if (viewMode === 'discovery') return allEdges.filter((edge) => edge.type === 'bridge_lane' && (isHighlighted(edge) || (edge.weight || 0) > 0.8)).slice(0, 42)
-    if (viewMode === 'genre') return allEdges.filter((edge) => (edge.type === 'genre_affinity' || edge.type === 'cluster_membership') && (isHighlighted(edge) || (edge.weight || 0) > 0.8)).slice(0, 42)
-    return allEdges.filter((edge) => edge.type === 'bridge_lane' && (isHighlighted(edge) || (edge.weight || 0) > 0.84)).slice(0, 34)
+    const all = model?.edges || []
+    const hi  = (e) => highlightedNodeIds.has(e.source) || highlightedNodeIds.has(e.target)
+    if (viewMode === 'constellation') return all.filter((e) => e.type === 'bridge_lane' || e.type === 'audio_similarity' || hi(e)).slice(0, 90)
+    if (galaxyMode === 'song')        return all.filter((e) => e.type.startsWith('song_') && hi(e)).slice(0, 36)
+    if (galaxyMode === 'artist')      return all.filter((e) => (e.type === 'bridge_lane' || e.type === 'audio_similarity' || e.type === 'shared_genre') && (hi(e) || (e.weight || 0) > 0.74)).slice(0, 54)
+    if (galaxyMode === 'genre')       return all.filter((e) => (e.type === 'genre_affinity' || e.type === 'bridge_lane') && (hi(e) || (e.weight || 0) > 0.78)).slice(0, 48)
+    if (viewMode === 'discovery')     return all.filter((e) => e.type === 'bridge_lane' && (hi(e) || (e.weight || 0) > 0.8)).slice(0, 42)
+    if (viewMode === 'genre')         return all.filter((e) => (e.type === 'genre_affinity' || e.type === 'cluster_membership') && (hi(e) || (e.weight || 0) > 0.8)).slice(0, 42)
+    return all.filter((e) => e.type === 'bridge_lane' && (hi(e) || (e.weight || 0) > 0.84)).slice(0, 34)
   }, [galaxyMode, highlightedNodeIds, model, viewMode])
+
+  // ── Build main batch geometry ──────────────────────────────────────────────
+  // Every edge becomes 2 consecutive vertices in a flat positions array.
+  // LineSegments interprets them as pairs, so no index buffer is needed.
+  // highlightGeometry is built here too — use it in JSX, do NOT re-create it.
+  const { batchGeometry, highlightGeometry, normalEdges, highlightedEdges } = useMemo(() => {
+    const normalEdges     = []
+    const highlightedEdges = []
+    const normalPositions  = []
+    const highlightPositions = []
+
+    visibleEdges.forEach((edge) => {
+      const src = nodeMap[edge.source]
+      const tgt = nodeMap[edge.target]
+      if (!src || !tgt) return
+
+      const isHighlighted = (
+        (hoveredObject?.type === 'edge' && hoveredObject?.id === edge.id) ||
+        (focusedObject?.type === 'edge' && focusedObject?.id === edge.id) ||
+        highlightedNodeIds.has(edge.source) ||
+        highlightedNodeIds.has(edge.target)
+      )
+
+      const bucket = isHighlighted ? highlightPositions : normalPositions
+      bucket.push(src.position.x, src.position.y, src.position.z)
+      bucket.push(tgt.position.x, tgt.position.y, tgt.position.z)
+
+      if (isHighlighted) highlightedEdges.push(edge)
+      else               normalEdges.push(edge)
+    })
+
+    const batchGeo = new THREE.BufferGeometry()
+    if (normalPositions.length) {
+      batchGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(normalPositions), 3))
+    }
+
+    const hlGeo = new THREE.BufferGeometry()
+    if (highlightPositions.length) {
+      hlGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(highlightPositions), 3))
+    }
+
+    return { batchGeometry: batchGeo, highlightGeometry: hlGeo, normalEdges, highlightedEdges }
+  }, [visibleEdges, nodeMap, hoveredObject, focusedObject, highlightedNodeIds])
+
+  // ── Bridge-lane midpoint motes (limited to meaningful edges only) ──────────
+  const bridgeMotes = useMemo(() => (
+    visibleEdges.filter((e) => e.type === 'bridge_lane' || e.type === 'audio_similarity').slice(0, 24).map((edge) => {
+      const src = nodeMap[edge.source]
+      const tgt = nodeMap[edge.target]
+      if (!src || !tgt) return null
+      const hovered = hoveredObject?.type === 'edge' && hoveredObject?.id === edge.id
+      const focused  = focusedObject?.type  === 'edge' && focusedObject?.id  === edge.id
+      return {
+        key:      edge.id,
+        edge,
+        midpoint: {
+          x: (src.position.x + tgt.position.x) / 2,
+          y: (src.position.y + tgt.position.y) / 2,
+          z: (src.position.z + tgt.position.z) / 2,
+        },
+        hovered,
+        focused,
+      }
+    }).filter(Boolean)
+  ), [visibleEdges, nodeMap, hoveredObject, focusedObject])
 
   return (
     <>
-      {visibleEdges.map((edge) => {
-        const source = nodeMap[edge.source]
-        const target = nodeMap[edge.target]
-        if (!source || !target) return null
-        const points = [
-          new THREE.Vector3(source.position.x, source.position.y, source.position.z),
-          new THREE.Vector3(target.position.x, target.position.y, target.position.z),
-        ]
-        const geometry = new THREE.BufferGeometry().setFromPoints(points)
-        const midpoint = {
-          x: (source.position.x + target.position.x) / 2,
-          y: (source.position.y + target.position.y) / 2,
-          z: (source.position.z + target.position.z) / 2,
-        }
-        const hovered = hoveredObject?.type === 'edge' && hoveredObject?.id === edge.id
-        const focused = focusedObject?.type === 'edge' && focusedObject?.id === edge.id
-        const baseOpacity = edge.type === 'bridge_lane'
-          ? 0.2 + (edge.weight || 0.2) * 0.32
-          : Math.max(0.04, Math.min(0.28, edge.weight || 0.16))
-        const shouldShowBridgeMote = edge.type === 'bridge_lane' || edge.type === 'audio_similarity'
+      {/* Normal edges — single draw call */}
+      {batchGeometry.attributes.position && (
+        <lineSegments geometry={batchGeometry}>
+          <lineBasicMaterial color="#9DB7FF" transparent opacity={0.14} />
+        </lineSegments>
+      )}
 
-        return (
-          <group key={edge.id}>
-            <line geometry={geometry}>
-              <lineBasicMaterial
-                color={hovered || focused ? '#EAE6FF' : edge.type === 'bridge_lane' ? '#9DB7FF' : source.color}
-                transparent
-                opacity={focused ? Math.min(0.72, baseOpacity + 0.22) : hovered ? Math.min(0.52, baseOpacity + 0.12) : baseOpacity * 0.68}
-              />
-            </line>
+      {/* Highlighted edges — uses the memoized geometry built above (no new allocation per render) */}
+      {highlightedEdges.length > 0 && highlightGeometry.attributes?.position && (
+        <lineSegments geometry={highlightGeometry}>
+          <lineBasicMaterial color="#EAE6FF" transparent opacity={0.42} />
+        </lineSegments>
+      )}
 
-            {shouldShowBridgeMote && (
-              <mesh position={[midpoint.x, midpoint.y, midpoint.z]}>
-                <sphereGeometry args={[edge.type === 'bridge_lane' ? 0.2 : 0.12, 12, 12]} />
-                <meshBasicMaterial color={edge.type === 'bridge_lane' ? '#B994FF' : '#DCE6FF'} transparent opacity={hovered || focused ? 0.42 : 0.18} />
-              </mesh>
-            )}
+      {/* Midpoint motes + hit targets for bridge lanes */}
+      {bridgeMotes.map(({ key, edge, midpoint, hovered, focused }) => (
+        <group key={key}>
+          <mesh position={[midpoint.x, midpoint.y, midpoint.z]}>
+            <sphereGeometry args={[edge.type === 'bridge_lane' ? 0.18 : 0.11, 8, 8]} />
+            <meshBasicMaterial
+              color={edge.type === 'bridge_lane' ? '#B994FF' : '#DCE6FF'}
+              transparent
+              opacity={hovered || focused ? 0.42 : 0.18}
+            />
+          </mesh>
 
-            <mesh
-              position={[midpoint.x, midpoint.y, midpoint.z]}
-              onClick={(event) => {
-                event.stopPropagation()
-                if (focused) {
-                  clearFocusedObject()
-                  return
-                }
-                setFocusedObject({ id: edge.id, type: 'edge', label: edge.type })
-              }}
-              onPointerOver={(event) => {
-                event.stopPropagation()
-                setHoveredObject({ id: edge.id, type: 'edge', label: edge.type })
-              }}
-              onPointerOut={(event) => {
-                event.stopPropagation()
-                setHoveredObject(null)
-              }}
-            >
-              <sphereGeometry args={[0.55, 10, 10]} />
-              <meshBasicMaterial transparent opacity={0} depthWrite={false} />
-            </mesh>
+          {/* Invisible hit sphere */}
+          <mesh
+            position={[midpoint.x, midpoint.y, midpoint.z]}
+            onClick={(evt) => {
+              evt.stopPropagation()
+              if (focused) { clearFocusedObject(); return }
+              setFocusedObject({ id: edge.id, type: 'edge', label: edge.type })
+            }}
+            onPointerOver={(evt) => {
+              evt.stopPropagation()
+              setHoveredObject({ id: edge.id, type: 'edge', label: edge.type })
+            }}
+            onPointerOut={(evt) => {
+              evt.stopPropagation()
+              setHoveredObject(null)
+            }}
+          >
+            <sphereGeometry args={[0.55, 8, 8]} />
+            <meshBasicMaterial transparent opacity={0} depthWrite={false} />
+          </mesh>
 
-            {(hovered || focused) && (
-              <Billboard position={[midpoint.x, midpoint.y + 0.55, midpoint.z]}>
-                <Html center distanceFactor={8}>
-                  <motion.div
-                    initial={{ opacity: 0, y: 6, scale: 0.985 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={MOTION_TOKENS.tooltip}
-                    className="pointer-events-none max-w-[240px] rounded-xl border border-fuchsia-400/30 bg-[#0c1024]/94 px-2.5 py-1.5 text-xs text-white shadow-[0_12px_34px_rgba(4,6,20,0.45)] backdrop-blur-sm"
-                  >
-                    <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-200">{edge.type.replace(/_/g, ' ')}</p>
-                    <p>{edge.explanation}</p>
-                  </motion.div>
-                </Html>
-              </Billboard>
-            )}
-          </group>
-        )
-      })}
+          {(hovered || focused) && (
+            <Billboard position={[midpoint.x, midpoint.y + 0.55, midpoint.z]}>
+              <Html center distanceFactor={8}>
+                <motion.div
+                  initial={{ opacity: 0, y: 6, scale: 0.985 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={MOTION_TOKENS.tooltip}
+                  className="pointer-events-none max-w-[240px] rounded-xl border border-fuchsia-400/30 bg-[#0c1024]/94 px-2.5 py-1.5 text-xs text-white shadow-[0_12px_34px_rgba(4,6,20,0.45)] backdrop-blur-sm"
+                >
+                  <p className="mb-0.5 text-[10px] font-semibold uppercase tracking-wide text-fuchsia-200">
+                    {edge.type.replace(/_/g, ' ')}
+                  </p>
+                  <p>{edge.explanation}</p>
+                </motion.div>
+              </Html>
+            </Billboard>
+          )}
+        </group>
+      ))}
     </>
   )
 }
+
+// Keep old export name so nothing else needs to change
+const GalaxyEdges = GalaxyEdgesBatch
 
 function ConstellationLines({ model, originId }) {
   const origin = (model?.nodes || []).find((node) => node.id === originId)
@@ -757,7 +817,18 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
   )
 }
 
-function SceneContents({ model, sparseMode, lowPower = false, reducedMotion = false }) {
+function SceneContents({
+  model,
+  sparseMode,
+  lowPower       = false,
+  reducedMotion  = false,
+  extraChildren  = null,
+  // Traversal + presence additions
+  traversalEnabled = false,
+  scanPulseCount   = 0,
+  onScanPulse      = null,
+  autoRotateSpeed  = 0.18,
+}) {
   const [cameraDistance, setCameraDistance] = useState(24)
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
   const viewMode = useGalaxyInteractionStore((state) => state.constellationMode ? 'constellation' : state.viewMode)
@@ -775,6 +846,46 @@ function SceneContents({ model, sparseMode, lowPower = false, reducedMotion = fa
     () => buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode),
     [cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
   )
+
+  // Single animation driver for all GalaxyNode instances.
+  // Replaces 50-100 individual useFrame subscriptions with one pass over a Map.
+  const nodeRefsMap = useRef(new Map())
+  const registerNodeRef = useCallback((id, entry) => {
+    nodeRefsMap.current.set(id, entry)
+    return () => nodeRefsMap.current.delete(id)
+  }, [])
+
+  useFrame(({ clock }) => {
+    const t = clock.getElapsedTime()
+    const { hoveredObject: ho, focusedObject: fo, motionState } = useGalaxyInteractionStore.getState()
+    nodeRefsMap.current.forEach(({ groupRef, meshRef, haloRef, basePosition, driftSeed, nodeRef, objectId, objectType }) => {
+      const node = nodeRef.current
+      const sel = fo?.id === objectId && fo?.type === objectType
+      const hov = ho?.id === objectId && ho?.type === objectType
+      if (groupRef.current) {
+        const motionScale = sel ? 0.25 : hov ? 0.45 : 1
+        const amplitude = (node.type === 'track' ? 0.08 : node.type === 'genre' ? 0.12 : 0.1) * (motionState?.oscillationStrength || 0.28) * motionScale
+        groupRef.current.position.set(
+          basePosition.x + Math.sin(t * 0.08 + driftSeed * 0.001) * amplitude,
+          basePosition.y + Math.cos(t * 0.07 + driftSeed * 0.0017) * amplitude * 0.7,
+          basePosition.z + Math.sin(t * 0.06 + driftSeed * 0.0021) * amplitude,
+        )
+      }
+      if (meshRef.current) {
+        meshRef.current.rotation.y += node.type === 'genre' ? 0.0015 : node.type === 'cluster' ? 0.0012 : 0.0025
+        meshRef.current.rotation.x = Math.sin(t * (node.type === 'track' ? 1.18 : 0.54) + basePosition.x) * 0.08
+        meshRef.current.scale.setScalar(sel ? 1.16 : hov ? 1.08 : 1)
+      }
+      if (groupRef.current) {
+        const sculpturalTilt = (sel ? 1 : hov ? 0.7 : 0.32) * MOTION_FLOAT.orb.tilt
+        groupRef.current.rotation.y = Math.cos(t * 0.09 + driftSeed * 0.0014) * sculpturalTilt
+        groupRef.current.rotation.x = Math.sin(t * 0.07 + driftSeed * 0.0019) * sculpturalTilt * 0.42
+      }
+      if (haloRef.current) {
+        haloRef.current.scale.setScalar(1 + Math.sin(t * 0.8 + basePosition.y) * 0.03 + (sel ? 0.18 : hov ? 0.08 : 0))
+      }
+    })
+  })
 
   return (
     <>
@@ -803,6 +914,7 @@ function SceneContents({ model, sparseMode, lowPower = false, reducedMotion = fa
           showLabel={labelLayout.has(node.id)}
           labelOffset={labelLayout.get(node.id)}
           sparseMode={sparseMode}
+          registerRef={registerNodeRef}
         />
       ))}
 
@@ -813,11 +925,37 @@ function SceneContents({ model, sparseMode, lowPower = false, reducedMotion = fa
         enablePan
         enableZoom
         enableRotate
-        autoRotate
-        autoRotateSpeed={0.18}
+        autoRotate={!traversalEnabled || autoRotateSpeed > 0}
+        autoRotateSpeed={autoRotateSpeed}
         minDistance={8}
         maxDistance={42}
       />
+
+      {/* Traversal + scan pulse — mounted only in /universe */}
+      {traversalEnabled && (
+        <Suspense fallback={null}>
+          <TraversalController
+            controlsRef={controlsRef}
+            focusTarget={focusTarget}
+            scanPulseCount={scanPulseCount}
+            onScanPulse={onScanPulse}
+            reducedMotion={reducedMotion}
+            enabled={traversalEnabled}
+          />
+        </Suspense>
+      )}
+
+        {/* Living universe layer — heartbeat, cursor gravity, signal particles */}
+        <Suspense fallback={null}>
+          <GalaxyLivingLayer
+            model={model}
+            reducedMotion={reducedMotion}
+            sparseGraphics={sparseMode || lowPower}
+          />
+        </Suspense>
+
+        {/* Discovery comets — rendered inside the shared Canvas */}
+        {extraChildren}
 
         {!sparseMode && !lowPower && !reducedMotion && (
           <Suspense fallback={null}>
@@ -839,28 +977,51 @@ function SceneContents({ model, sparseMode, lowPower = false, reducedMotion = fa
   )
 }
 
-export default function GalaxyScene({ model, sparseMode = false, lowPower = false, reducedMotion = false, webglEnabled = true }) {
+export default function GalaxyScene({
+  model,
+  sparseMode       = false,
+  lowPower         = false,
+  reducedMotion    = false,
+  webglEnabled     = true,
+  extraChildren    = null,
+  traversalEnabled = false,
+  scanPulseCount   = 0,
+  onScanPulse      = null,
+  autoRotateSpeed  = 0.18,
+}) {
   if (!webglEnabled) {
     return (
       <div className="flex h-full w-full items-center justify-center px-6 text-center">
-        <div className="max-w-md rounded-[24px] border border-white/10 bg-[#090d1f]/72 p-5 text-sm text-slate-200 backdrop-blur">
-          WebGL is unavailable on this device right now, so the live galaxy is resting. Your profile and recommendation surfaces still work normally.
+          <div className="max-w-md rounded-[24px] border border-white/10 bg-[#090d1f]/72 p-5 text-sm text-slate-200 backdrop-blur">
+            WebGL is unavailable on this device right now, so the live galaxy is resting. Your profile and recommendation surfaces still work normally.
+          </div>
         </div>
-      </div>
-    )
-  }
+      )
+    }
 
   return (
       <div className="h-full w-full">
-        <Canvas
-          gl={{ antialias: !lowPower, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}
-          dpr={lowPower ? [1, 1.1] : [1, 1.6]}
-          onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
-        >
-          <Suspense fallback={null}>
-            <SceneContents model={model} sparseMode={sparseMode} lowPower={lowPower} reducedMotion={reducedMotion} />
-          </Suspense>
-        </Canvas>
+        <GalaxySceneBoundary resetKey={`${model?.metadata?.galaxyMode || 'universal'}:${model?.nodes?.length || 0}`}>
+          <Canvas
+            gl={{ antialias: !lowPower, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}
+            dpr={lowPower ? [1, 1.1] : [1, 1.6]}
+            onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
+          >
+            <Suspense fallback={null}>
+              <SceneContents
+                model={model}
+                sparseMode={sparseMode}
+                lowPower={lowPower}
+                reducedMotion={reducedMotion}
+                extraChildren={extraChildren}
+                traversalEnabled={traversalEnabled}
+                scanPulseCount={scanPulseCount}
+                onScanPulse={onScanPulse}
+                autoRotateSpeed={autoRotateSpeed}
+              />
+            </Suspense>
+          </Canvas>
+        </GalaxySceneBoundary>
       </div>
   )
 }
