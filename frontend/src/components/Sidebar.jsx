@@ -2,7 +2,7 @@ import { NavLink, useNavigate } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import {
   Music2, LayoutDashboard, Compass, Disc3,
-  Heart, Sparkles, BarChart3, LogOut, User, Wand2, Brain,
+  Heart, Sparkles, BarChart3, LogOut, User, Wand2, Brain, Globe2,
 } from 'lucide-react'
 import useStore from '../store/useStore'
 import useAuthStore from '../store/useAuthStore'
@@ -13,17 +13,18 @@ import { authAPI } from '../services/api'
 
 const NAV = [
   { section: 'Explore' },
-  { path: '/', icon: LayoutDashboard, label: 'Dashboard', color: '#7C6FFF' },
-  { path: '/discover', icon: Compass, label: 'Discover', color: '#00D1FF' },
-  { path: '/galaxy', icon: Disc3, label: 'Galaxy', color: '#E040FB' },
+  { path: '/universe', icon: Globe2, label: 'Universe', color: '#e0a35c' },
+  { path: '/', icon: LayoutDashboard, label: 'Dashboard', color: '#e0a35c' },
+  { path: '/discover', icon: Compass, label: 'Discover', color: '#c9a36a' },
+  { path: '/galaxy', icon: Disc3, label: 'Galaxy', color: '#c97b7b' },
   { section: 'Identity' },
-  { path: '/soulmates', icon: Heart, label: 'Soulmates', color: '#FF5DA2' },
-  { path: '/aesthetic', icon: Sparkles, label: 'Aesthetic', color: '#FBBF24' },
-  { path: '/auralith', icon: Wand2, label: 'Auralith', color: '#C084FC' },
-  { path: '/analytics', icon: BarChart3, label: 'Analytics', color: '#2DD4BF' },
-  { path: '/identity', icon: Brain, label: 'Music Identity', color: '#60A5FA' },
-  { path: '/identity-drift', icon: Brain, label: 'Identity Drift', color: '#93C5FD' },
-  { path: '/profile', icon: User, label: 'Profile', color: '#A78BFA' },
+  { path: '/soulmates', icon: Heart, label: 'Soulmates', color: '#c97b7b' },
+  { path: '/aesthetic', icon: Sparkles, label: 'Aesthetic', color: '#e0a35c' },
+  { path: '/auralith', icon: Wand2, label: 'Auralith', color: '#d9a0a0' },
+  { path: '/analytics', icon: BarChart3, label: 'Analytics', color: '#b8946a' },
+  { path: '/identity', icon: Brain, label: 'Music identity', color: '#c9a36a' },
+  { path: '/identity-drift', icon: Brain, label: 'Identity drift', color: '#d8cdbd' },
+  { path: '/profile', icon: User, label: 'Profile', color: '#e0a35c' },
 ]
 
 export default function Sidebar() {
@@ -55,7 +56,7 @@ export default function Sidebar() {
     >
       <div
         className="absolute top-0 left-0 w-full h-60 pointer-events-none"
-        style={{ background: 'radial-gradient(ellipse 120% 60% at 50% 0%, rgba(143,117,255,0.12) 0%, transparent 72%)' }}
+        style={{ background: 'radial-gradient(ellipse 120% 60% at 50% 0%, rgba(224,163,92,0.12) 0%, transparent 72%)' }}
       />
       <div className="absolute inset-y-0 right-0 w-px pointer-events-none bg-gradient-to-b from-transparent via-white/10 to-transparent" />
 
@@ -64,7 +65,7 @@ export default function Sidebar() {
           whileHover={{ scale: 1.08, rotate: 5 }}
           transition={MOTION_TOKENS.hoverIn}
           className="w-9 h-9 rounded-2xl flex items-center justify-center shrink-0"
-          style={{ background: 'linear-gradient(135deg, #8f75ff, #cf90ff)', boxShadow: '0 0 22px rgba(143,117,255,0.28)' }}
+          style={{ background: 'linear-gradient(135deg, #e0a35c, #f0c089)', boxShadow: '0 0 22px rgba(224,163,92,0.28)' }}
         >
           <Music2 className="w-4 h-4 text-white" />
         </motion.div>
@@ -72,7 +73,7 @@ export default function Sidebar() {
           <span className="block text-[1.08rem] tracking-[0.22em] text-[#f3eeff]" style={{ fontFamily: 'Cinzel, serif' }}>
             Melody Map
           </span>
-          <span className="block text-[10px] uppercase tracking-[0.34em] text-white/30 mt-0.5">Noir-core atlas</span>
+          <span className="block text-[10px] tracking-[0.18em] text-white/34 mt-0.5">Cosmic identity portal</span>
         </div>
       </div>
 
@@ -130,7 +131,7 @@ export default function Sidebar() {
               ) : (
                 <div
                   className="w-full h-full flex items-center justify-center text-xs font-bold"
-                  style={{ background: 'linear-gradient(135deg, rgba(143,117,255,0.34), rgba(242,141,223,0.2))', color: '#e7ddff' }}
+                  style={{ background: 'linear-gradient(135deg, rgba(224,163,92,0.34), rgba(201,123,123,0.2))', color: '#f2ebe0' }}
                 >
                   {safeUsername[0]?.toUpperCase()}
                 </div>
@@ -138,7 +139,7 @@ export default function Sidebar() {
             </div>
             <div className="min-w-0">
               <span className="block text-sm text-slate-200 truncate font-medium">{safeUsername}</span>
-              <span className="block text-[10px] uppercase tracking-[0.28em] text-white/25">enter your orbit</span>
+              <span className="block text-[10px] tracking-[0.16em] text-white/30">Enter your orbit</span>
             </div>
           </div>
           <motion.button

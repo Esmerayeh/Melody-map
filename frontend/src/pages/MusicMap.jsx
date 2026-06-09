@@ -487,7 +487,7 @@ export default function MusicMap() {
 
   const scene = (
     <div className="relative h-full w-full overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(139,124,255,0.16),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(185,148,255,0.18),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(159,188,255,0.14),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(208,179,255,0.10),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(90,70,214,0.16),transparent_24%),linear-gradient(180deg,#050611_0%,#070714_48%,#03040a_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(224,163,92,0.16),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(201,123,123,0.16),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(224,163,92,0.12),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(201,123,123,0.10),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(176,120,60,0.16),transparent_24%),linear-gradient(180deg,#14110d_0%,#16130f_48%,#100d0a_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.02)_0%,transparent_18%,transparent_82%,rgba(255,255,255,0.02)_100%)] opacity-70" />
       <GalaxyScene
         model={activeModel}
@@ -575,7 +575,7 @@ export default function MusicMap() {
         {showInlineLoader ? (
           <div className="absolute inset-0 p-6">
             <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">
-              <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_50%_42%,rgba(139,124,255,0.12),transparent_16%),linear-gradient(180deg,rgba(10,11,22,0.82),rgba(5,6,15,0.92))] p-6">
+              <div className="rounded-[28px] border border-white/8 bg-[radial-gradient(circle_at_50%_42%,rgba(224,163,92,0.12),transparent_16%),linear-gradient(180deg,rgba(10,11,22,0.82),rgba(5,6,15,0.92))] p-6">
                 <NebulaLoader
                   label="Assembling your taste galaxy"
                   detail="Anchors, bridges, and nebula regions are resolving in layers so the route stays alive while the deeper structure settles."

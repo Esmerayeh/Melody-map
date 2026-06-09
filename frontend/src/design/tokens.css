@@ -6,10 +6,11 @@
   --mm-type-kicker: clamp(0.68rem, 0.5vw + 0.62rem, 0.82rem);
   --mm-type-body: clamp(0.95rem, 0.24vw + 0.9rem, 1.06rem);
   --mm-type-body-lg: clamp(1.02rem, 0.4vw + 0.95rem, 1.18rem);
-  --mm-type-title-sm: clamp(1.25rem, 0.9vw + 1rem, 1.8rem);
-  --mm-type-title-md: clamp(1.8rem, 2vw + 1.2rem, 3rem);
-  --mm-type-title-lg: clamp(2.8rem, 6vw, 6.5rem);
-  --mm-type-title-xl: clamp(4rem, 10vw, 8rem);
+  --mm-type-title-sm: clamp(1.2rem, 0.8vw + 0.95rem, 1.65rem);
+  --mm-type-title-md: clamp(1.6rem, 1.6vw + 1.1rem, 2.4rem);
+  /* Editorial, airy — not dashboard-shouting (was up to 6.5rem / 8rem) */
+  --mm-type-title-lg: clamp(2rem, 3.5vw, 3.4rem);
+  --mm-type-title-xl: clamp(2.6rem, 4.5vw, 4.2rem);
 
   --mm-space-1: 0.25rem;
   --mm-space-2: 0.5rem;
@@ -28,39 +29,41 @@
   --mm-radius-xl: 2.4rem;
   --mm-radius-orb: 999px;
 
-  --mm-color-space-0: #03040b;
-  --mm-color-space-1: #070814;
-  --mm-color-space-2: #0d1022;
-  --mm-color-space-3: #141934;
-  --mm-color-panel: rgba(14, 16, 33, 0.76);
-  --mm-color-panel-soft: rgba(16, 18, 38, 0.58);
-  --mm-color-panel-strong: rgba(10, 11, 26, 0.88);
-  --mm-color-copy: #f2efff;
-  --mm-color-copy-soft: #cbc4e7;
-  --mm-color-muted: #9f9ab8;
-  --mm-color-line: rgba(255, 255, 255, 0.08);
+  /* Warm filmic charcoal — base/backgrounds */
+  --mm-color-space-0: #100d0a;
+  --mm-color-space-1: #16130f;
+  --mm-color-space-2: #1c1815;
+  --mm-color-space-3: #242019;
+  --mm-color-panel: rgba(28, 24, 21, 0.76);
+  --mm-color-panel-soft: rgba(32, 27, 22, 0.58);
+  --mm-color-panel-strong: rgba(18, 15, 11, 0.88);
+  --mm-color-copy: #f2ebe0;        /* warm cream */
+  --mm-color-copy-soft: #d8cdbd;
+  --mm-color-muted: #9c9182;
+  --mm-color-line: rgba(242, 235, 224, 0.08);
 
-  --mm-color-lavender: #b59cff;
-  --mm-color-rose: #f1aacb;
-  --mm-color-cyan: #9fdcff;
-  --mm-color-indigo: #7f8bff;
-  --mm-color-silver: #e8e4ff;
-  --mm-color-moon: #cfd7ff;
-  --mm-color-amber: #f1c68a;
+  /* Accent values repointed to the warm system; names kept for consumers. */
+  --mm-color-lavender: #e0a35c;    /* → amber primary (was violet) */
+  --mm-color-rose: #c97b7b;        /* dusty rose secondary */
+  --mm-color-cyan: #9fb0c4;        /* single rare cool highlight */
+  --mm-color-indigo: #8a93a8;      /* rare cool, muted */
+  --mm-color-silver: #e8dfcf;      /* warm cream */
+  --mm-color-moon: #d9cfbe;
+  --mm-color-amber: #e0a35c;
 
-  --mm-gradient-aurora: linear-gradient(135deg, #d8cbff 0%, #b798ff 26%, #f1aacb 58%, #9fdcff 100%);
-  --mm-gradient-oracle: linear-gradient(135deg, rgba(181, 156, 255, 0.28), rgba(159, 220, 255, 0.14) 40%, rgba(241, 170, 203, 0.18) 100%);
-  --mm-gradient-noir: linear-gradient(180deg, rgba(15, 17, 36, 0.92) 0%, rgba(8, 9, 21, 0.96) 100%);
-  --mm-gradient-nebula: radial-gradient(circle at 20% 20%, rgba(181, 156, 255, 0.22), transparent 40%), radial-gradient(circle at 80% 15%, rgba(159, 220, 255, 0.16), transparent 36%), radial-gradient(circle at 78% 72%, rgba(241, 170, 203, 0.14), transparent 32%), linear-gradient(180deg, #060713 0%, #03040b 100%);
+  --mm-gradient-aurora: linear-gradient(135deg, #f0c089 0%, #e0a35c 38%, #c97b7b 100%);
+  --mm-gradient-oracle: linear-gradient(135deg, rgba(224, 163, 92, 0.24), rgba(201, 123, 123, 0.14) 45%, rgba(224, 163, 92, 0.10) 100%);
+  --mm-gradient-noir: linear-gradient(180deg, rgba(28, 24, 21, 0.92) 0%, rgba(16, 13, 10, 0.96) 100%);
+  --mm-gradient-nebula: radial-gradient(circle at 20% 20%, rgba(224, 163, 92, 0.20), transparent 40%), radial-gradient(circle at 80% 15%, rgba(201, 123, 123, 0.14), transparent 36%), radial-gradient(circle at 78% 72%, rgba(224, 163, 92, 0.10), transparent 32%), linear-gradient(180deg, #16130f 0%, #100d0a 100%);
 
-  --mm-shadow-panel: 0 30px 80px rgba(3, 5, 18, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  --mm-shadow-float: 0 22px 60px rgba(5, 7, 24, 0.44), 0 0 0 1px rgba(255, 255, 255, 0.03);
-  --mm-shadow-soft: 0 14px 34px rgba(4, 5, 18, 0.24);
-  --mm-shadow-orb: 0 0 44px rgba(181, 156, 255, 0.22), 0 0 96px rgba(159, 220, 255, 0.08);
+  --mm-shadow-panel: 0 30px 80px rgba(8, 5, 3, 0.52), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  --mm-shadow-float: 0 22px 60px rgba(10, 7, 4, 0.44), 0 0 0 1px rgba(255, 255, 255, 0.03);
+  --mm-shadow-soft: 0 14px 34px rgba(8, 5, 3, 0.24);
+  --mm-shadow-orb: 0 0 44px rgba(224, 163, 92, 0.22), 0 0 96px rgba(201, 123, 123, 0.08);
 
-  --mm-glow-lavender: 0 0 32px rgba(181, 156, 255, 0.24), 0 0 84px rgba(181, 156, 255, 0.08);
-  --mm-glow-rose: 0 0 32px rgba(241, 170, 203, 0.22), 0 0 84px rgba(241, 170, 203, 0.08);
-  --mm-glow-cyan: 0 0 32px rgba(159, 220, 255, 0.2), 0 0 84px rgba(159, 220, 255, 0.08);
+  --mm-glow-lavender: 0 0 32px rgba(224, 163, 92, 0.24), 0 0 84px rgba(224, 163, 92, 0.08);
+  --mm-glow-rose: 0 0 32px rgba(201, 123, 123, 0.22), 0 0 84px rgba(201, 123, 123, 0.08);
+  --mm-glow-cyan: 0 0 32px rgba(159, 176, 196, 0.18), 0 0 84px rgba(159, 176, 196, 0.06);
 
   --mm-blur-panel: blur(28px) saturate(165%);
   --mm-blur-heavy: blur(44px) saturate(180%);
