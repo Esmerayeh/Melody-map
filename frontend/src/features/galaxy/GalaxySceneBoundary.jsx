@@ -28,8 +28,11 @@ export default class GalaxySceneBoundary extends Component {
   }
 
   componentDidCatch(error, info) {
-    // eslint-disable-next-line no-console
-    console.error('[GALAXY_SCENE_ERROR]', error, info?.componentStack)
+    /* eslint-disable no-console */
+    console.error('[GALAXY_SCENE_ERROR]', error?.message || error)
+    console.error('[GALAXY_SCENE_ERROR] stack:', error?.stack)
+    console.error('[GALAXY_SCENE_ERROR] componentStack:', info?.componentStack)
+    /* eslint-enable no-console */
   }
 
   componentDidUpdate(prevProps) {

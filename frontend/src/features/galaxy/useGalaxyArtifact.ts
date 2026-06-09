@@ -163,8 +163,15 @@ export default function useGalaxyArtifact(profile: any) {
     jobMutation.mutate()
   }, [idempotencyKey, jobMutation, payload])
 
+  // Memoize the normalized artifact. normalizeArtifact() builds a brand-new
+  // object graph every call, so computing it inline in the return made
+  // `artifact` a fresh reference on every render — which churned MusicMap's
+  // loadData dependency (generatedGalaxy) → setModel → re-render → infinite
+  // loop ("Maximum update depth exceeded"). Recompute only when query.data changes.
+  const artifact = useMemo(() => (query.data ? normalizeArtifact(query.data) : null), [query.data])
+
   return {
-    artifact: query.data ? normalizeArtifact(query.data) : null,
+    artifact,
     loading: query.isLoading,
     error: query.error ? (query.error as Error).message : null,
     jobStatus: jobMutation.data || null,

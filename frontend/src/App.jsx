@@ -27,8 +27,10 @@ const Dashboard      = lazy(() => import('./pages/Dashboard'))
 const Profile        = lazy(() => import('./pages/Profile'))
 const Auralith       = lazy(() => import('./pages/Auralith'))
 const MusicIdentity  = lazy(() => import('./pages/MusicIdentity'))
-const SocialSoulmates = lazy(() => import('./pages/SocialSoulmates'))
-const IdentityDrift = lazy(() => import('./pages/IdentityDrift'))
+const IdentityDrift  = lazy(() => import('./pages/IdentityDrift'))
+// New routes
+const Demo           = lazy(() => import('./pages/Demo'))
+const Universe       = lazy(() => import('./pages/Universe'))
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: 1, staleTime: 30000 } },
@@ -110,8 +112,13 @@ class RouteCrashBoundary extends React.Component {
     return { hasError: true }
   }
 
-  componentDidCatch(error) {
-    console.error('Protected route crashed during render', error)
+  componentDidCatch(error, info) {
+    // Loud, full surface so the real throw is never swallowed into the soft
+    // "orbit still settling" fallback. Logs message, originating stack, and the
+    // React component stack (which component threw).
+    console.error('[ROUTE_CRASH]', error?.message || error)
+    console.error('[ROUTE_CRASH] stack:', error?.stack)
+    console.error('[ROUTE_CRASH] componentStack:', info?.componentStack)
   }
 
   componentDidUpdate(prevProps) {
@@ -184,7 +191,10 @@ function GlobalRouteFallback() {
 const ProtectedRoute = ({ children }) => {
   const sessionToken = useAuthStore((s) => s.sessionToken)
   const providers = useAuthStore((s) => s.providers)
+  const bootPhase = useAuthStore((s) => s.bootPhase)
+  const authHydrating = ['booting', 'probing_session', 'oauth_exchanging', 'profile_hydrating'].includes(bootPhase)
   const canAccessShell = Boolean(sessionToken || providers.spotify.connected || providers.lastfm.connected)
+  if (authHydrating) return <ProtectedRouteFallback />
   return canAccessShell ? children : <Navigate to="/login" replace />
 }
 
@@ -311,12 +321,14 @@ function AnimatedRoutes() {
 
   return (
     <RouteCrashBoundary resetKey={location.pathname} fallback={<GlobalRouteFallback />}>
+      <ExperienceBridge />
       <AnimatePresence mode="wait">
-        <ExperienceBridge />
         <Routes location={location} key={location.pathname}>
+          {/* Public routes — no auth required */}
           <Route path="/login" element={<RouteModule><PageWrapper><Login /></PageWrapper></RouteModule>} />
           <Route path="/spotify-success" element={<RouteModule><SpotifySuccess /></RouteModule>} />
           <Route path="/lastfm-success" element={<RouteModule><LastfmSuccess /></RouteModule>} />
+          <Route path="/demo" element={<RouteModule><Demo /></RouteModule>} />
 
           <Route path="/" element={
             <ProtectedShell><RouteModule shell><PageWrapper><Dashboard /></PageWrapper></RouteModule></ProtectedShell>
@@ -337,7 +349,7 @@ function AnimatedRoutes() {
             <ProtectedShell><RouteModule shell><PageWrapper><MusicSoulmate /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/soulmates" element={
-            <ProtectedShell><RouteModule shell><PageWrapper><SocialSoulmates /></PageWrapper></RouteModule></ProtectedShell>
+            <ProtectedShell><RouteModule shell><PageWrapper><MusicSoulmate /></PageWrapper></RouteModule></ProtectedShell>
           } />
           <Route path="/soulmate/:identifier" element={<RouteModule><PageWrapper><MusicSoulmate /></PageWrapper></RouteModule>} />
           <Route path="/aesthetic" element={
@@ -354,6 +366,16 @@ function AnimatedRoutes() {
           } />
           <Route path="/auralith" element={
             <ProtectedShell><RouteModule shell><PageWrapper><Auralith /></PageWrapper></RouteModule></ProtectedShell>
+          } />
+          {/* Universe — full-screen spatial hub, no shell chrome */}
+          <Route path="/universe" element={
+            <ProtectedRoute>
+              <RouteCrashBoundary resetKey="/universe" fallback={<ProtectedRouteFallback />}>
+                <RouteModule>
+                  <Universe />
+                </RouteModule>
+              </RouteCrashBoundary>
+            </ProtectedRoute>
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
