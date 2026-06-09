@@ -32,7 +32,8 @@ const buildStarGeometry = (count, radius, bias = 1) => {
   return geometry
 }
 
-function ParallaxStarfield({ density, sparseMode, lowPower = false }) {
+function ParallaxStarfield({ density, sparseMode, lowPower = false, reducedMotion = false }) {
+  const groupRef = useRef()
   const foregroundRef = useRef()
   const midgroundRef = useRef()
   const backgroundRef = useRef()
@@ -58,30 +59,37 @@ function ParallaxStarfield({ density, sparseMode, lowPower = false }) {
   }, [foreground, midground, background, dust])
 
   useFrame(({ camera, clock }) => {
-    const drift = Math.sin(clock.getElapsedTime() * 0.06) * 0.05
+    // prefers-reduced-motion: leave the field static (still pretty, just not moving).
+    if (reducedMotion) return
+    const t = clock.getElapsedTime()
+    const drift = Math.sin(t * 0.06) * 0.05
+    // Very slow ambient rotation of the WHOLE field so it floats, not freezes.
+    if (groupRef.current) groupRef.current.rotation.y = t * 0.0009
     if (foregroundRef.current) foregroundRef.current.rotation.y = camera.rotation.y * -0.08 + drift
     if (midgroundRef.current) midgroundRef.current.rotation.y = camera.rotation.y * -0.03 - drift * 0.6
     if (backgroundRef.current) backgroundRef.current.rotation.y = camera.rotation.y * -0.014 + drift * 0.35
-    if (dustRef.current) dustRef.current.rotation.z = clock.getElapsedTime() * 0.01
-    if (foregroundMaterialRef.current) foregroundMaterialRef.current.opacity = 0.84 + Math.sin(clock.getElapsedTime() * 0.18) * 0.08
-    if (dustMaterialRef.current) dustMaterialRef.current.opacity = 0.06 + Math.sin(clock.getElapsedTime() * 0.22 + 1.5) * 0.025
+    if (dustRef.current) dustRef.current.rotation.z = t * 0.01
+    if (foregroundMaterialRef.current) foregroundMaterialRef.current.opacity = 0.84 + Math.sin(t * 0.18) * 0.08
+    if (dustMaterialRef.current) dustMaterialRef.current.opacity = 0.06 + Math.sin(t * 0.22 + 1.5) * 0.025
   })
 
+  // Star tints warm and DIM with depth (near = warm white & large, far = dim tan
+  // & small); combined with fog this reads as real galactic depth, not a flat sky.
   return (
-    <>
+    <group ref={groupRef}>
       <points ref={foregroundRef} geometry={foreground}>
-        <pointsMaterial ref={foregroundMaterialRef} size={0.15} color="#ffffff" transparent opacity={0.92} sizeAttenuation />
+        <pointsMaterial ref={foregroundMaterialRef} size={0.17} color="#fff6e8" transparent opacity={0.92} sizeAttenuation depthWrite={false} />
       </points>
       <points ref={midgroundRef} geometry={midground}>
-        <pointsMaterial size={0.08} color="#d9e2ff" transparent opacity={0.5} sizeAttenuation />
+        <pointsMaterial size={0.09} color="#f0dcc0" transparent opacity={0.5} sizeAttenuation depthWrite={false} />
       </points>
       <points ref={backgroundRef} geometry={background}>
-        <pointsMaterial size={0.05} color="#8ea0ff" transparent opacity={0.24} sizeAttenuation />
+        <pointsMaterial size={0.05} color="#b89a72" transparent opacity={0.24} sizeAttenuation depthWrite={false} />
       </points>
       <points ref={dustRef} geometry={dust}>
-        <pointsMaterial ref={dustMaterialRef} size={0.12} color="#f6c4ff" transparent opacity={0.07} sizeAttenuation />
+        <pointsMaterial ref={dustMaterialRef} size={0.13} color="#e0a35c" transparent opacity={0.07} sizeAttenuation depthWrite={false} blending={THREE.AdditiveBlending} />
       </points>
-    </>
+    </group>
   )
 }
 
@@ -435,7 +443,14 @@ function RegionNebula({ region, model, galaxyMode, viewMode }) {
       {[1, 0.74, 0.48].map((factor, index) => (
         <mesh key={`${region.id}-${factor}`} scale={[baseScale * factor, baseScale * factor * (0.66 + index * 0.08), baseScale * factor]}>
           <sphereGeometry args={[1, 26, 26]} />
-          <meshBasicMaterial color={region.color} transparent opacity={(selected ? 0.085 : hovered ? 0.065 : 0.045) - index * 0.01} />
+          {/* Additive, layered → soft volumetric haze instead of a flat disc. */}
+          <meshBasicMaterial
+            color={region.color}
+            transparent
+            opacity={(selected ? 0.12 : hovered ? 0.09 : 0.06) - index * 0.012}
+            blending={THREE.AdditiveBlending}
+            depthWrite={false}
+          />
         </mesh>
       ))}
 
@@ -531,7 +546,7 @@ function TasteCore({ core, model, galaxyMode }) {
       {[1.7, 1.28, 0.94].map((factor, index) => (
         <mesh key={`${factor}`}>
           <sphereGeometry args={[factor, 28, 28]} />
-          <meshBasicMaterial color={index === 0 ? '#c9c2ff' : index === 1 ? core.color : '#f6f4ff'} transparent opacity={index === 0 ? 0.12 : index === 1 ? 0.18 : 0.24} />
+          <meshBasicMaterial color={index === 0 ? '#f0c089' : index === 1 ? core.color : '#fff1d6'} transparent opacity={index === 0 ? 0.12 : index === 1 ? 0.18 : 0.24} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
       ))}
       <mesh>
@@ -709,14 +724,14 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
       {/* Normal edges — single draw call */}
       {batchGeometry.attributes.position && (
         <lineSegments geometry={batchGeometry}>
-          <lineBasicMaterial color="#9DB7FF" transparent opacity={0.14} />
+          <lineBasicMaterial color="#c9a36a" transparent opacity={0.14} />
         </lineSegments>
       )}
 
       {/* Highlighted edges — uses the memoized geometry built above (no new allocation per render) */}
       {highlightedEdges.length > 0 && highlightGeometry.attributes?.position && (
         <lineSegments geometry={highlightGeometry}>
-          <lineBasicMaterial color="#EAE6FF" transparent opacity={0.42} />
+          <lineBasicMaterial color="#f2ebe0" transparent opacity={0.42} />
         </lineSegments>
       )}
 
@@ -726,7 +741,7 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
           <mesh position={[midpoint.x, midpoint.y, midpoint.z]}>
             <sphereGeometry args={[edge.type === 'bridge_lane' ? 0.18 : 0.11, 8, 8]} />
             <meshBasicMaterial
-              color={edge.type === 'bridge_lane' ? '#B994FF' : '#DCE6FF'}
+              color={edge.type === 'bridge_lane' ? '#e0a35c' : '#f0dcc0'}
               transparent
               opacity={hovered || focused ? 0.42 : 0.18}
             />
@@ -818,12 +833,13 @@ function ConstellationLines({ model, originId }) {
   )
 }
 
-function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMoodRegions }) {
+function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMoodRegions, reducedMotion = false }) {
   const meshRef = useRef()
   const profileTier = model?.metadata?.profileTier || 'partial'
   const minCoverage = profileTier === 'rich' ? 0.08 : profileTier === 'medium' ? 0.14 : 0.22
 
   useFrame(({ clock }) => {
+    if (reducedMotion) return
     if (!meshRef.current) return
     meshRef.current.rotation.z = clock.getElapsedTime() * 0.008
     meshRef.current.rotation.x = Math.sin(clock.getElapsedTime() * 0.005) * 0.08
@@ -831,11 +847,10 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
 
   return (
     <>
+      {/* Warm depth wash behind everything (was a cool data-tinted plane). */}
       <mesh ref={meshRef} position={[0, 0, -42]}>
         <planeGeometry args={[168, 168, 1, 1]} />
-        <meshBasicMaterial transparent opacity={0.1} side={THREE.DoubleSide}>
-          <color attach="color" args={[colors[0]]} />
-        </meshBasicMaterial>
+        <meshBasicMaterial color="#2a1d12" transparent opacity={0.14} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       {(showMoodRegions || viewMode === 'mood' || viewMode === 'identity' || galaxyMode === 'genre') && regions
         .filter((region) => (region.coverage || 0) >= minCoverage)
@@ -921,15 +936,34 @@ function SceneContents({
   return (
     <>
       <PerspectiveCamera makeDefault position={[0, 0, 26]} fov={54} />
-      <fog attach="fog" args={['#03050f', 28, 98]} />
-      <ambientLight intensity={0.35} />
-      <pointLight position={[0, 0, 7]} intensity={1.2} color="#B994FF" />
-      <pointLight position={[10, 8, 10]} intensity={0.74} color="#d7cfff" />
-      <pointLight position={[-9, -6, -10]} intensity={0.52} color="#9DB7FF" />
-      <pointLight position={[16, 12, 6]} intensity={0.34} color="#EAE6FF" />
+      {/* Warm filmic fog gives distance falloff so far stars dim into the haze. */}
+      <fog attach="fog" args={['#0c0a07', 30, 110]} />
+      <ambientLight intensity={0.32} />
+      <pointLight position={[0, 0, 7]} intensity={1.25} color="#e0a35c" />
+      <pointLight position={[10, 8, 10]} intensity={0.7} color="#f0d8b8" />
+      <pointLight position={[-9, -6, -10]} intensity={0.5} color="#c97b7b" />
+      <pointLight position={[16, 12, 6]} intensity={0.32} color="#f2ebe0" />
 
-        <ParallaxStarfield density={model?.metadata?.density} sparseMode={sparseMode} lowPower={lowPower} />
-      <NebulaBackdrop colors={nebulaColors} regions={model?.regions || []} model={model} galaxyMode={galaxyMode} viewMode={viewMode} showMoodRegions={showMoodRegions} />
+        <ParallaxStarfield density={model?.metadata?.density} sparseMode={sparseMode} lowPower={lowPower} reducedMotion={reducedMotion} />
+      <NebulaBackdrop colors={nebulaColors} regions={model?.regions || []} model={model} galaxyMode={galaxyMode} viewMode={viewMode} showMoodRegions={showMoodRegions} reducedMotion={reducedMotion} />
+
+      {/* Luminous galactic core — warm additive glow at center so the eye has a
+          heart to orbit. Decorative + static (reduced-motion safe); bloom lifts it. */}
+      <group position={[0, 0, 0]}>
+        {[
+          { r: 1.1,  color: '#fff1d6', opacity: 0.50 },
+          { r: 2.2,  color: '#f0c089', opacity: 0.28 },
+          { r: 4.0,  color: '#e0a35c', opacity: 0.16 },
+          { r: 7.0,  color: '#c97b7b', opacity: 0.08 },
+          { r: 11.0, color: '#8a5a3a', opacity: 0.04 },
+        ].map((layer) => (
+          <mesh key={layer.r}>
+            <sphereGeometry args={[layer.r, 24, 24]} />
+            <meshBasicMaterial color={layer.color} transparent opacity={layer.opacity} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+        ))}
+      </group>
+
       <TasteCore core={model?.metadata?.core} model={model} galaxyMode={galaxyMode} />
       <GalaxyEdges model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
       <ConstellationLines model={model} originId={constellationOrigin} />

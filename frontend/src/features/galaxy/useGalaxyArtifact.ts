@@ -51,7 +51,7 @@ function deriveCore(nodes: any[]) {
     return {
       label: 'Taste Core',
       position: { x: 0, y: 0, z: 0 },
-      color: '#8B7CFF',
+      color: '#e0a35c',
       supportingArtists: [],
       strength: 0.2,
     }
@@ -64,7 +64,7 @@ function deriveCore(nodes: any[]) {
       y: anchors.reduce((sum, node) => sum + (node.position?.y || 0), 0) / anchors.length,
       z: anchors.reduce((sum, node) => sum + (node.position?.z || 0), 0) / anchors.length,
     },
-    color: anchors[0].color || '#8B7CFF',
+    color: anchors[0].color || '#e0a35c',
     supportingArtists: anchors.map((node) => node.id),
     strength: anchors.reduce((sum, node) => sum + Number(node.metrics?.significance || 0), 0) / anchors.length,
   }
@@ -143,11 +143,18 @@ export default function useGalaxyArtifact(profile: any) {
     queryKey: [...queryKeys.musicProfile('galaxy', profile?.timeRange || 'medium_term'), idempotencyKey],
     enabled: Boolean(payload && idempotencyKey),
     staleTime: 120_000,
-    queryFn: () => buildGalaxyArtifact(payload!, idempotencyKey!),
+    retry: 0,                           // don't retry 404s from absent endpoint
+    queryFn: async () => {
+      const result = await buildGalaxyArtifact(payload!, idempotencyKey!)
+      return result ?? null              // null = endpoint absent, fall back to client builder
+    },
   })
 
   const jobMutation = useMutation({
-    mutationFn: () => enqueueGalaxyBuild(payload!, idempotencyKey!),
+    mutationFn: async () => {
+      const result = await enqueueGalaxyBuild(payload!, idempotencyKey!)
+      return result ?? null              // null = endpoint absent, not an error
+    },
   })
 
   useEffect(() => {

@@ -101,7 +101,7 @@ function normalizeLegacyNode(node = {}) {
       anchorScore: clamp((node.popularity ?? 50) / 100),
     },
     position: node.position || node.map_coords_3d || { x: node.x || 0, y: node.y || 0, z: node.z || 0 },
-    color: node.color || node.sonic_color || '#7c6fff',
+    color: node.color || node.sonic_color || '#e0a35c',
     size: node.size || (0.3 + clamp((node.popularity ?? 50) / 100)),
     clusterId: node.type === 'genre' ? `cluster:${slugify(node.genre || node.label || 'genre')}` : 'cluster:legacy',
     regionLabel: 'legacy',
@@ -475,7 +475,7 @@ function buildMoodRegions(nodes = []) {
       id: `region:${slugify(label)}`,
       label,
       title: regionTitle(label),
-      color: members[0]?.color || '#7c6fff',
+      color: members[0]?.color || '#e0a35c',
       centroid: averagePosition(members.map((member) => member.position)),
       coverage: Number((members.length / total).toFixed(3)),
       members: members.map((member) => member.id),
@@ -776,7 +776,7 @@ export function guardGalaxyModel(model) {
   let dropped = 0
   for (const node of rawNodes) {
     if (!isFiniteVec(node.position)) { dropped += 1; continue }
-    kept.push(isValidColor(node.color) ? node : { ...node, color: '#7c6fff' })
+    kept.push(isValidColor(node.color) ? node : { ...node, color: '#e0a35c' })
   }
   if (dropped > 0) {
     // eslint-disable-next-line no-console
