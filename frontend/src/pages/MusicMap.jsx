@@ -487,7 +487,7 @@ export default function MusicMap() {
 
   const scene = (
     <div className="relative h-full w-full overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(224,163,92,0.16),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(201,123,123,0.16),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(224,163,92,0.12),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(201,123,123,0.10),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(176,120,60,0.16),transparent_24%),linear-gradient(180deg,#14110d_0%,#16130f_48%,#100d0a_100%)]" />
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,122,157,0.16),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(95,216,255,0.16),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(255,179,90,0.12),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(255,122,157,0.10),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(95,216,255,0.14),transparent_24%),linear-gradient(180deg,#02030a_0%,#070512_48%,#02030a_100%)]" />
       <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.02)_0%,transparent_18%,transparent_82%,rgba(255,255,255,0.02)_100%)] opacity-70" />
       <GalaxyScene
         model={activeModel}

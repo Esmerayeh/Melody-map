@@ -12,56 +12,56 @@
   html, body, #root { min-height: 100%; }
 
   :root {
-    /* Warm filmic system — amber primary, dusty-rose secondary, near-zero purple.
-       Legacy token names kept; only the VALUES changed so every consumer warms. */
-    --color-brand-purple:  #e0a35c;  /* repointed: amber primary (was violet) */
-    --color-brand-pink:    #c97b7b;  /* dusty rose secondary */
-    --color-brand-blue:    #c9a36a;  /* warm tan (was cool blue) */
-    --color-brand-teal:    #b8946a;  /* warm */
-    --color-brand-amber:   #e0a35c;
-    --color-brand-magenta: #c97b7b;
-    --color-brand-cyan:    #9fb0c4;  /* the single rare cool highlight */
-    --color-brand-rose:    #c97b7b;
-    --color-brand-indigo:  #8a93a8;  /* rare cool, muted */
-    --color-brand-silver:  #e8dfcf;  /* warm cream */
-    /* Surfaces — deep warm charcoal, not black-violet */
-    --color-surface:    #14110d;
-    --color-surface-1:  #16130f;
-    --color-surface-2:  #1c1815;
-    --color-surface-3:  #242019;
+    /* Reference "Infinite Listening Atlas" palette — rose/amber/cyan neon accents
+       on deep space. Legacy token names kept; only VALUES changed. */
+    --color-brand-purple:  #ff7a9d;  /* repointed: rose primary */
+    --color-brand-pink:    #ff7a9d;  /* rose */
+    --color-brand-blue:    #5fd8ff;  /* cyan */
+    --color-brand-teal:    #74ffc9;  /* emerald */
+    --color-brand-amber:   #ffb35a;  /* amber */
+    --color-brand-magenta: #ff7a9d;
+    --color-brand-cyan:    #5fd8ff;
+    --color-brand-rose:    #ff7a9d;
+    --color-brand-indigo:  #b0b8d4;  /* ghost (rare cool) */
+    --color-brand-silver:  #f6f1e8;
+    /* Surfaces — deep space */
+    --color-surface:    #02030a;
+    --color-surface-1:  #070512;
+    --color-surface-2:  #0a0716;
+    --color-surface-3:  #130a1e;
     /* Panels */
-    --color-panel:      rgba(28, 24, 21, 0.78);
-    --color-panel-soft: rgba(32, 27, 22, 0.60);
-    /* Text — warm cream */
-    --color-copy:  #f2ebe0;
-    --color-muted: #9c9182;
+    --color-panel:      rgba(14, 10, 24, 0.62);
+    --color-panel-soft: rgba(8, 5, 18, 0.55);
+    /* Text — warm ink */
+    --color-copy:  #f6f1e8;
+    --color-muted: #82796b;
     /* Accents */
-    --accent-amber:   #e0a35c;
-    --accent-magenta: #c97b7b;
-    --accent-cyan:    #9fb0c4;
-    --accent-rose:    #c97b7b;
-    --accent-violet:  #c9a36a;  /* no longer violet */
+    --accent-amber:   #ffb35a;
+    --accent-magenta: #ff7a9d;
+    --accent-cyan:    #5fd8ff;
+    --accent-rose:    #ff7a9d;
+    --accent-violet:  #b0b8d4;  /* no longer violet — rare cool ghost */
     /* Glass */
-    --glass-border: linear-gradient(135deg, rgba(242,235,224,0.16) 0%, rgba(224,163,92,0.20) 40%, rgba(201,123,123,0.10) 75%, rgba(255,255,255,0.03) 100%);
-    /* Glow radii (warm) */
-    --glow-purple: 0 0 40px rgba(224,163,92,0.26), 0 0 80px rgba(224,163,92,0.10);
-    --glow-pink:   0 0 40px rgba(201,123,123,0.22), 0 0 80px rgba(201,123,123,0.08);
-    --glow-rose:   0 0 40px rgba(201,123,123,0.22), 0 0 80px rgba(201,123,123,0.08);
+    --glass-border: linear-gradient(160deg, rgba(20,14,30,0.62) 0%, rgba(255,220,200,0.16) 40%, rgba(8,5,18,0.55) 100%);
+    /* Glow radii */
+    --glow-purple: 0 0 40px rgba(255,122,157,0.26), 0 0 80px rgba(255,122,157,0.10);
+    --glow-pink:   0 0 40px rgba(255,122,157,0.22), 0 0 80px rgba(255,122,157,0.08);
+    --glow-rose:   0 0 40px rgba(255,122,157,0.22), 0 0 80px rgba(255,122,157,0.08);
   }
 
   body {
     margin: 0;
-    font-family: 'Manrope', 'Inter', system-ui, sans-serif;
+    font-family: 'Inter', system-ui, sans-serif;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background:
-      /* Warm haze — amber + dusty rose, low and calm (filmic, not shouting) */
-      radial-gradient(ellipse 90% 55% at 8% 12%, rgba(224, 163, 92, 0.10) 0%, transparent 52%),
-      radial-gradient(ellipse 70% 45% at 88% 10%, rgba(201, 123, 123, 0.07) 0%, transparent 50%),
-      radial-gradient(ellipse 60% 50% at 78% 78%, rgba(224, 163, 92, 0.06) 0%, transparent 55%),
-      radial-gradient(ellipse 50% 40% at 20% 80%, rgba(201, 123, 123, 0.05) 0%, transparent 58%),
-      /* Base deep warm charcoal */
-      linear-gradient(180deg, #14110d 0%, #16130f 35%, #1c1815 65%, #131009 100%);
+      /* Subtle warm-rose vignette over deep space (matches reference) */
+      radial-gradient(ellipse 90% 55% at 8% 12%, rgba(255, 122, 157, 0.10) 0%, transparent 52%),
+      radial-gradient(ellipse 70% 45% at 88% 10%, rgba(95, 216, 255, 0.07) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 50% at 78% 78%, rgba(255, 179, 90, 0.06) 0%, transparent 55%),
+      radial-gradient(ellipse 50% 40% at 20% 80%, rgba(255, 122, 157, 0.05) 0%, transparent 58%),
+      /* Base deep space */
+      linear-gradient(180deg, #02030a 0%, #070512 40%, #0a0716 70%, #02030a 100%);
     color: var(--color-copy);
     overflow-x: hidden;
     min-height: 100dvh;
@@ -69,13 +69,13 @@
   }
 
   h1, h2, h3, h4, h5, h6 {
-    font-family: 'Playfair Display', 'Cormorant Garamond', 'Cinzel', serif;
+    font-family: 'Instrument Serif', Georgia, serif;
     letter-spacing: 0;
   }
 
-  /* Playfair for display/hero text */
+  /* Instrument Serif for display/hero text */
   .font-display {
-    font-family: 'Playfair Display', 'Cinzel', serif;
+    font-family: 'Instrument Serif', Georgia, serif;
   }
   .font-cinzel {
     font-family: 'Cinzel', serif;
@@ -214,8 +214,9 @@
 
   /* ── Section label ── */
   .section-label {
-    @apply text-[11px] font-semibold tracking-[0.2em] uppercase;
-    color: rgba(216, 205, 189, 0.56);
+    @apply text-[11px] font-medium tracking-[0.2em] uppercase;
+    font-family: var(--mm-font-mono);
+    color: var(--mm-color-muted);
   }
 
   /* ── Hero stat ── */
@@ -345,18 +346,21 @@
   }
 
   .page-header-kicker {
+    font-family: var(--mm-font-mono);
     font-size: 11px;
-    font-weight: 600;
-    letter-spacing: 0.24em;
+    font-weight: 500;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: rgba(224, 163, 92, 0.62);
+    color: var(--mm-color-muted);
   }
 
   .page-header-title {
     font-family: var(--mm-font-display);
+    font-style: italic;
+    font-weight: 400;
     font-size: var(--mm-type-title-md);
-    line-height: 1.12;
-    letter-spacing: -0.01em;
+    line-height: 1.05;
+    letter-spacing: 0;
     color: var(--mm-color-copy);
     text-wrap: balance;
   }
@@ -364,10 +368,11 @@
   /* Playfair hero — for MBTI type reveal, identity page */
   .hero-display-title {
     font-family: var(--mm-font-display);
+    font-style: italic;
     font-size: var(--mm-type-title-lg);
-    font-weight: 700;
-    line-height: 1.08;
-    letter-spacing: -0.015em;
+    font-weight: 400;
+    line-height: 1.05;
+    letter-spacing: 0;
     color: var(--mm-color-copy);
     text-wrap: balance;
   }
@@ -693,10 +698,11 @@
 
   .mbti-type-reveal {
     font-family: var(--mm-font-display);
+    font-style: italic;
     font-size: var(--mm-type-title-xl);
-    font-weight: 800;
-    line-height: 1.0;
-    letter-spacing: -0.02em;
+    font-weight: 400;
+    line-height: 1.02;
+    letter-spacing: 0;
     background: var(--mm-gradient-aurora);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
@@ -1131,19 +1137,22 @@
 
   .premium-hero-title {
     font-family: var(--mm-font-display);
+    font-style: italic;
+    font-weight: 400;
     font-size: var(--mm-type-title-lg);
-    line-height: 1.08;
-    letter-spacing: -0.015em;
+    line-height: 1.05;
+    letter-spacing: 0;
     color: var(--mm-color-copy);
     text-wrap: balance;
   }
 
   .premium-kicker {
+    font-family: var(--mm-font-mono);
     font-size: var(--mm-type-kicker);
-    letter-spacing: 0.28em;
+    letter-spacing: 0.2em;
     text-transform: uppercase;
-    font-weight: 600;
-    color: rgba(224, 163, 92, 0.72);
+    font-weight: 500;
+    color: var(--mm-color-muted);
   }
 
   .premium-body {

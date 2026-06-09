@@ -66,12 +66,12 @@ const GalaxyLegend      = lazy(() => import('../features/galaxy/GalaxyLegend'))
 // Sector portals — feature entry points shown as HUD overlays
 // ─────────────────────────────────────────────────────────────────────────────
 const SECTORS = [
-  { id: 'identity',  to: '/identity',  label: 'Identity Passport',    icon: Sparkles, color: '#e0a35c', desc: 'Your music archetype and constellation.' },
-  { id: 'discover',  to: '/discover',  label: 'Discovery Comets',     icon: Radio,    color: '#c9a36a', desc: 'New signals arriving from the outer rim.' },
-  { id: 'soulmate',  to: '/soulmate',  label: 'Twin Galaxy',          icon: Heart,    color: '#c97b7b', desc: 'Where your universe meets another.' },
-  { id: 'aesthetic', to: '/aesthetic', label: 'Aesthetic Nebula',     icon: Zap,      color: '#e8b98a', desc: 'The visual atmosphere of your taste.' },
-  { id: 'auralith',  to: '/auralith',  label: 'Auralith Observatory', icon: Brain,    color: '#d9a0a0', desc: 'Ask the oracle what your galaxy means.' },
-  { id: 'analytics', to: '/analytics', label: 'Scanner Ring',         icon: Compass,  color: '#c2b08a', desc: 'Holographic audio feature breakdown.' },
+  { id: 'identity',  to: '/identity',  label: 'Identity Passport',    icon: Sparkles, color: '#ffb35a', desc: 'Your music archetype and constellation.' },
+  { id: 'discover',  to: '/discover',  label: 'Discovery Comets',     icon: Radio,    color: '#5fd8ff', desc: 'New signals arriving from the outer rim.' },
+  { id: 'soulmate',  to: '/soulmate',  label: 'Twin Galaxy',          icon: Heart,    color: '#ffb89a', desc: 'Where your universe meets another.' },
+  { id: 'aesthetic', to: '/aesthetic', label: 'Aesthetic Nebula',     icon: Zap,      color: '#ff7a9d', desc: 'The visual atmosphere of your taste.' },
+  { id: 'auralith',  to: '/auralith',  label: 'Auralith Observatory', icon: Brain,    color: '#ffd89b', desc: 'Ask the oracle what your galaxy means.' },
+  { id: 'analytics', to: '/analytics', label: 'Scanner Ring',         icon: Compass,  color: '#5cd6c0', desc: 'Holographic audio feature breakdown.' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
