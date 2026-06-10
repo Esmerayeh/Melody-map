@@ -21,11 +21,21 @@ function parseSoulmateIdentifier(input) {
   if (!trimmed) return ''
   try {
     const url = new URL(trimmed)
-    const pathMatch = url.pathname.match(/\/soulmate\/([^/?#]+)/i)
+    const pathMatch = url.pathname.match(/\/soulmates?\/([^/?#]+)/i)
     return decodeURIComponent(pathMatch?.[1] || '').trim()
   } catch {
-    return trimmed.replace(/^\/?soulmate\//i, '').trim()
+    return trimmed.replace(/^\/?soulmates?\//i, '').trim()
   }
+}
+
+function readPublicSlug(payload) {
+  return payload?.public_slug
+    || payload?.publicSlug
+    || payload?.profile?.public_slug
+    || payload?.profile?.publicSlug
+    || payload?.data?.public_slug
+    || payload?.data?.publicSlug
+    || ''
 }
 
 function MatchCard({ match, selected, onSelect }) {
@@ -35,9 +45,9 @@ function MatchCard({ match, selected, onSelect }) {
       onClick={() => onSelect(match)}
       className="w-full rounded-[24px] p-4 text-left transition-all"
       style={{
-        background: selected ? 'rgba(143,117,255,0.12)' : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${selected ? 'rgba(143,117,255,0.34)' : 'rgba(255,255,255,0.08)'}`,
-        boxShadow: selected ? '0 0 28px rgba(143,117,255,0.12)' : 'none',
+        background: selected ? 'rgba(224,163,92,0.12)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${selected ? 'rgba(224,163,92,0.34)' : 'rgba(255,255,255,0.08)'}`,
+        boxShadow: selected ? '0 0 28px rgba(224,163,92,0.12)' : 'none',
       }}
     >
       <div className="flex items-center justify-between gap-3">
@@ -114,6 +124,8 @@ export default function MusicSoulmate() {
   const musicProvider = useStore((state) => state.musicProvider)
   const vibeFeatures = useStore((state) => state.vibeFeatures)
   const hasAppToken = useAuthStore((state) => Boolean(state.sessionToken))
+  const bootPhase = useAuthStore((state) => state.bootPhase)
+  const authHydrating = ['booting', 'probing_session', 'oauth_exchanging', 'profile_hydrating'].includes(bootPhase)
 
   const [syncing, setSyncing] = useState(false)
   const [synced, setSynced] = useState(false)
@@ -128,6 +140,13 @@ export default function MusicSoulmate() {
 
   const myUsername = profile?.userProfile?.name || profile?.userProfile?.username || 'you'
   const normalizedIdentifier = useMemo(() => parseSoulmateIdentifier(identifier), [identifier])
+  const selectedShareSlug = comparison?.user_b?.public_slug
+    || comparison?.user_b?.publicSlug
+    || selected?.public_slug
+    || selected?.publicSlug
+    || ''
+  const comparisonGraph = comparison?.combinedGalaxy?.graph || comparison?.graph
+  const comparisonGalaxyRegions = comparison?.combinedGalaxy?.regions || []
 
   useEffect(() => {
     if (!musicProvider || !hasAppToken) return
@@ -135,8 +154,9 @@ export default function MusicSoulmate() {
     soulmateAPI.getMyProfile()
       .then(({ data }) => {
         if (cancelled || !data) return
-        setMyPublicSlug(data.public_slug || '')
-        setSynced(Boolean(data.top_artists?.length || data.top_tracks?.length))
+        const profileDoc = data?.data || data
+        setMyPublicSlug(readPublicSlug(data))
+        setSynced(Boolean(profileDoc?.top_artists?.length || profileDoc?.top_tracks?.length))
       })
       .catch(() => {})
     return () => {
@@ -144,13 +164,13 @@ export default function MusicSoulmate() {
     }
   }, [hasAppToken, musicProvider])
 
-  const syncProfile = useCallback(async () => {
+  const syncProfile = useCallback(async ({ silent = false } = {}) => {
     if (!musicProvider) {
-      toast.error('connect a music source first')
+      if (!silent) toast.error('connect a music source first')
       return
     }
     if (!hasAppToken) {
-      toast.error('sign in to melody map to sync your orbit')
+      if (!silent) toast.error('sign in to melody map to sync your orbit')
       return
     }
     setSyncing(true)
@@ -218,20 +238,28 @@ export default function MusicSoulmate() {
       }
 
       const { data } = await soulmateAPI.syncProfile(payload)
-      setMyPublicSlug(data?.public_slug || '')
+      setMyPublicSlug(readPublicSlug(data))
       setSynced(true)
-      toast.success('your orbit is in sync')
+      if (!silent) toast.success('your orbit is in sync')
     } catch (error) {
-      const status = error?.response?.status
-      if (status === 401) {
-        toast.error('sign in to sync this orbit')
-      } else {
-        toast.error('something slipped through the static')
+      if (!silent) {
+        const status = error?.response?.status
+        if (status === 401) {
+          toast.error('sign in to sync this orbit')
+        } else {
+          toast.error('something slipped through the static')
+        }
       }
     } finally {
       setSyncing(false)
     }
   }, [hasAppToken, musicProvider, profile])
+
+  useEffect(() => {
+    const hasUsableProfile = Boolean(profile?.topArtists?.length || profile?.topTracks?.length)
+    if (!musicProvider || !hasAppToken || synced || syncing || profileLoading || !hasUsableProfile) return
+    syncProfile({ silent: true })
+  }, [hasAppToken, musicProvider, profile, profileLoading, syncProfile, synced, syncing])
 
   const loadMatches = useCallback(async () => {
     setLoadingMatches(true)
@@ -273,7 +301,34 @@ export default function MusicSoulmate() {
   }, [hasAppToken])
 
   useEffect(() => {
-    if (!normalizedIdentifier || !profile || profileLoading || !hasAppToken) return
+    if (!normalizedIdentifier) return
+    if (authHydrating) {
+      setInviteComparison({ loading: true, result: null, error: null, otherUsername: normalizedIdentifier })
+      return
+    }
+    if (!hasAppToken) {
+      setInviteComparison({
+        loading: false,
+        result: null,
+        error: 'Sign in with Spotify to compare this shared orbit. The link is valid, but compatibility needs your listening signal first.',
+        otherUsername: normalizedIdentifier,
+        requiresAuth: true,
+      })
+      return
+    }
+    if (!profile || profileLoading) return
+    if (!synced) {
+      const hasUsableProfile = Boolean(profile?.topArtists?.length || profile?.topTracks?.length)
+      setInviteComparison(hasUsableProfile
+        ? { loading: true, result: null, error: null, otherUsername: normalizedIdentifier }
+        : {
+            loading: false,
+            result: null,
+            error: 'Your listening signal is authenticated, but the soulmate profile still needs a first sync before this shared link can be compared.',
+            otherUsername: normalizedIdentifier,
+          })
+      return
+    }
     if (normalizedIdentifier === myPublicSlug) {
       setInviteComparison({
         otherUsername: myUsername,
@@ -313,7 +368,7 @@ export default function MusicSoulmate() {
     return () => {
       cancelled = true
     }
-  }, [hasAppToken, myPublicSlug, myUsername, normalizedIdentifier, profile, profileLoading])
+  }, [authHydrating, hasAppToken, myPublicSlug, myUsername, normalizedIdentifier, profile, profileLoading, synced])
 
   const boot = useRouteReadiness({
     phase,
@@ -353,7 +408,7 @@ export default function MusicSoulmate() {
   return (
     <div className="cosmic-page space-y-6">
       <motion.section initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="noire-panel relative overflow-hidden rounded-[34px] p-6 lg:p-8">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_24%_18%,rgba(143,117,255,0.18),transparent_34%),radial-gradient(ellipse_at_78%_72%,rgba(242,141,223,0.12),transparent_30%)]" />
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_24%_18%,rgba(224,163,92,0.18),transparent_34%),radial-gradient(ellipse_at_78%_72%,rgba(242,141,223,0.12),transparent_30%)]" />
         <div className="relative z-10">
           <p className="page-header-kicker mb-2">The Dual Orbit</p>
           <h1 className="page-header-title">Soulmates</h1>
@@ -464,7 +519,14 @@ export default function MusicSoulmate() {
             />
           )}
           {!inviteComparison.loading && !inviteComparison.result && (
-            <p className="text-sm text-slate-400">{inviteComparison.error}</p>
+            <div className="noire-panel-soft rounded-[24px] p-5">
+              <p className="text-sm text-slate-400">{inviteComparison.error}</p>
+              {inviteComparison.requiresAuth && (
+                <Link to="/login" className="noire-chip mt-4 inline-flex px-4 py-2 text-xs text-white">
+                  Sign in with Spotify
+                </Link>
+              )}
+            </div>
           )}
         </div>
       )}
@@ -540,17 +602,27 @@ export default function MusicSoulmate() {
                   userBName={comparison.user_b?.username || selected.username}
                   userAProfile={comparison.profile_a || profile}
                   userBProfile={comparison.profile_b}
-                  shareHref={`${window.location.origin}/soulmate/${encodeURIComponent(comparison.user_b?.username || selected.username || selected.user_id)}`}
+                  shareHref={selectedShareSlug ? `${window.location.origin}/soulmate/${encodeURIComponent(selectedShareSlug)}` : window.location.href}
                 />
 
-                {comparison.graph?.nodes?.length > 0 && (
+                {comparisonGraph?.nodes?.length > 0 && (
                   <div className="noire-panel rounded-[28px] overflow-hidden">
                     <div className="px-5 pt-5">
-                      <p className="section-label mb-2">Shared Constellation</p>
-                      <p className="text-sm text-slate-400">See where your artist worlds overlap and where they keep their distance.</p>
+                      <p className="section-label mb-2">Combined galaxy</p>
+                      <p className="text-sm text-slate-400">{comparison.combinedGalaxy?.summary || 'See where your artist worlds overlap and where they keep their distance.'}</p>
+                      {comparisonGalaxyRegions.length > 0 && (
+                        <div className="mt-4 grid gap-3 md:grid-cols-3">
+                          {comparisonGalaxyRegions.slice(0, 3).map((region) => (
+                            <div key={region.id} className="rounded-[18px] border border-white/8 bg-white/[0.035] p-3">
+                              <p className="text-xs font-semibold text-white">{region.label}</p>
+                              <p className="mt-1 text-[11px] leading-relaxed text-slate-500">{region.description}</p>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                     <SoulmateMap
-                      graph={comparison.graph}
+                      graph={comparisonGraph}
                       userAName={myUsername}
                       userBName={comparison.user_b?.username}
                       height={420}

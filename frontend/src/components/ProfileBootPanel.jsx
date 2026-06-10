@@ -1,40 +1,42 @@
 import { Loader2, RefreshCw, RadioTower, ShieldAlert, Sparkles } from 'lucide-react'
 
+// Quiet warm notices — never red, never error-looking. "Partial signal, softly
+// held" is the tone for every state, including failures (warm rose, not red).
 const TONES = {
   loading: {
     kicker: 'system activity',
-    glow: '#8B7CFF',
-    accent: '#B994FF',
+    glow: '#ffb35a',
+    accent: '#f6f1e8',
     line: 'Signal layers are coming online in sequence.',
   },
   partial: {
     kicker: 'partial reading',
-    glow: '#B994FF',
-    accent: '#EAE6FF',
+    glow: '#e0a35c',
+    accent: '#f6f1e8',
     line: 'The first layer is here. Deeper modules are still resolving.',
   },
   sparse: {
     kicker: 'light profile',
-    glow: '#9DB7FF',
-    accent: '#EAE6FF',
+    glow: '#c9a36a',
+    accent: '#f6f1e8',
     line: 'A leaner read is available while more signal lands.',
   },
   failed: {
     kicker: 'connection issue',
-    glow: '#F0A6C1',
-    accent: '#EAE6FF',
+    glow: '#d9a0a0',
+    accent: '#f6f1e8',
     line: 'The shell is still stable, but the data route needs another try.',
   },
   error: {
     kicker: 'connection issue',
-    glow: '#F0A6C1',
-    accent: '#EAE6FF',
+    glow: '#d9a0a0',
+    accent: '#f6f1e8',
     line: 'The shell is still stable, but the data route needs another try.',
   },
   empty: {
     kicker: 'awaiting signal',
-    glow: '#9C96C9',
-    accent: '#EAE6FF',
+    glow: '#c9b79c',
+    accent: '#f6f1e8',
     line: 'You can enter the shell now. Live listening data appears after connect.',
   },
 }
@@ -100,7 +102,7 @@ export default function ProfileBootPanel({
                   <p className="text-xs uppercase tracking-[0.18em] text-white/35">Melody Map shell is live</p>
                 </div>
               </div>
-              <h2 className="page-header-title text-[clamp(2rem,4vw,3.4rem)]">{title}</h2>
+              <h2 className="page-header-title">{title}</h2>
               {subtitle && <p className="page-header-copy mt-4">{subtitle}</p>}
               <p className="mt-4 text-sm text-slate-400">{tone.line}</p>
               {detail && <p className="mt-3 text-xs uppercase tracking-[0.22em] text-slate-500">{detail}</p>}

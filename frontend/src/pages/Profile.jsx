@@ -22,7 +22,7 @@ import { authAPI } from '../services/api'
 
 function StatusChip({ tone = 'violet', children, icon: Icon }) {
   const styles = {
-    violet: { color: '#cbb1ff', borderColor: 'rgba(143,117,255,0.24)', background: 'rgba(143,117,255,0.12)' },
+    violet: { color: '#f0c089', borderColor: 'rgba(224,163,92,0.24)', background: 'rgba(224,163,92,0.12)' },
     sky: { color: '#a9d4ff', borderColor: 'rgba(125,175,255,0.22)', background: 'rgba(96,165,250,0.12)' },
     green: { color: '#82e8a5', borderColor: 'rgba(74,222,128,0.2)', background: 'rgba(34,197,94,0.1)' },
     rose: { color: '#f5a6c9', borderColor: 'rgba(244,114,182,0.22)', background: 'rgba(244,114,182,0.1)' },
@@ -41,7 +41,7 @@ function StatusChip({ tone = 'violet', children, icon: Icon }) {
 
 function MiniStat({ label, value, tone }) {
   const colors = {
-    violet: '#cbb1ff',
+    violet: '#f0c089',
     rose: '#f5a6c9',
     sky: '#a9d4ff',
   }
@@ -122,7 +122,7 @@ export default function Profile() {
   }
 
   const quickLinks = [
-    { to: '/galaxy', icon: Disc3, label: 'Music Galaxy', desc: 'touch the stars that hold your taste', tone: '#7C6FFF' },
+    { to: '/galaxy', icon: Disc3, label: 'Music Galaxy', desc: 'touch the stars that hold your taste', tone: '#e0a35c' },
     { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', tone: '#FBBF24' },
     { to: '/soulmates', icon: Heart, label: 'Soulmates', desc: 'see where your worlds meet', tone: '#FF5DA2' },
     { to: '/analytics', icon: BarChart3, label: 'Signal Reading', desc: 'a deeper look at movement and light', tone: '#34D399' },
@@ -156,10 +156,10 @@ export default function Profile() {
               <img
                 src={avatar}
                 alt={displayName}
-                className="relative z-10 h-24 w-24 rounded-[24px] object-cover border border-white/10 shadow-[0_0_32px_rgba(124,111,255,0.18)]"
+                className="relative z-10 h-24 w-24 rounded-[24px] object-cover border border-white/10 shadow-[0_0_32px_rgba(224,163,92,0.18)]"
               />
             ) : (
-              <div className="relative z-10 flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(124,111,255,0.24),rgba(255,93,162,0.14))] text-4xl font-semibold text-white shadow-[0_0_32px_rgba(124,111,255,0.16)]">
+              <div className="relative z-10 flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(224,163,92,0.24),rgba(255,93,162,0.14))] text-4xl font-semibold text-white shadow-[0_0_32px_rgba(224,163,92,0.16)]">
                 {displayName[0]?.toUpperCase()}
               </div>
             )}
@@ -212,7 +212,7 @@ export default function Profile() {
         className="noire-info-card p-6"
       >
         <div className="mb-4 flex items-center gap-2">
-          <Music2 className="h-4 w-4 text-indigo-300" />
+          <Music2 className="h-4 w-4 text-amber-300" />
           <h3 className="text-sm font-semibold text-white">Connected sources</h3>
         </div>
         <MusicSourceCard />
@@ -225,7 +225,7 @@ export default function Profile() {
         className="noire-info-card p-6"
       >
         <div className="mb-4 flex items-center gap-2">
-          <Shield className="h-4 w-4 text-indigo-300" />
+          <Shield className="h-4 w-4 text-amber-300" />
           <h3 className="text-sm font-semibold text-white">Ways through the system</h3>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

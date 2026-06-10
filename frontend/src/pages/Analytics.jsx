@@ -22,10 +22,10 @@ const pct = (value) => {
   return normalized == null ? null : Math.round(normalized * 100)
 }
 const fmt = (v) => (v != null ? Number(v).toFixed(0) : 'soft signal')
-const GENRE_COLORS = ['#8B7CFF','#B994FF','#9DB7FF','#EAE6FF','#F0C8FF','#7A6BD8','#D6D0F0','#C7BEFF']
+const GENRE_COLORS = ['#e0a35c','#B994FF','#9DB7FF','#EAE6FF','#F0C8FF','#7A6BD8','#D6D0F0','#C7BEFF']
 const STAT_CARDS = [
   { key: 'energy',       label: 'Intensity',       icon: Zap,      color: '#f472b6', desc: 'heat and forward pull' },
-  { key: 'valence',      label: 'Light',   icon: Heart,    color: '#a78bfa', desc: 'brightness inside the feeling' },
+  { key: 'valence',      label: 'Light',   icon: Heart,    color: '#f0c089', desc: 'brightness inside the feeling' },
   { key: 'danceability', label: 'Movement', icon: Activity, color: '#9DB7FF', desc: 'how much the body wants in' },
   { key: 'acousticness', label: 'Texture', icon: Music2,   color: '#60a5fa', desc: 'wood, wire, or circuitry' },
 ]
@@ -77,7 +77,7 @@ function AudioRadar({ af }) {
       <RadarChart data={available} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
         <PolarGrid stroke="rgba(255,255,255,0.08)" />
         <PolarAngleAxis dataKey="feature" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-        <Radar dataKey="value" stroke="#a78bfa" fill="#a78bfa" fillOpacity={0.18} strokeWidth={2} dot={{ fill: '#a78bfa', r: 3 }} />
+        <Radar dataKey="value" stroke="#f0c089" fill="#f0c089" fillOpacity={0.18} strokeWidth={2} dot={{ fill: '#f0c089', r: 3 }} />
       </RadarChart>
     </ResponsiveContainer>
   )
@@ -103,7 +103,7 @@ function GenrePills({ genres }) {
 function TempoBar({ tempo }) {
   const zones = [
     { label: 'Slow',   range: [0,   80],  color: '#60a5fa' },
-    { label: 'Mid',    range: [80,  120], color: '#a78bfa' },
+    { label: 'Mid',    range: [80,  120], color: '#f0c089' },
     { label: 'Upbeat', range: [120, 160], color: '#f472b6' },
     { label: 'Fast',   range: [160, 300], color: '#fb923c' },
   ]
@@ -288,7 +288,7 @@ export default function Analytics() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             className="noire-info-card p-5 rounded-[28px]">
             <div className="flex items-center gap-2 mb-4">
-              <BarChart2 className="w-4 h-4 text-purple-400" />
+              <BarChart2 className="w-4 h-4 text-amber-400" />
               <p className="text-sm font-semibold text-white">Sonic shape</p>
             </div>
             <AudioRadar af={af} />
@@ -353,7 +353,7 @@ export default function Analytics() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
         className="noire-info-card p-5 rounded-[28px]">
         <div className="flex items-center gap-2 mb-4">
-          <Zap className="w-4 h-4 text-fuchsia-400" />
+          <Zap className="w-4 h-4 text-rose-400" />
           <p className="text-sm font-semibold text-white">The atmospheres you return to</p>
         </div>
         <GenrePills genres={safeProfile.genres} />

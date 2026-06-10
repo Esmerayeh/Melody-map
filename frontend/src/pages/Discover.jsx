@@ -104,7 +104,7 @@ function SongRow({ song, index, liked, onLike, tracking }) {
       </div>
       {song._tags && (
         <div className="hidden lg:flex items-center gap-1 shrink-0">
-          {song._tags.mood && <TagPill label={song._tags.mood} color="#a78bfa" />}
+          {song._tags.mood && <TagPill label={song._tags.mood} color="#f0c089" />}
           {song._tags.era  && <TagPill label={song._tags.era}  color="#60a5fa" />}
         </div>
       )}
@@ -192,10 +192,17 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected, tracki
           <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: playlist.color }} />
           <p className="text-xs leading-relaxed" style={{ color: `${playlist.color}cc` }}>{playlist.why_it_fits}</p>
         </div>
+        {playlist.why_receipts?.length ? (
+          <div className="mb-4 space-y-1.5">
+            {playlist.why_receipts.slice(0, 2).map((receipt) => (
+              <p key={receipt} className="text-[11px] leading-relaxed text-slate-500">Because {receipt}.</p>
+            ))}
+          </div>
+        ) : null}
         {playlist.harmonic_mood_vector?.name && (
           <div className="mb-4 px-3 py-2 rounded-lg bg-white/3 border border-white/6 flex items-center gap-2">
           <span className="text-xs text-gray-500">Mood current:</span>
-            <span className="text-xs font-medium text-indigo-300">{playlist.harmonic_mood_vector.name}</span>
+            <span className="text-xs font-medium text-amber-300">{playlist.harmonic_mood_vector.name}</span>
           </div>
         )}
         <div className="flex flex-wrap gap-1.5 mb-4">
@@ -248,7 +255,7 @@ function AlbumCard({ item, index, onLike, liked }) {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      whileHover={{ scale: 1.03, boxShadow: '0 8px 32px rgba(124,111,255,0.18)' }}
+      whileHover={{ scale: 1.03, boxShadow: '0 8px 32px rgba(224,163,92,0.18)' }}
       className="group relative glass-hover rounded-2xl overflow-hidden cursor-pointer">
       <div className="relative aspect-square overflow-hidden bg-surface-3">
         {item.image
@@ -278,7 +285,7 @@ function ArtistCard({ artist, index }) {
   return (
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: index * 0.05 }}
-      whileHover={{ scale: 1.02, boxShadow: '0 4px 20px rgba(124,111,255,0.15)' }}
+      whileHover={{ scale: 1.02, boxShadow: '0 4px 20px rgba(224,163,92,0.15)' }}
       className="group glass-hover rounded-2xl p-4 flex items-center gap-3 cursor-pointer">
       <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-surface-3">
         {artist.image
@@ -317,9 +324,10 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
         energy  = af.energy  ?? 0.5
         valence = af.valence ?? 0.5
       }
+      const grounded = Boolean(profile?.genres?.length || profile?.audioFeatures?.energy != null || profile?.audioFeatures?.valence != null)
       const nudged = applyTimeNudge(energy, valence)
       energy = nudged.energy; valence = nudged.valence
-      const res = await discoverAPI.playlists({ genres, energy, valence }, { n: 6, seed: s, serendipity: sMode })
+      const res = await discoverAPI.playlists({ genres, energy, valence, grounded }, { n: 6, seed: s, serendipity: sMode })
       const envelope = res.data || {}
       setPlaylists(envelope.data || envelope || [])
       setRequestMeta({
@@ -599,7 +607,7 @@ export default function Discover() {
         <Link
           to="/galaxy?mode=song"
           className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
-          style={{ background: 'rgba(124,111,255,0.08)', border: '1px solid rgba(124,111,255,0.16)' }}
+          style={{ background: 'rgba(224,163,92,0.08)', border: '1px solid rgba(224,163,92,0.16)' }}
         >
           <p className="section-label mb-2">See it in space</p>
           <p className="text-sm font-semibold text-white">Open these sequences inside the galaxy</p>
@@ -608,7 +616,7 @@ export default function Discover() {
         <Link
           to="/auralith?mode=playlist&prompt=shape%20a%20sequence%20from%20what%20just%20drifted%20toward%20me"
           className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
-          style={{ background: 'rgba(192,132,252,0.08)', border: '1px solid rgba(192,132,252,0.16)' }}
+          style={{ background: 'rgba(224,163,92,0.08)', border: '1px solid rgba(224,163,92,0.16)' }}
         >
           <p className="section-label mb-2">Ask Auralith to continue</p>
           <p className="text-sm font-semibold text-white">Turn a drift into a sequence</p>

@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useCallback } from 'react'
 import { motion, AnimatePresence, useMotionValue, useSpring, useTransform } from 'framer-motion'
 import { Music2, TrendingUp, Users, Sparkles, Zap, Heart, Disc3, Radio, ExternalLink, RefreshCw } from 'lucide-react'
 import { Link } from 'react-router-dom'
+// Link is also used inside IdentityCard — imported above
 import useStore from '../store/useStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import MusicSourceCard from '../components/MusicSourceCard'
@@ -48,7 +49,7 @@ function AudioRadar({ features }) {
     <svg width="180" height="180" viewBox="0 0 180 180">
       <defs>
         <radialGradient id="radarFill" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#7C6FFF" stopOpacity="0.4" />
+          <stop offset="0%" stopColor="#e0a35c" stopOpacity="0.4" />
           <stop offset="100%" stopColor="#E040FB" stopOpacity="0.1" />
         </radialGradient>
         <filter id="radarGlow">
@@ -59,16 +60,16 @@ function AudioRadar({ features }) {
       {gridLevels.map((level) => (
         <polygon key={level}
           points={angles.map((a) => toXY(a, level * r).join(',')).join(' ')}
-          fill="none" stroke="rgba(124,111,255,0.08)" strokeWidth="1" />
+          fill="none" stroke="rgba(224,163,92,0.08)" strokeWidth="1" />
       ))}
       {angles.map((a, i) => {
         const [x, y] = toXY(a, r)
-        return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(124,111,255,0.1)" strokeWidth="1" />
+        return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(224,163,92,0.1)" strokeWidth="1" />
       })}
-      <polygon points={polyPoints} fill="url(#radarFill)" stroke="#7C6FFF" strokeWidth="1.5" filter="url(#radarGlow)" />
+      <polygon points={polyPoints} fill="url(#radarFill)" stroke="#e0a35c" strokeWidth="1.5" filter="url(#radarGlow)" />
       {values.map((v, i) => {
         const [x, y] = toXY(angles[i], v * r)
-        return <circle key={i} cx={x} cy={y} r="3" fill="#7C6FFF" style={{ filter: 'drop-shadow(0 0 4px #7C6FFF)' }} />
+        return <circle key={i} cx={x} cy={y} r="3" fill="#e0a35c" style={{ filter: 'drop-shadow(0 0 4px #e0a35c)' }} />
       })}
       {keys.map((key, i) => {
         const [x, y] = toXY(angles[i], r + 16)
@@ -152,13 +153,13 @@ function ArtistChip({ artist, rank }) {
       <div className="relative shrink-0">
         {artist.image
           ? <img src={artist.image} alt={artist.name} className="w-10 h-10 rounded-full object-cover" />
-          : <div className="w-10 h-10 rounded-full bg-indigo-500/20 flex items-center justify-center text-sm font-bold text-indigo-300">{rank + 1}</div>
+          : <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-sm font-bold text-amber-300">{rank + 1}</div>
         }
           <div className="absolute inset-0 rounded-full opacity-0 transition-opacity md:group-hover:opacity-100"
-            style={{ boxShadow: '0 0 12px rgba(124,111,255,0.5)' }} />
+            style={{ boxShadow: '0 0 12px rgba(224,163,92,0.5)' }} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-white truncate md:group-hover:text-indigo-300 transition-colors">{artist.name}</p>
+          <p className="text-sm font-medium text-white truncate md:group-hover:text-amber-300 transition-colors">{artist.name}</p>
           <p className="text-xs text-gray-600 truncate">{artist.genres?.[0] || 'Artist'}</p>
         </div>
       <ExternalLink className="w-3.5 h-3.5 text-gray-500 md:text-gray-700 md:group-hover:text-gray-400 shrink-0 transition-colors" />
@@ -192,39 +193,20 @@ function TrackRow({ track, rank }) {
   )
 }
 
-// ── Identity card ──────────────────────────────────────────────────────────────
-function IdentityCard({ metrics, genres }) {
-  if (!metrics) return null
-  const e = metrics.energyScore != null ? metrics.energyScore / 100 : null
-  const v = metrics.valenceScore != null ? metrics.valenceScore / 100 : null
-  const genreStr = genres.map((g) => g.genre).join(' ')
-
-  let personality = 'Sonic Explorer'
-  let description = 'Your taste defies categories -- you roam freely across genres, moods, and eras.'
-  let traits = ['eclectic', 'open-minded']
-  let accentColor = '#7C6FFF'
-
-  if (e != null && v != null && e < 0.45 && v < 0.45) {
-    personality = 'Nocturnal Dreamer'; accentColor = '#60a5fa'
-    description = 'You gravitate toward atmospheric soundscapes, nostalgic melodies, and late-night music.'
-    traits = ['introspective', 'atmospheric', 'nocturnal']
-  } else if (e != null && e > 0.65 && metrics.tempoAvg != null && metrics.tempoAvg > 120) {
-    personality = 'Electric Wanderer'; accentColor = '#FBBF24'
-    description = 'You chase energy and movement -- your music is kinetic, charged, and always in motion.'
-    traits = ['energetic', 'restless', 'adventurous']
-  } else if (v != null && e != null && v > 0.6 && e < 0.55) {
-    personality = 'Velvet Romantic'; accentColor = '#f472b6'
-    description = 'Warm, soulful, and deeply emotional -- you feel music in your chest.'
-    traits = ['emotional', 'warm', 'soulful']
-  } else if (genreStr.includes('electronic') || genreStr.includes('techno')) {
-    personality = 'Neon Architect'; accentColor = '#00D1FF'
-    description = 'You build worlds with sound -- electronic, precise, and futuristic.'
-    traits = ['analytical', 'futuristic', 'precise']
-  } else if (genreStr.includes('indie') || genreStr.includes('folk')) {
-    personality = 'Golden Nostalgist'; accentColor = '#FBBF24'
-    description = 'You live in warm memories -- your music smells like old film and summer afternoons.'
-    traits = ['nostalgic', 'warm', 'reflective']
-  }
+// ── Identity preview card (canonical archetype system) ─────────────────────
+// Reads directly from profile.personality so it always matches /identity.
+// The old hard-coded mapping (Nocturnal Dreamer, Electric Wanderer, etc.) is
+// removed — it used different archetype names and broke cross-page consistency.
+function IdentityCard({ profile }) {
+  const personality    = profile?.personality    || []
+  const personalityMeta = profile?.personalityMeta || {}
+  const primary        = personality[0] || null
+  const secondary      = personality[1] || null
+  const archetype      = primary?.archetype || primary?.label || 'Sonic Explorer'
+  const description    = primary?.description || personalityMeta?.description
+    || 'Your taste is forming a pattern. Connect more listening history to sharpen the reading.'
+  const traits         = primary?.traits || personalityMeta?.traits || []
+  const accentColor    = primary?.color  || personalityMeta?.color  || '#e0a35c'
 
   return (
     <TiltCard className="h-full">
@@ -238,16 +220,32 @@ function IdentityCard({ metrics, genres }) {
         <div className="absolute bottom-0 left-0 w-24 h-24 rounded-full blur-2xl pointer-events-none"
           style={{ background: `${accentColor}08` }} />
         <p className="text-xs font-semibold uppercase tracking-[0.2em] mb-2 relative z-10"
-          style={{ color: accentColor }}>Your Music Identity</p>
-        <h2 className="text-3xl font-black text-white mb-3 relative z-10"
-          style={{ textShadow: `0 0 40px ${accentColor}40` }}>{personality}</h2>
-        <p className="text-gray-300 text-sm leading-relaxed mb-5 relative z-10">{cleanCopy(description)}</p>
-        <div className="flex flex-wrap gap-2 relative z-10">
-          {traits.map((t) => (
-            <span key={t} className="text-xs px-3 py-1 rounded-full font-medium"
-              style={{ background: `${accentColor}15`, color: accentColor, border: `1px solid ${accentColor}30` }}>{t}</span>
-          ))}
-        </div>
+          style={{ color: accentColor }}>Your music identity</p>
+        <h2 className="text-3xl font-black text-white mb-2 relative z-10"
+          style={{ textShadow: `0 0 40px ${accentColor}40` }}>{cleanCopy(archetype)}</h2>
+        {secondary && (
+          <p className="text-xs mb-2 relative z-10" style={{ color: secondary.color || accentColor }}>
+            {cleanCopy(secondary.archetype || secondary.label || '')}
+          </p>
+        )}
+        <p className="text-gray-300 text-sm leading-relaxed mb-4 relative z-10">{cleanCopy(description)}</p>
+        {traits.length > 0 && (
+          <div className="flex flex-wrap gap-2 relative z-10">
+            {traits.slice(0, 4).map((t) => (
+              <span key={t} className="text-xs px-3 py-1 rounded-full font-medium"
+                style={{ background: `${accentColor}15`, color: accentColor, border: `1px solid ${accentColor}30` }}>
+                {cleanCopy(t)}
+              </span>
+            ))}
+          </div>
+        )}
+        <Link
+          to="/identity"
+          className="mt-4 inline-flex items-center gap-1.5 text-xs relative z-10 opacity-60 hover:opacity-100 transition-opacity"
+          style={{ color: accentColor }}
+        >
+          Full reading →
+        </Link>
       </motion.div>
     </TiltCard>
   )
@@ -255,9 +253,9 @@ function IdentityCard({ metrics, genres }) {
 
 // ── Feature nav cards ──────────────────────────────────────────────────────────
 const NAV_CARDS = [
-  { to: '/galaxy',    icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#8b5cf6' },
+  { to: '/galaxy',    icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#e0a35c' },
   { to: '/discover',  icon: Radio,    label: 'Sonic Echoes',    desc: 'signals drifting your way', from: '#ec4899', to2: '#f43f5e' },
-  { to: '/soulmates', icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#a855f7', to2: '#7c3aed' },
+  { to: '/soulmates', icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#f0c089', to2: '#c97b7b' },
   { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', from: '#f59e0b', to2: '#ef4444' },
   { to: '/identity',  icon: Sparkles, label: 'Inner Music Self', desc: 'Follow the full reading',  from: '#38bdf8', to2: '#6366f1' },
 ]
@@ -399,8 +397,8 @@ export default function Dashboard() {
                     dataQuality={profile?.dataQuality}
                     genres={profile?.genres}
                     topArtists={profile?.topArtists}
-                    size={148}
-                    showLabels={false}
+                    size={280}
+                    showLabels
                     lowPower={tier === 'sparse' || tier === 'limited'}
                   />
                 </div>
@@ -422,7 +420,7 @@ export default function Dashboard() {
                 transition={timeRange === value ? MOTION_TOKENS.focusSettle : MOTION_TOKENS.chip}
                 className="dimensional-chip px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200"
                 style={timeRange === value
-                  ? { background: 'rgba(143,117,255,0.2)', color: '#e3dbff', border: '1px solid rgba(143,117,255,0.26)', boxShadow: '0 0 18px rgba(143,117,255,0.12)' }
+                  ? { background: 'rgba(224,163,92,0.2)', color: '#e3dbff', border: '1px solid rgba(224,163,92,0.26)', boxShadow: '0 0 18px rgba(224,163,92,0.12)' }
                   : { color: 'rgba(196,185,226,0.58)' }}>
                 {label}
               </motion.button>
@@ -462,7 +460,7 @@ export default function Dashboard() {
       {isConnected && error && (
         <div className="text-center py-12 text-gray-400">
           <p className="mb-3">something slipped through the static.</p>
-          <button onClick={refetch} className="text-sm text-indigo-400 hover:text-indigo-300">Try again</button>
+          <button onClick={refetch} className="text-sm text-amber-400 hover:text-amber-300">Try again</button>
         </div>
       )}
 
@@ -496,7 +494,7 @@ export default function Dashboard() {
             fallback={<ShellSkeleton lines={4} />}
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#7C6FFF'} delay={0} />
+              <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#e0a35c'} delay={0} />
               <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '--'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
               <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '--'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
               <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : 'soft signal'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
@@ -506,7 +504,7 @@ export default function Dashboard() {
           {/* Identity + radar */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
             <div className="lg:col-span-2">
-              <IdentityCard metrics={metrics} genres={genres} />
+              <IdentityCard profile={profile} />
             </div>
             {Object.keys(features).length > 0 && (
               <motion.div
@@ -544,7 +542,7 @@ export default function Dashboard() {
                   metrics?.energyScore != null ? { label: `${metrics.energyScore}% Energy`, color: '#FBBF24' } : null,
                   metrics?.valenceScore != null ? { label: `${metrics.valenceScore}% Valence`, color: '#E040FB' } : null,
                   metrics?.tempoAvg != null ? { label: `${metrics.tempoAvg} BPM`, color: '#00D1FF' } : null,
-                  metrics?.danceabilityScore != null ? { label: `${metrics.danceabilityScore}% Dance`, color: '#7C6FFF' } : null,
+                  metrics?.danceabilityScore != null ? { label: `${metrics.danceabilityScore}% Dance`, color: '#e0a35c' } : null,
                   metrics?.nostalgiaIndex != null ? { label: `${metrics.nostalgiaIndex}% Nostalgia`, color: '#f472b6' } : null,
                   metrics?.diversityScore != null ? { label: `${metrics.diversityScore}% Diversity`, color: '#34D399' } : null,
                 ].filter(Boolean).map(({ label, color }, i) => (
@@ -586,7 +584,7 @@ export default function Dashboard() {
                     className="dimensional-chip flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold text-white transition-all"
                     style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25))', border: '1px solid rgba(99,102,241,0.35)', boxShadow: '0 0 16px rgba(99,102,241,0.15)' }}
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-indigo-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
                     Let it flare open
                   </motion.button>
                 )}
@@ -607,7 +605,7 @@ export default function Dashboard() {
                     transition={{ delay: i * 0.03 }}
                     whileHover={{ scale: 1.03, y: -1 }}
                     className="dimensional-chip px-3 py-1.5 rounded-full text-sm cursor-default"
-                    style={{ background: 'rgba(124,111,255,0.1)', color: '#a5b4fc', border: '1px solid rgba(124,111,255,0.2)' }}
+                    style={{ background: 'rgba(224,163,92,0.1)', color: '#a5b4fc', border: '1px solid rgba(224,163,92,0.2)' }}
                   >{g.genre}</motion.span>
                 ))}
               </div>

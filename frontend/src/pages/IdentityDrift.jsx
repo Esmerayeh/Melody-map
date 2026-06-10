@@ -66,7 +66,7 @@ export default function IdentityDrift() {
             onClick={() => setSelectedRange(option.value)}
             className="touch-target shrink-0 rounded-full border px-4 py-2 text-sm transition-all"
             style={selectedRange === option.value
-              ? { borderColor: 'rgba(124,111,255,0.4)', background: 'rgba(124,111,255,0.16)', color: '#e9ddff' }
+              ? { borderColor: 'rgba(224,163,92,0.4)', background: 'rgba(224,163,92,0.16)', color: '#e9ddff' }
               : { borderColor: 'rgba(255,255,255,0.08)', color: 'rgba(203,213,225,0.8)' }}
           >
             {option.label}

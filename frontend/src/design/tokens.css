@@ -7,9 +7,9 @@
   --mm-type-body: clamp(0.95rem, 0.24vw + 0.9rem, 1.06rem);
   --mm-type-body-lg: clamp(1.02rem, 0.4vw + 0.95rem, 1.18rem);
   --mm-type-title-sm: clamp(1.2rem, 0.8vw + 0.95rem, 1.65rem);
-  --mm-type-title-md: clamp(1.6rem, 1.6vw + 1.1rem, 2.4rem);
-  /* Editorial italic serif, reference scale (.statement .title is ~28px). */
-  --mm-type-title-lg: clamp(1.8rem, 3vw, 3rem);
+  --mm-type-title-md: clamp(1.45rem, 1.2vw + 1.05rem, 2rem);
+  /* Editorial italic serif, reference .statement scale (~24-32px, not huge). */
+  --mm-type-title-lg: clamp(1.5rem, 1.4vw + 1rem, 2rem);
   --mm-type-title-xl: clamp(2.4rem, 4vw, 3.8rem);
 
   --mm-space-1: 0.25rem;

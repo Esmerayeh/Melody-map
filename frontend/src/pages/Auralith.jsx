@@ -297,7 +297,7 @@ export default function Auralith() {
           <AuraCard className="p-6" accent="lavender">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <Radio className="h-5 w-5 text-purple-200" />
+                <Radio className="h-5 w-5 text-amber-200" />
               </div>
               <div>
                 <p className="section-label">Current module</p>

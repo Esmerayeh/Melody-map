@@ -22,6 +22,24 @@ function confidenceTone(label) {
   return { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.22)' }
 }
 
+function buildReverieInterpretation({ profile, atmosphere }) {
+  const genres = (profile?.genres || []).map((item) => item.genre || item).filter(Boolean)
+  const artists = (profile?.topArtists || []).map((item) => item.name || item).filter(Boolean)
+  const mood = profile?.analyticsMetrics?.mood || atmosphere?.aesthetic_name || 'your listening atmosphere'
+  return {
+    caption: atmosphere?.vibe_description || atmosphere?.explanation || `A visual field shaped by ${mood}.`,
+    visualWorld: atmosphere?.aesthetic_name || mood,
+    lighting: atmosphere?.lighting || atmosphere?.traits?.[0] || 'soft celestial light',
+    textures: (atmosphere?.textures || atmosphere?.visual_tags || genres).slice(0, 4),
+    soundtrackPairings: artists.slice(0, 4),
+    why: [
+      atmosphere?.explanation || `These visuals are grounded in your current Spotify-derived mood, genres, and dominant artists.`,
+      genres.length ? `Genre signal: ${genres.slice(0, 3).join(', ')}.` : '',
+      artists.length ? `Artist anchors: ${artists.slice(0, 3).join(', ')}.` : '',
+    ].filter(Boolean),
+  }
+}
+
 // ── Parallax mouse tracker ─────────────────────────────────────────────────────
 function useParallax() {
   const mouseX = useMotionValue(0)
@@ -129,7 +147,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
           />
           {/* Soft glow overlay */}
           {isCenter && (
-            <div className="absolute inset-0 bg-gradient-to-t from-indigo-900/30 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-amber-900/30 via-transparent to-transparent" />
           )}
           {/* Hover overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -185,7 +203,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs text-white/60">📷 {img.photographer}</p>
                   <a href={img.unsplash_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-indigo-300 hover:text-indigo-200 flex items-center gap-1">
+                    className="text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1">
                     View on Unsplash <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
@@ -199,7 +217,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
 }
 
 // ── Cosmic moodboard (center cluster + outer orbit) ───────────────────────────
-function CosmicMoodboard({ images, palette }) {
+function ReverieConstellation({ images, palette }) {
   const { springX, springY } = useParallax()
   const [showAll, setShowAll] = useState(false)
 
@@ -213,7 +231,7 @@ function CosmicMoodboard({ images, palette }) {
       {/* Center cluster */}
       <div>
         <p className="text-xs text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 inline-block" />
+          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
           inner atmosphere
         </p>
         <div className="grid grid-cols-3 gap-4">
@@ -235,7 +253,7 @@ function CosmicMoodboard({ images, palette }) {
       {orbit.length > 0 && (
         <div>
           <p className="text-xs text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-purple-400 inline-block" />
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
             outer drift
           </p>
           <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">
@@ -261,7 +279,7 @@ function CosmicMoodboard({ images, palette }) {
             onClick={() => setShowAll(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-indigo-500/15 hover:bg-indigo-500/25 border border-indigo-500/25 text-indigo-300 text-sm font-medium transition-all"
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/25 text-amber-300 text-sm font-medium transition-all"
           >
             <ChevronDown className="w-4 h-4" />
             Bring in all {images.length} frames
@@ -339,7 +357,7 @@ function TagPills({ tags }) {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: i * 0.04 }}
           whileHover={{ scale: 1.06 }}
-          className="px-3 py-1.5 rounded-full text-xs font-medium bg-indigo-500/12 text-indigo-300 border border-indigo-500/20 hover:bg-indigo-500/25 hover:border-indigo-400/40 transition-all flex items-center gap-1"
+          className="px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/12 text-amber-300 border border-amber-500/20 hover:bg-amber-500/25 hover:border-amber-400/40 transition-all flex items-center gap-1"
         >
           {tag}
           <ExternalLink className="w-2.5 h-2.5 opacity-40" />
@@ -357,19 +375,19 @@ function PersonalityCard({ personality }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25 }}
-      className="p-6 rounded-2xl bg-gradient-to-br from-purple-500/10 to-pink-500/10 border border-purple-500/20 backdrop-blur-sm"
+      className="p-6 rounded-2xl bg-gradient-to-br from-amber-500/10 to-rose-500/10 border border-amber-500/20 backdrop-blur-sm"
     >
       <div className="flex items-center gap-2 mb-3">
-        <User className="w-4 h-4 text-purple-400" />
+        <User className="w-4 h-4 text-amber-400" />
         <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Sonic identity</span>
       </div>
-      <p className="text-xs text-purple-400 font-medium uppercase tracking-widest mb-1">what gathers here</p>
+      <p className="text-xs text-amber-400 font-medium uppercase tracking-widest mb-1">what gathers here</p>
       <h3 className="text-2xl font-bold text-white mb-2">{personality.name}</h3>
       <p className="text-gray-300 text-sm leading-relaxed">{personality.description}</p>
       {personality.traits?.length > 0 && (
         <div className="flex gap-2 mt-3 flex-wrap">
           {personality.traits.map((t) => (
-            <span key={t} className="text-xs px-2.5 py-1 rounded-full bg-purple-500/15 text-purple-300 border border-purple-500/20">
+            <span key={t} className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20">
               {t}
             </span>
           ))}
@@ -386,9 +404,9 @@ function EmptyState({ onGenerate, loading }) {
       <motion.div
         animate={{ rotate: [0, 8, -8, 0], scale: [1, 1.04, 1] }}
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-        className="w-24 h-24 rounded-3xl bg-gradient-to-br from-indigo-500/25 to-purple-600/25 border border-indigo-500/20 flex items-center justify-center mb-6"
+        className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-500/25 to-amber-600/25 border border-amber-500/20 flex items-center justify-center mb-6"
       >
-        <Wand2 className="w-10 h-10 text-indigo-400" />
+        <Wand2 className="w-10 h-10 text-amber-400" />
       </motion.div>
       <h2 className="text-2xl font-bold text-white mb-2">Find the atmosphere you live in</h2>
       <p className="text-gray-400 max-w-md mb-8 text-sm leading-relaxed">
@@ -399,7 +417,7 @@ function EmptyState({ onGenerate, loading }) {
         disabled={loading}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-purple-600 text-white font-semibold text-lg shadow-lg shadow-indigo-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold text-lg shadow-lg shadow-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading
           ? <><RefreshCw className="w-5 h-5 animate-spin" /> shaping the atmosphere...</>
@@ -411,7 +429,7 @@ function EmptyState({ onGenerate, loading }) {
 }
 
 // ── Main page ──────────────────────────────────────────────────────────────────
-export default function MusicAesthetic() {
+export default function Reverie() {
   const [aesthetic, setAesthetic]   = useState(null)
   const [loading, setLoading]       = useState(false)
   const [seedOffset, setSeedOffset] = useState(0)
@@ -435,6 +453,10 @@ export default function MusicAesthetic() {
       || aesthetic?.supportingSignals?.discoveryEvidence?.length
       || aesthetic?.eraInfluence?.dominant?.length
   )
+  const reverie = useMemo(
+    () => buildReverieInterpretation({ profile, atmosphere: aesthetic || {} }),
+    [profile, aesthetic],
+  )
 
   const boot = useRouteReadiness({
     phase,
@@ -445,16 +467,16 @@ export default function MusicAesthetic() {
     copy: {
       loading: {
         title: 'The atmosphere is gathering.',
-        subtitle: 'We are shaping your aesthetic field from the listening signal.',
+        subtitle: 'We are shaping Reverie from the listening signal.',
         detail: 'This will settle shortly.',
       },
       empty: {
-        title: 'Connect a music source to reveal your aesthetic.',
-        subtitle: 'Once the listening signal arrives, the mood shrine will appear.',
+        title: 'Connect a music source to open Reverie.',
+        subtitle: 'Once the listening signal arrives, your visual subconscious will appear.',
         detail: 'No signal is present yet.',
       },
       error: {
-        title: 'The aesthetic field could not load.',
+        title: 'Reverie could not load.',
         subtitle: 'The listening data is not reachable right now.',
         detail: 'Refresh once and the atmosphere should return.',
       },
@@ -592,7 +614,7 @@ export default function MusicAesthetic() {
         : await aestheticAPI.regenerate(profile, offset)
       const normalized = normalizeAestheticResponse(res?.data)
       if (!normalized.data) {
-        throw new Error(normalized.warnings?.[0] || 'aesthetic payload missing')
+        throw new Error(normalized.warnings?.[0] || 'Reverie payload missing')
       }
       setAesthetic(normalized.data)
       setAestheticStatus(normalized.status)
@@ -613,7 +635,7 @@ export default function MusicAesthetic() {
 
   const handleShare = () => {
     if (navigator.share && aesthetic) {
-      navigator.share({ title: aesthetic.aesthetic_name, text: aesthetic.vibe_description, url: window.location.href })
+      navigator.share({ title: `My Melody Map Reverie: ${aesthetic.aesthetic_name}`, text: reverie.caption, url: window.location.href })
     } else {
       navigator.clipboard.writeText(window.location.href)
       toast.success('Link held close')
@@ -631,7 +653,7 @@ export default function MusicAesthetic() {
       const normalized = normalizeListResponse(res?.data?.pins || res?.data || [], [])
       setPinterestPins(normalized.data)
     } catch {
-      toast.error('the reference board drifted out of reach')
+      toast.error('the reference archive drifted out of reach')
       setPinterestPins([])
     } finally {
       setPinterestLoading(false)
@@ -646,7 +668,7 @@ export default function MusicAesthetic() {
   }
 
   return (
-    <div className="relative min-h-[100dvh] bg-[#080b1a] text-white overflow-x-hidden">
+    <div className="relative min-h-[100dvh] text-white overflow-x-hidden">
       {aesthetic && <CosmicBackground palette={aesthetic.palette} />}
 
       <div className="relative z-10 max-w-6xl mx-auto px-4 py-8">
@@ -654,9 +676,9 @@ export default function MusicAesthetic() {
         {/* Page header */}
         <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="page-header-kicker mb-2">The Mood Shrine</p>
-            <h1 className="page-header-title text-gradient-aurora">Atmosphere</h1>
-            <p className="page-header-copy mt-3">Your listening, translated into color, texture, and late-night light.</p>
+            <p className="page-header-kicker mb-2">Visual subconscious</p>
+            <h1 className="page-header-title text-gradient-aurora">Reverie</h1>
+            <p className="page-header-copy mt-3">Your listening history translated into imagery, light, texture, memory, and dream-state architecture.</p>
           </div>
           {aesthetic && (
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -667,14 +689,14 @@ export default function MusicAesthetic() {
                 className="touch-target flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-300 transition-all disabled:opacity-50 hover:bg-white/10"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-                Shape again
+                Re-shape Reverie
               </motion.button>
               <motion.button
                 onClick={handleShare}
                 whileHover={{ scale: 1.05 }} whileTap={{ scale: 0.95 }}
                 className="touch-target flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm text-gray-300 transition-all hover:bg-white/10"
               >
-                <Share2 className="w-4 h-4" /> Share this mood
+                <Share2 className="w-4 h-4" /> Share Reverie
               </motion.button>
             </div>
           )}
@@ -682,7 +704,7 @@ export default function MusicAesthetic() {
 
         {aesthetic && aestheticStatus !== 'ready' && (
           <div className="mb-6 text-xs text-amber-300/80">
-            This is a partial atmosphere reading. The shrine will deepen as more listening signal arrives.
+            This is a partial Reverie reading. The visual archive will deepen as more listening signal arrives.
           </div>
         )}
 
@@ -697,7 +719,7 @@ export default function MusicAesthetic() {
 
         {loading && (
           <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-            <VibeEmitter bpm={120} size={72} label="shaping your atmosphere..." />
+            <VibeEmitter bpm={120} size={72} label="shaping Reverie..." />
           </div>
         )}
 
@@ -720,8 +742,8 @@ export default function MusicAesthetic() {
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-10 blur-3xl pointer-events-none"
                   style={{ backgroundColor: aesthetic.palette[2] || '#7209b7' }}
                 />
-                <p className="text-indigo-400 text-xs font-semibold uppercase tracking-[0.3em] mb-3 relative z-10">
-                  your atmosphere
+                <p className="text-amber-400 text-xs font-semibold uppercase tracking-[0.3em] mb-3 relative z-10">
+                  your listening atmosphere
                 </p>
                 <motion.h2
                   initial={{ scale: 0.9, opacity: 0 }}
@@ -738,7 +760,10 @@ export default function MusicAesthetic() {
                   {aesthetic.aesthetic_name}
                 </motion.h2>
                 <p className="text-gray-300 text-base max-w-2xl mx-auto italic leading-relaxed relative z-10">
-                  "{aesthetic.vibe_description}"
+                  "{reverie.caption}"
+                </p>
+                <p className="mt-4 text-xs text-gray-500 relative z-10">
+                  {reverie.visualWorld} - {reverie.lighting}
                 </p>
               </motion.div>
 
@@ -753,7 +778,7 @@ export default function MusicAesthetic() {
                   className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
                 >
                   <div className="flex items-center gap-2 mb-4">
-                    <Palette className="w-4 h-4 text-indigo-400" />
+                    <Palette className="w-4 h-4 text-amber-400" />
                     <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Color weather</h3>
                   </div>
                   <ColorPalette palette={aesthetic.palette} />
@@ -761,6 +786,21 @@ export default function MusicAesthetic() {
               </div>
 
               {/* ── Aesthetic tags ── */}
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl border border-white/8 bg-white/3 p-5">
+                  <p className="section-label mb-2">Lighting</p>
+                  <p className="text-sm text-slate-300">{reverie.lighting}</p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/3 p-5">
+                  <p className="section-label mb-2">Textures</p>
+                  <p className="text-sm text-slate-300">{reverie.textures.join(', ')}</p>
+                </div>
+                <div className="rounded-2xl border border-white/8 bg-white/3 p-5">
+                  <p className="section-label mb-2">Soundtrack anchors</p>
+                  <p className="text-sm text-slate-300">{reverie.soundtrackPairings.join(', ') || 'Spotify anchors still forming'}</p>
+                </div>
+              </div>
+
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -769,7 +809,7 @@ export default function MusicAesthetic() {
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-purple-400" />
+                    <Sparkles className="w-4 h-4 text-amber-400" />
                     <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Atmosphere markers</h3>
                   </div>
                   <span className="text-xs text-gray-600">Touch a marker to drift outward</span>
@@ -819,8 +859,8 @@ export default function MusicAesthetic() {
                   >
                     <div className="flex items-center justify-between gap-3 mb-4">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-indigo-400" />
-                        <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Why it feels true</h3>
+                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Why this exists</h3>
                       </div>
                       <span
                         className="text-[11px] px-2.5 py-1 rounded-full border uppercase tracking-[0.15em]"
@@ -833,8 +873,11 @@ export default function MusicAesthetic() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-300 leading-relaxed mb-4">
-                      {aesthetic?.explanation || 'The atmosphere is still forming, but the outline of its gravity is visible.'}
+                      {reverie.why[0] || aesthetic?.explanation || 'The atmosphere is still forming, but the outline of its gravity is visible.'}
                     </p>
+                    {reverie.why.slice(1, 4).map((line) => (
+                      <p key={line} className="mt-2 text-xs text-gray-500 leading-relaxed">{line}</p>
+                    ))}
                     {aesthetic.blendExplanation && (
                       <p className="text-xs text-gray-500 leading-relaxed">{aesthetic.blendExplanation}</p>
                     )}
@@ -847,12 +890,12 @@ export default function MusicAesthetic() {
                     className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
                   >
                     <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="w-4 h-4 text-purple-400" />
+                      <Sparkles className="w-4 h-4 text-amber-400" />
                       <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">What shaped it</h3>
                     </div>
                     <div className="space-y-3 text-sm text-gray-300">
                       {aesthetic.supportingSignals?.genreEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Atmospheres:</span> {aesthetic.supportingSignals.genreEvidence.join(', ')}</p>
+                        <p><span className="text-gray-500">Visual atmospheres:</span> {aesthetic.supportingSignals.genreEvidence.join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.artistEvidence?.length > 0 && (
                         <p><span className="text-gray-500">Voices:</span> {aesthetic.supportingSignals.artistEvidence.join(', ')}</p>
@@ -875,7 +918,7 @@ export default function MusicAesthetic() {
 
                 {/* Tab switcher */}
                 <div className="flex items-center gap-1 mb-6 p-1 rounded-xl bg-white/4 border border-white/8 w-fit">
-                  {[{ id: 'board', label: 'Visual field' }, { id: 'pinterest', label: 'Reference drift' }].map((tab) => (
+                  {[{ id: 'board', label: 'Dream archive' }, { id: 'pinterest', label: 'Reference layer' }].map((tab) => (
                     <button key={tab.id} onClick={() => handleTabChange(tab.id)}
                       className="px-4 py-1.5 rounded-lg text-xs font-semibold transition-all"
                       style={{
@@ -891,7 +934,7 @@ export default function MusicAesthetic() {
                 {activeTab === 'board' && (
                   <>
                     <p className="text-xs text-gray-600 mb-4">{aesthetic.images?.length || 0} frames - move gently for parallax</p>
-                    <CosmicMoodboard images={aesthetic.images || []} palette={aesthetic.palette} />
+                    <ReverieConstellation images={aesthetic.images || []} palette={aesthetic.palette} />
                   </>
                 )}
 
@@ -903,7 +946,7 @@ export default function MusicAesthetic() {
                       </div>
                     )}
                     {!pinterestLoading && pinterestPins?.length === 0 && (
-                      <p className="text-gray-500 text-sm text-center py-12">nothing surfaced there yet -- try shaping the atmosphere again.</p>
+                      <p className="text-gray-500 text-sm text-center py-12">nothing surfaced there yet -- try shaping Reverie again.</p>
                     )}
                     {!pinterestLoading && pinterestPins?.length > 0 && (
                       <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">
