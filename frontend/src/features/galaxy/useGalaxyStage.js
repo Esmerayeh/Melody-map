@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { create } from 'zustand'
 
 /**
@@ -34,5 +35,50 @@ const useGalaxyStage = create((set) => ({
   setStage: (partial) => set((state) => ({ ...state, ...(partial || {}) })),
   resetStage: () => set({ ...DEFAULT_STAGE }),
 }))
+
+// Presentation fields only (everything except `active`). Used as the "ambient
+// backdrop" config a route falls back to on unmount — the persistent canvas
+// keeps rendering stars/nebulae/core with no data nodes.
+const AMBIENT_PRESENTATION = {
+  model: null,
+  sparseMode: false,
+  lowPower: false,
+  reducedMotion: false,
+  webglEnabled: true,
+  traversalEnabled: false,
+  scanPulseCount: 0,
+  onScanPulse: null,
+  autoRotateSpeed: 0.18,
+  extraChildren: null,
+}
+
+/**
+ * useGalaxyStageConfig
+ * --------------------
+ * A route opts into the persistent galaxy canvas by calling this on mount with
+ * its scene config. The config is published to the stage store (and `active` is
+ * flipped on) whenever `deps` change.
+ *
+ * On unmount the stage is SOFT-reset to the ambient backdrop but `active` stays
+ * true — so navigating between routes never tears down and remounts the single
+ * shared <Canvas>. The next route simply publishes its own model over the top.
+ *
+ * `config` is read through a ref so callers can pass a fresh object literal each
+ * render; only `deps` decide when a republish happens (avoids render loops).
+ */
+export function useGalaxyStageConfig(config, deps = []) {
+  const setStage = useGalaxyStage((s) => s.setStage)
+  const configRef = useRef(config)
+  configRef.current = config
+
+  useEffect(() => {
+    setStage({ active: true, ...configRef.current })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, deps)
+
+  useEffect(() => () => {
+    setStage({ ...AMBIENT_PRESENTATION, active: true })
+  }, [setStage])
+}
 
 export default useGalaxyStage

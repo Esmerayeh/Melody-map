@@ -254,10 +254,15 @@ function ProtectedShell({ children }) {
 function AppShell({ children }) {
   const cinemaMode = useStore((s) => s.cinemaMode)
   if (cinemaMode) {
-    return <div className="h-[100dvh] overflow-hidden bg-surface">{children}</div>
+    // Transparent in cinema mode so the persistent galaxy (fixed, z-0) is the
+    // fullscreen backdrop; cinema chrome floats above it.
+    return <div className="relative z-10 h-[100dvh] overflow-hidden">{children}</div>
   }
+  // The shell is lifted above the persistent galaxy (relative z-10) and carries
+  // no opaque background of its own — the fixed z-0 galaxy shows through when a
+  // route has it active, otherwise the body's deep-space gradient shows.
   return (
-    <div className="flex h-[100dvh] min-h-[100dvh] overflow-hidden app-shell-bg">
+    <div className="relative z-10 flex h-[100dvh] min-h-[100dvh] overflow-hidden">
       <Sidebar />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden app-main-shell">
         <TopBar />

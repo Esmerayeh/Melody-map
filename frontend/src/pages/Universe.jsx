@@ -37,6 +37,7 @@ import useLiveTasteSignal      from '../hooks/useLiveTasteSignal'
 import useAdaptiveExperience   from '../hooks/useAdaptiveExperience'
 import useUniversePresence     from '../hooks/useUniversePresence'
 import useGalaxyInteractionStore from '../features/galaxy/useGalaxyInteractionStore'
+import { useGalaxyStageConfig } from '../features/galaxy/useGalaxyStage'
 import { buildGalaxyModel, buildGalaxyModeModel } from '../features/galaxy/galaxyBuilder'
 import useGalaxyArtifact        from '../features/galaxy/useGalaxyArtifact'
 import { resolveInteractionEntity, slugifyInteraction } from '../features/galaxy/interactionModel'
@@ -57,7 +58,6 @@ import NowPlayingRipple           from '../features/universe/NowPlayingRipple'
 import { emitUniverseEvent, EVENT_TYPES } from '../features/universe/useUniverseEvents'
 import { MOTION_TOKENS }       from '../features/motion/motionTokens'
 
-const GalaxyScene       = lazy(() => import('../features/galaxy/GalaxyScene'))
 const GalaxyControls    = lazy(() => import('../features/galaxy/GalaxyControls'))
 const GalaxyInspector   = lazy(() => import('../features/galaxy/GalaxyInspector'))
 const GalaxyLegend      = lazy(() => import('../features/galaxy/GalaxyLegend'))
@@ -602,6 +602,39 @@ export default function Universe() {
     onSearchChange:      setSearchQuery,
   }
 
+  // In-canvas extras (comets, ghost lines, obsession well) rendered inside the
+  // ONE persistent galaxy <Canvas> via the stage store. Memoized so the stage
+  // only republishes when these actually change.
+  const stageExtraChildren = useMemo(() => (
+    <>
+      <Suspense fallback={null}>
+        <CometLayer comets={comets} onCometClick={handleCometClick} reducedMotion={adaptive.reducedMotion} />
+      </Suspense>
+      <GhostConstellationLines ghostNodes={ghostNodes} reducedMotion={adaptive.reducedMotion} />
+      {obsessionNode && <ObsessionGravityWell node={obsessionNode} reducedMotion={adaptive.reducedMotion} />}
+    </>
+  ), [comets, handleCometClick, ghostNodes, obsessionNode, adaptive.reducedMotion])
+
+  // Publish this route's scene to the persistent galaxy canvas. /universe drives
+  // traversal, the scan pulse, presence-based drift speed, and the comet/memory
+  // extras — all of which used to be props on its own inline <GalaxyScene>.
+  useGalaxyStageConfig({
+    model:            activeModel,
+    sparseMode,
+    lowPower:         adaptive.sparseGraphics,
+    reducedMotion:    adaptive.reducedMotion,
+    webglEnabled:     adaptive.webglSupported,
+    traversalEnabled: !adaptive.touchDevice,
+    scanPulseCount,
+    onScanPulse:      handleScanPulse,
+    autoRotateSpeed:  presence.driftSpeed,
+    extraChildren:    stageExtraChildren,
+  }, [
+    activeModel, sparseMode, adaptive.sparseGraphics, adaptive.reducedMotion,
+    adaptive.webglSupported, adaptive.touchDevice, scanPulseCount, handleScanPulse,
+    presence.driftSpeed, stageExtraChildren,
+  ])
+
   // ── Loading screen ────────────────────────────────────────────────────────
   if (phase === 'loading' && !model) {
     return (
@@ -637,39 +670,16 @@ export default function Universe() {
   )
 
   return (
-    <div className={`relative ${cinemaMode ? 'fixed inset-0 z-50 bg-black' : 'h-[100dvh] overflow-hidden app-shell-bg'}`}>
+    <div className={`relative ${cinemaMode ? 'fixed inset-0 z-50' : 'z-10 h-[100dvh] overflow-hidden'}`}>
 
-      {/* ── Galaxy canvas ──────────────────────────────────────────────── */}
-      <div className="absolute inset-0">
-        {isLoading ? (
-          <div className="flex h-full items-center justify-center">
-            <NebulaLoader label="Tuning the universe" detail="Laying out your listening cosmos." />
-          </div>
-        ) : (
-          <Suspense fallback={null}>
-            <GalaxyScene
-              model={activeModel}
-              sparseMode={sparseMode}
-              lowPower={adaptive.sparseGraphics}
-              reducedMotion={adaptive.reducedMotion}
-              webglEnabled={adaptive.webglSupported}
-              traversalEnabled={!adaptive.touchDevice}
-              scanPulseCount={scanPulseCount}
-              onScanPulse={handleScanPulse}
-              autoRotateSpeed={presence.driftSpeed}
-              extraChildren={
-                <>
-                  <Suspense fallback={null}>
-                    <CometLayer comets={comets} onCometClick={handleCometClick} reducedMotion={adaptive.reducedMotion} />
-                  </Suspense>
-                  <GhostConstellationLines ghostNodes={ghostNodes} reducedMotion={adaptive.reducedMotion} />
-                  {obsessionNode && <ObsessionGravityWell node={obsessionNode} reducedMotion={adaptive.reducedMotion} />}
-                </>
-              }
-            />
-          </Suspense>
-        )}
-      </div>
+      {/* The galaxy renders from the ONE persistent <Canvas> in the app shell
+          (published via useGalaxyStageConfig above). While the model resolves,
+          a quiet loader sits over the ambient backdrop. */}
+      {isLoading && (
+        <div className="absolute inset-0 flex items-center justify-center">
+          <NebulaLoader label="Tuning the universe" detail="Laying out your listening cosmos." />
+        </div>
+      )}
 
       {/* Genesis Sequence — cinematic formation on first open */}
       <GenesisSequence

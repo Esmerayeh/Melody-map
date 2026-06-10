@@ -12,7 +12,7 @@ import useGalaxyArtifact from '../features/galaxy/useGalaxyArtifact'
 import GalaxyControls from '../features/galaxy/GalaxyControls'
 import GalaxyInspector from '../features/galaxy/GalaxyInspector'
 import GalaxyLegend from '../features/galaxy/GalaxyLegend'
-import GalaxyScene from '../features/galaxy/GalaxyScene'
+import { useGalaxyStageConfig } from '../features/galaxy/useGalaxyStage'
 import SoulResonancePanel from '../components/SoulResonancePanel'
 import ProfileBootPanel from '../components/ProfileBootPanel'
 import { useRouteReadiness } from '../hooks/useRouteReadiness'
@@ -485,17 +485,21 @@ export default function MusicMap() {
   // practice the scene paints immediately; this is the hard safety cap.
   const showInlineLoader = !activeModel && (loading || galaxyLoading) && !bootWindowElapsed
 
+  // Publish this route's scene to the ONE persistent galaxy canvas (App shell).
+  // The galaxy renders fullscreen behind the HUD; this route no longer mounts
+  // its own <Canvas>.
+  useGalaxyStageConfig({
+    model: activeModel,
+    sparseMode,
+    lowPower: adaptive.lowPowerMode,
+    reducedMotion: adaptive.prefersReducedMotion,
+    webglEnabled: adaptive.webglSupported,
+  }, [activeModel, sparseMode, adaptive.lowPowerMode, adaptive.prefersReducedMotion, adaptive.webglSupported])
+
+  // Overlays only — the live galaxy comes from the persistent canvas behind this
+  // transparent window.
   const scene = (
     <div className="relative h-full w-full overflow-hidden">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_42%,rgba(255,122,157,0.16),transparent_18%),radial-gradient(circle_at_18%_24%,rgba(95,216,255,0.16),transparent_28%),radial-gradient(circle_at_79%_24%,rgba(255,179,90,0.12),transparent_25%),radial-gradient(circle_at_72%_76%,rgba(255,122,157,0.10),transparent_24%),radial-gradient(circle_at_54%_82%,rgba(95,216,255,0.14),transparent_24%),linear-gradient(180deg,#02030a_0%,#070512_48%,#02030a_100%)]" />
-      <div className="absolute inset-0 bg-[linear-gradient(120deg,rgba(255,255,255,0.02)_0%,transparent_18%,transparent_82%,rgba(255,255,255,0.02)_100%)] opacity-70" />
-      <GalaxyScene
-        model={activeModel}
-        sparseMode={sparseMode}
-        lowPower={adaptive.lowPowerMode}
-        reducedMotion={adaptive.prefersReducedMotion}
-        webglEnabled={adaptive.webglSupported}
-      />
       {isCoarsePointer && !(loading || galaxyLoading) ? (
         <div className="pointer-events-none absolute bottom-5 left-1/2 z-10 -translate-x-1/2 rounded-full border border-white/10 bg-[#090d1f]/72 px-4 py-2 text-[11px] text-gray-200 shadow-[0_18px_40px_rgba(3,4,15,0.35)] backdrop-blur-xl">
           Touch a star, nebula, bridge, or the core to see what it reveals. Touch it again to let it go.
@@ -520,7 +524,7 @@ export default function MusicMap() {
 
   if (cinemaMode) {
     return (
-      <div className="fixed inset-0 z-50 bg-black">
+      <div className="fixed inset-0 z-50">
         {showInlineLoader ? (
           <div className="absolute inset-0 flex items-center justify-center">
             <NebulaLoader compact label="Opening cinema mode" detail="The universe is settling into a wider frame." />
@@ -570,8 +574,8 @@ export default function MusicMap() {
         <GalaxyControls {...controlProps} onToggleCinema={() => setCinemaMode(true)} />
       </div>
 
-      <div className="relative h-[62dvh] min-h-[420px] overflow-hidden rounded-[28px] border border-white/10 bg-[#040610] shadow-[0_30px_120px_rgba(2,4,12,0.6)] sm:h-[680px]">
-        <AtmosphereBackground variant="galaxy" intensity="medium" anchored />
+      {/* Transparent window onto the persistent galaxy behind the shell. */}
+      <div className="relative h-[62dvh] min-h-[420px] overflow-hidden rounded-[28px] border border-white/10 sm:h-[680px]">
         {showInlineLoader ? (
           <div className="absolute inset-0 p-6">
             <div className="grid h-full gap-4 lg:grid-cols-[minmax(0,1.35fr)_320px]">

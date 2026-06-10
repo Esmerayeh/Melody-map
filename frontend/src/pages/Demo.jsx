@@ -15,7 +15,7 @@ import { motion }       from 'framer-motion'
 import { Sparkles, Disc3, ArrowRight, Lock } from 'lucide-react'
 import { DEMO_PROFILE } from '../data/demoPlanet'
 import { buildGalaxyModel }    from '../features/galaxy/galaxyBuilder'
-import GalaxyScene             from '../features/galaxy/GalaxyScene'
+import { useGalaxyStageConfig } from '../features/galaxy/useGalaxyStage'
 import DeferredSoulOrb         from '../components/DeferredSoulOrb'
 import AtmosphereBackground    from '../components/premium/AtmosphereBackground'
 import ShimmerDivider          from '../components/premium/ShimmerDivider'
@@ -130,6 +130,29 @@ export default function Demo() {
     [model, focusedObject],
   )
 
+  // Comets + memory/obsession extras rendered inside the persistent galaxy
+  // <Canvas> via the stage store.
+  const stageExtraChildren = useMemo(() => (
+    <>
+      <Suspense fallback={null}>
+        <CometLayer comets={demoComets} onCometClick={handleCometClick} reducedMotion={adaptive.reducedMotion} />
+      </Suspense>
+      <GhostConstellationLines ghostNodes={ghostNodes} reducedMotion={adaptive.reducedMotion} />
+      {obsessionNode && <ObsessionGravityWell node={obsessionNode} reducedMotion={adaptive.reducedMotion} />}
+    </>
+  ), [demoComets, handleCometClick, ghostNodes, obsessionNode, adaptive.reducedMotion])
+
+  // Publish the demo galaxy to the ONE persistent canvas (App shell). This public
+  // route no longer mounts its own <Canvas>.
+  useGalaxyStageConfig({
+    model,
+    sparseMode:    false,
+    lowPower:      adaptive.sparseGraphics,
+    reducedMotion: adaptive.reducedMotion,
+    webglEnabled:  adaptive.webglSupported,
+    extraChildren: stageExtraChildren,
+  }, [model, adaptive.sparseGraphics, adaptive.reducedMotion, adaptive.webglSupported, stageExtraChildren])
+
   const controlProps = {
     isDemo:            true,
     loading:           !model,
@@ -148,7 +171,9 @@ export default function Demo() {
   }
 
   return (
-    <div className="min-h-[100dvh] app-shell-bg">
+    // Lifted above the persistent galaxy (fixed, z-0) with a transparent
+    // background so the live galaxy shows through edge-to-edge.
+    <div className="relative z-10 min-h-[100dvh]">
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <header className="relative z-30 flex items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2">
@@ -227,8 +252,8 @@ export default function Demo() {
           {model && <GalaxyControls {...controlProps} />}
         </div>
 
-        <div className="relative h-[60dvh] min-h-[420px] overflow-hidden rounded-[28px] border border-white/10 bg-[#040610] sm:h-[640px]">
-          <AtmosphereBackground variant="galaxy" intensity="medium" anchored />
+        {/* Transparent window onto the persistent galaxy behind this route. */}
+        <div className="relative h-[60dvh] min-h-[420px] overflow-hidden rounded-[28px] border border-white/10 sm:h-[640px]">
           <DemoBanner />
           <GenesisSequence isDemo auralithLine="Your listening history is a universe. This is what it looks like." />
 
@@ -239,26 +264,10 @@ export default function Demo() {
           ) : (
             <motion.div
               className="h-full w-full"
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
               transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
             >
-              <GalaxyScene
-                model={model}
-                sparseMode={false}
-                lowPower={adaptive.sparseGraphics}
-                reducedMotion={adaptive.reducedMotion}
-                webglEnabled={adaptive.webglSupported}
-                extraChildren={
-                  <>
-                    <Suspense fallback={null}>
-                      <CometLayer comets={demoComets} onCometClick={handleCometClick} reducedMotion={adaptive.reducedMotion} />
-                    </Suspense>
-                    <GhostConstellationLines ghostNodes={ghostNodes} reducedMotion={adaptive.reducedMotion} />
-                    {obsessionNode && <ObsessionGravityWell node={obsessionNode} reducedMotion={adaptive.reducedMotion} />}
-                  </>
-                }
-              />
               <GalaxyLegend
                 clusters={model?.clusters || []}
                 regions={model?.regions   || []}
