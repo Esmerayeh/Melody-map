@@ -4,21 +4,14 @@ from datetime import UTC, datetime, timedelta
 
 from flask import Request
 
-from config import Config
+from utils.cookie_policy import cookie_kwargs
 
 
 APP_SESSION_COOKIE = "mm_app_session"
 
 
 def _cookie_options(max_age: int | None = None) -> dict:
-    secure = Config.environment != "development" and not Config.testing
-    return {
-        "httponly": True,
-        "secure": secure,
-        "samesite": "Lax",
-        "max_age": max_age,
-        "path": "/",
-    }
+    return cookie_kwargs(max_age=max_age)
 
 
 def set_auth_cookie(response, token: str, *, ttl_seconds: int) -> None:

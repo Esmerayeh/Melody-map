@@ -72,6 +72,8 @@ class AppConfig:
     spotify_client_secret: str | None
     spotify_redirect_uri: str
     spotify_public_redirect_uri: str
+    cookie_samesite: str
+    cookie_secure: bool
     lastfm_api_key: str | None
     lastfm_api_secret: str | None
     lastfm_redirect_uri: str
@@ -87,6 +89,12 @@ class AppConfig:
     enable_shadow_ranker: bool
     enable_learned_soulmate: bool
     recommendation_canary_percent: int
+    auralith_llm_provider: str
+    auralith_llm_endpoint: str | None
+    auralith_llm_api_key: str | None
+    auralith_llm_model: str | None
+    auralith_llm_timeout: int
+    auralith_llm_max_tokens: int
     kafka_bootstrap_servers: str | None
     kafka_events_topic: str
     kafka_recommendation_feedback_topic: str
@@ -109,6 +117,8 @@ class AppConfig:
             "frontendUrl": self.frontend_url,
             "spotifyConfigured": self.spotify_credentials_available,
             "usingDevSecret": self.using_dev_secret,
+            "cookieSameSite": self.cookie_samesite,
+            "cookieSecure": self.cookie_secure,
         }
 
 
@@ -120,6 +130,25 @@ def get_config() -> AppConfig:
     frontend_url = _env("FRONTEND_URL")
     if not frontend_url:
         frontend_url = "http://localhost:3000" if debug or testing else "https://melodymap.site"
+
+    # ── Cookie policy (cross-site aware) ──────────────────────────────────────
+    # In production the frontend (Vercel) and backend (Render) live on different
+    # registrable domains, so the post-OAuth `/exchange` + `/bootstrap` calls are
+    # cross-site XHR. Browsers only send/store cookies on cross-site XHR when they
+    # are `SameSite=None; Secure`. With `SameSite=Lax` the session cookie never
+    # reaches the backend on the next request and the user is bounced to /login.
+    # Locally the Vite proxy makes everything same-origin, so `Lax` is correct
+    # there (and avoids requiring HTTPS over plain-http loopback).
+    frontend_is_local = ("localhost" in frontend_url) or ("127.0.0.1" in frontend_url)
+    default_samesite = "Lax" if (frontend_is_local or testing) else "None"
+    cookie_samesite = (_env("COOKIE_SAMESITE", default_samesite) or default_samesite).strip()
+    # SameSite=None is only honored alongside Secure. Local plain-http stays
+    # non-secure so cookies are accepted over http://127.0.0.1.
+    if cookie_samesite.lower() == "none":
+        default_secure = True
+    else:
+        default_secure = not (frontend_is_local or testing)
+    cookie_secure = _env_bool("COOKIE_SECURE", default_secure)
 
     return AppConfig(
         environment=environment,
@@ -133,6 +162,8 @@ def get_config() -> AppConfig:
         spotify_client_secret=_env("SPOTIFY_CLIENT_SECRET"),
         spotify_redirect_uri=_env("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:5000/auth/spotify/callback") or "http://127.0.0.1:5000/auth/spotify/callback",
         spotify_public_redirect_uri=_env("SPOTIFY_PUBLIC_REDIRECT_URI", "http://127.0.0.1:3000/spotify-success") or "http://127.0.0.1:3000/spotify-success",
+        cookie_samesite=cookie_samesite,
+        cookie_secure=cookie_secure,
         lastfm_api_key=_env("LASTFM_API_KEY"),
         lastfm_api_secret=_env("LASTFM_API_SECRET"),
         lastfm_redirect_uri=_env("LASTFM_REDIRECT_URI", "http://127.0.0.1:5000/auth/lastfm/callback") or "http://127.0.0.1:5000/auth/lastfm/callback",
@@ -148,6 +179,12 @@ def get_config() -> AppConfig:
         enable_shadow_ranker=_env_bool("ENABLE_SHADOW_RANKER", False),
         enable_learned_soulmate=_env_bool("ENABLE_LEARNED_SOULMATE", False),
         recommendation_canary_percent=_env_int("RECOMMENDATION_CANARY_PERCENT", 0),
+        auralith_llm_provider=_env("AURALITH_LLM_PROVIDER", "openai_compatible") or "openai_compatible",
+        auralith_llm_endpoint=_env("AURALITH_LLM_ENDPOINT"),
+        auralith_llm_api_key=_env("AURALITH_LLM_API_KEY"),
+        auralith_llm_model=_env("AURALITH_LLM_MODEL", "llama-3.1-8b-instant"),
+        auralith_llm_timeout=_env_int("AURALITH_LLM_TIMEOUT", 20),
+        auralith_llm_max_tokens=_env_int("AURALITH_LLM_MAX_TOKENS", 500),
         kafka_bootstrap_servers=_env("KAFKA_BOOTSTRAP_SERVERS"),
         kafka_events_topic=_env("KAFKA_EVENTS_TOPIC", "melodymap.events.v1") or "melodymap.events.v1",
         kafka_recommendation_feedback_topic=_env("KAFKA_RECOMMENDATION_FEEDBACK_TOPIC", "melodymap.recommendation.feedback.v1") or "melodymap.recommendation.feedback.v1",

@@ -4,7 +4,7 @@ import secrets
 
 from flask import Request
 
-from config import Config
+from utils.cookie_policy import cookie_kwargs
 
 
 CSRF_COOKIE = "mm_csrf"
@@ -12,13 +12,8 @@ CSRF_HEADER = "X-CSRF-Token"
 
 
 def _cookie_options() -> dict:
-    secure = Config.environment != "development" and not Config.testing
-    return {
-        "httponly": False,
-        "secure": secure,
-        "samesite": "Lax",
-        "path": "/",
-    }
+    # Readable by JS (httponly=False) so the SPA can echo it back in X-CSRF-Token.
+    return cookie_kwargs(http_only=False)
 
 
 def issue_csrf_token(response, request: Request | None = None) -> str:

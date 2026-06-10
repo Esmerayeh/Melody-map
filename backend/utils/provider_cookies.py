@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 from flask import Request
 
-from config import Config
+from utils.cookie_policy import cookie_kwargs
 
 
 SPOTIFY_ACCESS_COOKIE = "mm_spotify_access"
@@ -15,15 +15,7 @@ LASTFM_USERNAME_COOKIE = "mm_lastfm_username"
 
 
 def _cookie_options(max_age: int | None = None) -> dict:
-    secure = Config.environment != "development" and not Config.testing
-    same_site = "Lax"
-    return {
-        "httponly": True,
-        "secure": secure,
-        "samesite": same_site,
-        "max_age": max_age,
-        "path": "/",
-    }
+    return cookie_kwargs(max_age=max_age)
 
 
 def set_spotify_cookies(response, *, access_token: str, refresh_token: str | None, expires_in: int | None) -> None:
