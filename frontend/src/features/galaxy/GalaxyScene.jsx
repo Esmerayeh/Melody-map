@@ -435,9 +435,10 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   const groupRef = useRef()
   const meshRef = useRef()
   const haloRef = useRef()
+  const matRef = useRef()
+  const haloMatRef = useRef()
   const nodeRef = useRef(node)
   const position = node.position || { x: 0, y: 0, z: 0 }
-  const hoveredObject = useGalaxyInteractionStore((state) => state.hoveredObject)
   const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
   const setHoveredObject = useGalaxyInteractionStore((state) => state.setHoveredObject)
   const setFocusedObject = useGalaxyInteractionStore((state) => state.setFocusedObject)
@@ -450,7 +451,6 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   const objectType = isClusterNode ? 'cluster' : node.type
   const objectId = isClusterNode ? node.clusterId : node.id
   const selected = focusedObject?.id === objectId && focusedObject?.type === objectType
-  const hovered = hoveredObject?.id === objectId && hoveredObject?.type === objectType
   const visibility = getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode)
   const renderedSize = clamp(node.size || 0.5, node.type === 'track' ? 0.13 : 0.24, node.type === 'cluster' ? 1.45 : node.type === 'genre' ? 1.34 : 0.92)
   const hitRadius = Math.max(renderedSize * 2.2, node.type === 'track' ? 0.45 : 0.7)
@@ -464,7 +464,7 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   // (deps are stable per-node), and cleans up on unmount.
   useEffect(() => {
     if (!registerRef) return
-    return registerRef(node.id, { groupRef, meshRef, haloRef, basePosition, driftSeed, nodeRef, objectId, objectType })
+    return registerRef(node.id, { groupRef, meshRef, haloRef, matRef, haloMatRef, basePosition, driftSeed, nodeRef, objectId, objectType })
   }, [node.id, registerRef, basePosition, driftSeed, objectId, objectType])
 
   if (!visibility.visible) return null
@@ -492,15 +492,17 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
     <group ref={groupRef} position={[position.x, position.y, position.z]}>
       <mesh ref={haloRef}>
         <sphereGeometry args={[renderedSize * (node.type === 'track' ? 1.4 : 1.8), 16, 16]} />
-        <meshBasicMaterial color={node.color} transparent opacity={selected ? 0.1 : hovered ? 0.06 : 0.03} />
+        {/* Base opacity only — hover/selection raise is eased in the parent useFrame via haloMatRef. */}
+        <meshBasicMaterial ref={haloMatRef} color={node.color} transparent opacity={0.03} />
       </mesh>
 
       <mesh ref={meshRef}>
         <sphereGeometry args={[renderedSize, node.type === 'track' ? 12 : 24, node.type === 'track' ? 12 : 24]} />
         <MeshDistortMaterial
+          ref={matRef}
           color={node.color}
           emissive={node.color}
-          emissiveIntensity={selected ? 1.95 : hovered ? 1.35 : node.type === 'cluster' ? 0.9 : 0.65}
+          emissiveIntensity={node.type === 'cluster' ? 0.9 : 0.65}
           roughness={0.24}
           metalness={0.62}
           transparent
@@ -514,6 +516,7 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
         onClick={handleSelect}
         onPointerOver={(event) => {
           event.stopPropagation()
+          if (typeof document !== 'undefined') document.body.style.cursor = 'pointer'
           setHoveredObject({
             id: objectId,
             type: objectType,
@@ -524,6 +527,7 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
         }}
         onPointerOut={(event) => {
           event.stopPropagation()
+          if (typeof document !== 'undefined') document.body.style.cursor = ''
           setHoveredObject(null)
         }}
       >
@@ -1092,34 +1096,69 @@ function SceneContents({
     return () => nodeRefsMap.current.delete(id)
   }, [])
 
-  useFrame(({ clock }) => {
-    const t = clock.getElapsedTime()
+  useFrame((state, delta) => {
+    const t = state.clock.getElapsedTime()
+    const dt = Math.min(delta, 0.05)
     const { hoveredObject: ho, focusedObject: fo, motionState } = useGalaxyInteractionStore.getState()
-    nodeRefsMap.current.forEach(({ groupRef, meshRef, haloRef, basePosition, driftSeed, nodeRef, objectId, objectType }) => {
+    nodeRefsMap.current.forEach((entry) => {
+      const { groupRef, meshRef, haloRef, matRef, haloMatRef, basePosition, driftSeed, nodeRef, objectId, objectType } = entry
       const node = nodeRef.current
       const sel = fo?.id === objectId && fo?.type === objectType
       const hov = ho?.id === objectId && ho?.type === objectType
+
+      // Eased hover / selection activation, driven purely off refs (no per-node
+      // React state, no re-render storm). ~150–170ms ease via exponential damping.
+      // Reduced motion: snap to target so hover still highlights but nothing animates.
+      const hoverTarget = hov && !sel ? 1 : 0
+      const selTarget = sel ? 1 : 0
+      if (reducedMotion) {
+        entry.hoverT = hoverTarget
+        entry.selT = selTarget
+      } else {
+        entry.hoverT = THREE.MathUtils.damp(entry.hoverT ?? 0, hoverTarget, 18, dt)
+        entry.selT = THREE.MathUtils.damp(entry.selT ?? 0, selTarget, 18, dt)
+      }
+      const hoverT = entry.hoverT
+      const selT = entry.selT
+
       if (groupRef.current) {
-        const motionScale = sel ? 0.25 : hov ? 0.45 : 1
-        const amplitude = (node.type === 'track' ? 0.08 : node.type === 'genre' ? 0.12 : 0.1) * (motionState?.oscillationStrength || 0.28) * motionScale
-        groupRef.current.position.set(
-          basePosition.x + Math.sin(t * 0.08 + driftSeed * 0.001) * amplitude,
-          basePosition.y + Math.cos(t * 0.07 + driftSeed * 0.0017) * amplitude * 0.7,
-          basePosition.z + Math.sin(t * 0.06 + driftSeed * 0.0021) * amplitude,
-        )
+        if (reducedMotion) {
+          // Freeze positional drift + sculptural tilt; keep nodes at rest.
+          groupRef.current.position.copy(basePosition)
+          groupRef.current.rotation.set(0, 0, 0)
+        } else {
+          const motionScale = sel ? 0.25 : hov ? 0.45 : 1
+          const amplitude = (node.type === 'track' ? 0.08 : node.type === 'genre' ? 0.12 : 0.1) * (motionState?.oscillationStrength || 0.28) * motionScale
+          groupRef.current.position.set(
+            basePosition.x + Math.sin(t * 0.08 + driftSeed * 0.001) * amplitude,
+            basePosition.y + Math.cos(t * 0.07 + driftSeed * 0.0017) * amplitude * 0.7,
+            basePosition.z + Math.sin(t * 0.06 + driftSeed * 0.0021) * amplitude,
+          )
+          const sculpturalTilt = (sel ? 1 : hov ? 0.7 : 0.32) * MOTION_FLOAT.orb.tilt
+          groupRef.current.rotation.y = Math.cos(t * 0.09 + driftSeed * 0.0014) * sculpturalTilt
+          groupRef.current.rotation.x = Math.sin(t * 0.07 + driftSeed * 0.0019) * sculpturalTilt * 0.42
+        }
       }
       if (meshRef.current) {
-        meshRef.current.rotation.y += node.type === 'genre' ? 0.0015 : node.type === 'cluster' ? 0.0012 : 0.0025
-        meshRef.current.rotation.x = Math.sin(t * (node.type === 'track' ? 1.18 : 0.54) + basePosition.x) * 0.08
-        meshRef.current.scale.setScalar(sel ? 1.16 : hov ? 1.08 : 1)
+        if (!reducedMotion) {
+          meshRef.current.rotation.y += node.type === 'genre' ? 0.0015 : node.type === 'cluster' ? 0.0012 : 0.0025
+          meshRef.current.rotation.x = Math.sin(t * (node.type === 'track' ? 1.18 : 0.54) + basePosition.x) * 0.08
+        }
+        // Eased hover scale (~1.3x) + a slightly smaller selected presence.
+        meshRef.current.scale.setScalar(1 + hoverT * 0.30 + selT * 0.22)
       }
-      if (groupRef.current) {
-        const sculpturalTilt = (sel ? 1 : hov ? 0.7 : 0.32) * MOTION_FLOAT.orb.tilt
-        groupRef.current.rotation.y = Math.cos(t * 0.09 + driftSeed * 0.0014) * sculpturalTilt
-        groupRef.current.rotation.x = Math.sin(t * 0.07 + driftSeed * 0.0019) * sculpturalTilt * 0.42
+      if (matRef.current) {
+        // Raise emissive/bloom on hover + selection (base: cluster 0.9, else 0.65).
+        const baseEmissive = node.type === 'cluster' ? 0.9 : 0.65
+        matRef.current.emissiveIntensity = baseEmissive + hoverT * 0.85 + selT * 1.35
+      }
+      if (haloMatRef.current) {
+        // Raise the soft halo glow with the same eased activation.
+        haloMatRef.current.opacity = 0.03 + hoverT * 0.04 + selT * 0.07
       }
       if (haloRef.current) {
-        haloRef.current.scale.setScalar(1 + Math.sin(t * 0.8 + basePosition.y) * 0.03 + (sel ? 0.18 : hov ? 0.08 : 0))
+        const haloPulse = reducedMotion ? 0 : Math.sin(t * 0.8 + basePosition.y) * 0.03
+        haloRef.current.scale.setScalar(1 + haloPulse + hoverT * 0.10 + selT * 0.18)
       }
     })
   })
