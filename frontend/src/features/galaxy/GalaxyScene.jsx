@@ -17,6 +17,17 @@ const TraversalController = lazy(() => import('./TraversalController'))
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
 
+// ── Hover feel tuning ───────────────────────────────────────────────────────
+// Hover-IN is a light underdamped spring (snappy ~100-120ms rise, subtle ~18%
+// overshoot → scale peaks ~1.36x then settles to 1.30x). Hover-OUT is a gentle
+// monotonic exponential settle (~280ms, no undershoot). Asymmetric on purpose:
+// reactive in, soft out reads organic; symmetric reads robotic. The glow lags
+// the scale by ~40ms so light blooms a hair after the star grows.
+const HOVER_SPRING_K   = 520   // spring stiffness (rad²/s²) → overshoot + rise time
+const HOVER_SPRING_C   = 22    // spring damping → ζ≈0.48, ~18% overshoot
+const HOVER_OUT_LAMBDA = 11    // exponential decay on hover-out → ~280ms to ~95%
+const GLOW_LAG_LAMBDA  = 80    // glow follows scale activation with ~40ms lag
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Reference "Infinite Listening Atlas" galaxy technique, ported to R3F.
 // Procedural textures + star palette + nebula colour-blend, scaled to this
@@ -527,6 +538,10 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
         }}
         onPointerOut={(event) => {
           event.stopPropagation()
+          // Only the newest hover wins: if the pointer already moved onto another
+          // star (its onPointerOver ran first), don't clear that fresher hover.
+          const current = useGalaxyInteractionStore.getState().hoveredObject
+          if (current && !(current.id === objectId && current.type === objectType)) return
           if (typeof document !== 'undefined') document.body.style.cursor = ''
           setHoveredObject(null)
         }}
@@ -1107,18 +1122,36 @@ function SceneContents({
       const hov = ho?.id === objectId && ho?.type === objectType
 
       // Eased hover / selection activation, driven purely off refs (no per-node
-      // React state, no re-render storm). ~150–170ms ease via exponential damping.
+      // React state, no re-render storm). Asymmetric for organic feel: spring-IN
+      // (snappy + subtle overshoot), gentle exponential settle-OUT. glowT follows
+      // the scale activation with a slight lag so light blooms after the grow.
       // Reduced motion: snap to target so hover still highlights but nothing animates.
       const hoverTarget = hov && !sel ? 1 : 0
       const selTarget = sel ? 1 : 0
       if (reducedMotion) {
         entry.hoverT = hoverTarget
+        entry.hoverV = 0
+        entry.glowT = hoverTarget
         entry.selT = selTarget
       } else {
-        entry.hoverT = THREE.MathUtils.damp(entry.hoverT ?? 0, hoverTarget, 18, dt)
+        const h = entry.hoverT ?? 0
+        if (hoverTarget > 0.5) {
+          // Hover-IN: light underdamped spring (frame-rate independent via dt).
+          let v = entry.hoverV ?? 0
+          v += (HOVER_SPRING_K * (1 - h) - HOVER_SPRING_C * v) * dt
+          entry.hoverT = h + v * dt
+          entry.hoverV = v
+        } else {
+          // Hover-OUT: gentle monotonic settle, no undershoot. Drop spring velocity.
+          entry.hoverT = THREE.MathUtils.damp(h, 0, HOVER_OUT_LAMBDA, dt)
+          entry.hoverV = 0
+        }
+        // Glow trails the scale activation by ~40ms.
+        entry.glowT = THREE.MathUtils.damp(entry.glowT ?? 0, entry.hoverT, GLOW_LAG_LAMBDA, dt)
         entry.selT = THREE.MathUtils.damp(entry.selT ?? 0, selTarget, 18, dt)
       }
       const hoverT = entry.hoverT
+      const glowT = entry.glowT
       const selT = entry.selT
 
       if (groupRef.current) {
@@ -1149,12 +1182,13 @@ function SceneContents({
       }
       if (matRef.current) {
         // Raise emissive/bloom on hover + selection (base: cluster 0.9, else 0.65).
+        // Uses the lagged glowT so light blooms a hair after the star grows.
         const baseEmissive = node.type === 'cluster' ? 0.9 : 0.65
-        matRef.current.emissiveIntensity = baseEmissive + hoverT * 0.85 + selT * 1.35
+        matRef.current.emissiveIntensity = baseEmissive + glowT * 0.85 + selT * 1.35
       }
       if (haloMatRef.current) {
-        // Raise the soft halo glow with the same eased activation.
-        haloMatRef.current.opacity = 0.03 + hoverT * 0.04 + selT * 0.07
+        // Raise the soft halo glow with the lagged activation too.
+        haloMatRef.current.opacity = 0.03 + glowT * 0.04 + selT * 0.07
       }
       if (haloRef.current) {
         const haloPulse = reducedMotion ? 0 : Math.sin(t * 0.8 + basePosition.y) * 0.03

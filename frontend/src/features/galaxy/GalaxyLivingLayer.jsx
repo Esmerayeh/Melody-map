@@ -74,32 +74,115 @@ export function TasteHeartbeat({ core, reducedMotion = false }) {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // 2. CursorGravity
-//    A small cloud of dust particles that gently orbit the pointer.
-//    Uses a raycaster to project mouse → world space on the galaxy plane.
+//    Drifting light-motes that ease toward the pointer, brighten mid-drift, then
+//    fade as they arrive and respawn — a living warm haze, not a rigid swarm.
+//    Rendered as a SINGLE THREE.Points (one draw call) with a soft additive
+//    sprite; per-mote size/colour/speed variance + the whole drift cycle live in
+//    the vertex shader, so the only per-frame work is advancing uTime and lerping
+//    the cursor uniform — nothing is re-uploaded. Uses a raycaster to project
+//    mouse → world space on the galaxy plane.
 // ─────────────────────────────────────────────────────────────────────────────
-const DUST_COUNT = 28
+const DUST_COUNT = 64
+
+// Soft radial sprite for the motes (created once, app-lifetime — not per render).
+let _DUST_TEX = null
+function getDustTex() {
+  if (_DUST_TEX) return _DUST_TEX
+  if (typeof document === 'undefined') return null
+  const size = 64
+  const c = document.createElement('canvas'); c.width = c.height = size
+  const ctx = c.getContext('2d')
+  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2)
+  g.addColorStop(0, 'rgba(255,255,255,1)')
+  g.addColorStop(0.4, 'rgba(255,255,255,0.5)')
+  g.addColorStop(1, 'rgba(255,255,255,0)')
+  ctx.fillStyle = g; ctx.fillRect(0, 0, size, size)
+  _DUST_TEX = new THREE.CanvasTexture(c)
+  _DUST_TEX.colorSpace = THREE.SRGBColorSpace
+  return _DUST_TEX
+}
+
+// Layered warm palette (zero purple): cream + faint amber + a touch of rose.
+const DUST_PALETTE = [
+  new THREE.Color('#ffeccb'), // warm cream
+  new THREE.Color('#ffba6e'), // faint amber
+  new THREE.Color('#ff9eb0'), // touch of rose
+]
 
 export function CursorGravity({ reducedMotion = false, sparseGraphics = false }) {
   const { camera, gl } = useThree()
-  const groupRef        = useRef()
-  const targetPos       = useRef(new THREE.Vector3(0, 0, 0))
-  const mouse           = useRef(new THREE.Vector2(0, 0))
-  const planeNormal     = useMemo(() => new THREE.Vector3(0, 0, 1), [])
-  const plane           = useMemo(() => new THREE.Plane(planeNormal, 0), [planeNormal])
-  const raycaster       = useMemo(() => new THREE.Raycaster(), [])
+  const mouse       = useRef(new THREE.Vector2(0, 0))
+  const planeNormal = useMemo(() => new THREE.Vector3(0, 0, 1), [])
+  const plane       = useMemo(() => new THREE.Plane(planeNormal, 0), [planeNormal])
+  const raycaster   = useMemo(() => new THREE.Raycaster(), [])
+  const cursorWorld = useRef(new THREE.Vector3(0, 0, 0))
+  const scratch     = useMemo(() => new THREE.Vector3(), [])
 
   const count = sparseGraphics ? Math.floor(DUST_COUNT * 0.5) : DUST_COUNT
 
-  const particles = useMemo(() => (
-    Array.from({ length: count }, (_, i) => ({
-      angle:  (i / count) * Math.PI * 2,
-      radius: 1.5 + Math.random() * 2.5,
-      speed:  0.18 + Math.random() * 0.22,
-      drift:  (Math.random() - 0.5) * 0.06,
-      vy:     (Math.random() - 0.5) * 0.04,
-      size:   0.02 + Math.random() * 0.03,
-    }))
-  ), [count])
+  const points = useMemo(() => {
+    const positions = new Float32Array(count * 3) // unused by shader, but required
+    const seeds     = new Float32Array(count * 3)
+    const sizes     = new Float32Array(count)
+    const colors    = new Float32Array(count * 3)
+    for (let i = 0; i < count; i++) {
+      seeds[i * 3]     = Math.random()
+      seeds[i * 3 + 1] = Math.random()
+      seeds[i * 3 + 2] = Math.random()
+      sizes[i]         = 5 + Math.random() * 13                  // varied mote size
+      const roll = Math.random()
+      const base = roll < 0.58 ? DUST_PALETTE[0] : roll < 0.82 ? DUST_PALETTE[1] : DUST_PALETTE[2]
+      const col  = base.clone().lerp(DUST_PALETTE[0], Math.random() * 0.4)  // bias warm
+      colors[i * 3] = col.r; colors[i * 3 + 1] = col.g; colors[i * 3 + 2] = col.b
+    }
+    const geo = new THREE.BufferGeometry()
+    geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
+    geo.setAttribute('aSeed',    new THREE.BufferAttribute(seeds, 3))
+    geo.setAttribute('aSize',    new THREE.BufferAttribute(sizes, 1))
+    geo.setAttribute('aColor',   new THREE.BufferAttribute(colors, 3))
+    const mat = new THREE.ShaderMaterial({
+      uniforms: {
+        uTime:       { value: 0 },
+        uCursor:     { value: new THREE.Vector3() },
+        uPixelRatio: { value: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2) },
+        uMap:        { value: getDustTex() },
+        uOpacity:    { value: 0.6 },
+      },
+      vertexShader: `
+        attribute vec3 aSeed; attribute float aSize; attribute vec3 aColor;
+        uniform float uTime; uniform vec3 uCursor; uniform float uPixelRatio;
+        varying vec3 vColor; varying float vAlpha;
+        void main() {
+          float speed  = 0.10 + aSeed.x * 0.22;            // per-mote variance
+          float p      = fract(uTime * speed + aSeed.y);   // lifecycle 0..1
+          float spawnR = 2.0 + aSeed.z * 3.4;
+          float r      = spawnR * (1.0 - p);               // ease inward toward cursor
+          float ang    = aSeed.y * 6.2831 + p * (1.4 + aSeed.x * 2.2); // gentle swirl
+          vec3 offset  = vec3(cos(ang) * r, (aSeed.z - 0.5) * 1.5 * (1.0 - p), sin(ang) * r);
+          vec4 mv = modelViewMatrix * vec4(uCursor + offset, 1.0);
+          gl_Position = projectionMatrix * mv;
+          float dist = -mv.z;
+          gl_PointSize = aSize * uPixelRatio * (90.0 / max(dist, 1.0));
+          vColor = aColor;
+          vAlpha = sin(p * 3.14159);                       // fade in, brighten, fade on arrival
+        }`,
+      fragmentShader: `
+        uniform sampler2D uMap; uniform float uOpacity;
+        varying vec3 vColor; varying float vAlpha;
+        void main() {
+          vec4 tex = texture2D(uMap, gl_PointCoord);
+          gl_FragColor = vec4(vColor * (0.6 + vAlpha * 0.8), tex.a * vAlpha * uOpacity);
+        }`,
+      transparent: true,
+      blending: THREE.AdditiveBlending,
+      depthWrite: false,
+    })
+    const pts = new THREE.Points(geo, mat)
+    pts.frustumCulled = false // real positions track the cursor, not the origin
+    return pts
+  }, [count])
+
+  useEffect(() => () => { points.geometry.dispose(); points.material.dispose() }, [points])
 
   useEffect(() => {
     const canvas = gl.domElement
@@ -114,47 +197,20 @@ export function CursorGravity({ reducedMotion = false, sparseGraphics = false })
     return () => canvas.removeEventListener('pointermove', onMove)
   }, [gl.domElement])
 
-  useFrame(({ clock: fc }) => {
+  useFrame((_, delta) => {
     if (reducedMotion) return
-    const t = fc.getElapsedTime()
-
-    // project mouse to world plane z=0
+    const mat = points.material
+    mat.uniforms.uTime.value += Math.min(delta, 0.05)
     raycaster.setFromCamera(mouse.current, camera)
-    const worldPos = new THREE.Vector3()
-    raycaster.ray.intersectPlane(plane, worldPos)
-    if (worldPos) targetPos.current.lerp(worldPos, 0.06)
-
-    const tp = targetPos.current
-    if (!groupRef.current) return
-
-    groupRef.current.children.forEach((child, i) => {
-      const p = particles[i]
-      if (!p) return
-      const angle  = p.angle + t * p.speed
-      const radius = p.radius + Math.sin(t * 0.4 + i) * 0.35
-      child.position.set(
-        tp.x + Math.cos(angle) * radius,
-        tp.y + Math.sin(t * 0.3 + i) * 0.25 + p.drift,
-        tp.z + Math.sin(angle) * radius,
-      )
-      const pulse = 1 + Math.sin(t * 1.4 + i) * 0.18
-      child.scale.setScalar(p.size * pulse)
-    })
+    if (raycaster.ray.intersectPlane(plane, scratch)) {
+      cursorWorld.current.lerp(scratch, 0.08)
+    }
+    mat.uniforms.uCursor.value.copy(cursorWorld.current)
   })
 
   if (reducedMotion) return null
 
-  return (
-    <group ref={groupRef}>
-      {particles.map((p, i) => (
-        <mesh key={i}>
-          <sphereGeometry args={[1, 6, 6]} />
-          {/* Warm dust, additive so it reads as light gathering toward the pointer (zero purple). */}
-          <meshBasicMaterial color="#ffe9c0" transparent opacity={0.22} blending={THREE.AdditiveBlending} depthWrite={false} />
-        </mesh>
-      ))}
-    </group>
-  )
+  return <primitive object={points} />
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
