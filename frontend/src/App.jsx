@@ -2,7 +2,7 @@ import React, { Suspense, lazy, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
-import { AnimatePresence, motion } from 'framer-motion'
+import { motion } from 'framer-motion'
 import Sidebar from './components/Sidebar'
 import TopBar from './components/TopBar'
 import BottomNav from './components/BottomNav'
@@ -368,8 +368,12 @@ function AnimatedRoutes() {
   return (
     <RouteCrashBoundary resetKey={location.pathname} fallback={<GlobalRouteFallback />}>
       <ExperienceBridge />
-      <AnimatePresence mode="wait">
-        <Routes location={location} key={location.pathname}>
+      {/* No AnimatePresence here. mode="wait" deadlocked navigation: the exiting
+          route tree's motion components never resolved their exit, so the next
+          route could never mount (URL changed, content froze). Routes stays keyed
+          on pathname so each route remounts and plays its enter animation;
+          exit animation is intentionally dropped — navigation correctness wins. */}
+      <Routes location={location} key={location.pathname}>
           {/* Public routes — no auth required */}
           <Route path="/login" element={<RouteModule><PageWrapper><Login /></PageWrapper></RouteModule>} />
           <Route path="/spotify-success" element={<RouteModule><SpotifySuccess /></RouteModule>} />
@@ -425,7 +429,6 @@ function AnimatedRoutes() {
           } />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
-      </AnimatePresence>
     </RouteCrashBoundary>
   )
 }
