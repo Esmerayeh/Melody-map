@@ -219,6 +219,35 @@
     color: var(--mm-color-muted);
   }
 
+  /* ── Phase 2: floating shell chrome ─────────────────────────────────────
+     The immersive shell. Glass spec matches the reference (index.html .glass):
+     warm-tinted, thin border, blur(16px), radius applied per element. */
+  .shell-glass {
+    background: linear-gradient(160deg, rgba(20,14,30,0.62) 0%, rgba(8,5,18,0.55) 100%);
+    border: 1px solid rgba(255,220,200,0.16);
+    backdrop-filter: blur(16px) saturate(150%);
+    -webkit-backdrop-filter: blur(16px) saturate(150%);
+  }
+  /* mono kicker/label used across the chrome */
+  .shell-mono {
+    font-family: var(--mm-font-mono);
+    text-transform: uppercase;
+    letter-spacing: 0.2em;
+  }
+  /* Hide-UI fade: body.ui-hidden fades every chrome layer to pure galaxy. */
+  .shell-chrome { transition: opacity 0.5s ease; }
+  body.ui-hidden .shell-chrome--fade { opacity: 0; pointer-events: none; }
+  /* live status dot */
+  .shell-live-dot { animation: shellPulse 2.4s ease-in-out infinite; }
+  @keyframes shellPulse {
+    0%, 100% { opacity: 0.42; transform: scale(0.85); }
+    50%      { opacity: 1;    transform: scale(1.2); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .shell-chrome, .shell-chrome--fade { transition: opacity 0.001s linear; }
+    .shell-live-dot { animation: none; opacity: 0.9; }
+  }
+
   /* ── Hero stat ── */
   .hero-stat {
     background: linear-gradient(180deg, rgba(20,18,40,0.72), rgba(13,12,28,0.58));

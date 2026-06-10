@@ -3,9 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { motion } from 'framer-motion'
-import Sidebar from './components/Sidebar'
-import TopBar from './components/TopBar'
-import BottomNav from './components/BottomNav'
+import ShellChrome from './components/shell/ShellChrome'
 import useStore from './store/useStore'
 import useExperienceStore from './store/useExperienceStore'
 import useMusicProfile from './hooks/useMusicProfile'
@@ -258,19 +256,17 @@ function AppShell({ children }) {
     // fullscreen backdrop; cinema chrome floats above it.
     return <div className="relative z-10 h-[100dvh] overflow-hidden">{children}</div>
   }
-  // The shell is lifted above the persistent galaxy (relative z-10) and carries
-  // no opaque background of its own — the fixed z-0 galaxy shows through when a
-  // route has it active, otherwise the body's deep-space gradient shows.
+  // No sidebar. Floating glass chrome (brand / nav strip / status / dock) sits
+  // fixed over the persistent galaxy; page content scrolls in a full-bleed main,
+  // padded so it clears the top strip and bottom dock. The shell carries no
+  // opaque background — the fixed z-0 galaxy shows through, otherwise the body's
+  // deep-space gradient.
   return (
-    <div className="relative z-10 flex h-[100dvh] min-h-[100dvh] overflow-hidden">
-      <Sidebar />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden app-main-shell">
-        <TopBar />
-        <main className="app-shell-scroll flex-1 overflow-y-auto pb-[calc(5.5rem+env(safe-area-inset-bottom))] md:pb-0">
-          {children}
-        </main>
-      </div>
-      <BottomNav />
+    <div className="relative z-10 h-[100dvh] min-h-[100dvh] overflow-hidden">
+      <ShellChrome />
+      <main className="app-shell-scroll h-full overflow-y-auto pt-[4.75rem] pb-[8.5rem]">
+        {children}
+      </main>
     </div>
   )
 }

@@ -74,6 +74,11 @@ const useStore = create((set) => ({
   cinemaMode: false,
   setCinemaMode: (val) => set({ cinemaMode: val }),
 
+  // Floating-shell "Hide UI" toggle — fades all chrome to pure galaxy.
+  uiHidden: false,
+  setUiHidden: (val) => set({ uiHidden: val }),
+  toggleUiHidden: () => set((s) => ({ uiHidden: !s.uiHidden })),
+
   setUser: (user) => set({ user, isAuthenticated: Boolean(user), }),
 
   logout: () => {
