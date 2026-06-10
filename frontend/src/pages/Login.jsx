@@ -1,45 +1,22 @@
-import { useState, useEffect, useRef } from "react"
-import { useNavigate } from "react-router-dom"
+import { useState } from "react"
+import { useNavigate, Link } from "react-router-dom"
 import { motion } from "framer-motion"
-import { Music2, Mail, Lock, User, Loader2, RadioTower, TimerReset, ShieldAlert } from "lucide-react"
+import { Mail, Lock, User, Loader2, RadioTower, TimerReset, ShieldAlert, Eye } from "lucide-react"
 import toast from "react-hot-toast"
 import { authAPI } from "../services/api"
 import useStore from "../store/useStore"
 import useAuthStore from "../store/useAuthStore"
 import useBackendWake from "../hooks/useBackendWake"
 import useAdaptiveExperience from '../hooks/useAdaptiveExperience'
+import { useGalaxyStageConfig } from '../features/galaxy/useGalaxyStage'
 
-function Particles({ disabled = false }) {
-  const canvasRef = useRef(null)
-  useEffect(() => {
-    if (disabled) return undefined
-    const canvas = canvasRef.current
-    if (!canvas) return
-    const ctx = canvas.getContext("2d")
-    let raf
-    const resize = () => { canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight }
-    resize()
-    window.addEventListener("resize", resize)
-    const dots = Array.from({ length: 32 }, () => ({
-      x: Math.random() * canvas.width, y: Math.random() * canvas.height,
-      r: Math.random() * 1.5 + 0.3, vx: (Math.random() - 0.5) * 0.2,
-      vy: (Math.random() - 0.5) * 0.2, a: Math.random() * 0.5 + 0.1,
-    }))
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height)
-      dots.forEach((d) => {
-        d.x += d.vx; d.y += d.vy
-        if (d.x < 0) d.x = canvas.width; if (d.x > canvas.width) d.x = 0
-        if (d.y < 0) d.y = canvas.height; if (d.y > canvas.height) d.y = 0
-        ctx.beginPath(); ctx.arc(d.x, d.y, d.r, 0, Math.PI * 2)
-        ctx.fillStyle = "rgba(124,111,255," + d.a + ")"; ctx.fill()
-      })
-      raf = requestAnimationFrame(draw)
-    }
-    draw()
-    return () => { cancelAnimationFrame(raf); window.removeEventListener("resize", resize) }
-  }, [])
-  return <canvas ref={canvasRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+// Spotify glyph — kept inline so the connect button needs no asset.
+function SpotifyGlyph({ className }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z" />
+    </svg>
+  )
 }
 
 export default function Login() {
@@ -53,6 +30,23 @@ export default function Login() {
   const { waking, wake, phase, message, timedOut } = useBackendWake()
   const adaptive = useAdaptiveExperience()
 
+  // Put the living galaxy behind the login as a calm, ambient backdrop (model:
+  // null → stars/nebulae/core, no data nodes). Honors reduced-motion / low-power
+  // so signing in feels like easing into the universe, never nauseating.
+  useGalaxyStageConfig(
+    {
+      model: null,
+      sparseMode: adaptive.sparseGraphics,
+      lowPower: adaptive.lowPowerMode,
+      reducedMotion: adaptive.reducedMotion,
+      webglEnabled: adaptive.webglSupported,
+      traversalEnabled: false,
+      autoRotateSpeed: adaptive.reducedMotion ? 0 : 0.05,
+    },
+    [adaptive.sparseGraphics, adaptive.lowPowerMode, adaptive.reducedMotion, adaptive.webglSupported],
+  )
+
+  // ── Auth logic (unchanged from Step 1) ──────────────────────────────────────
   const handleSubmit = async (e) => {
     e.preventDefault(); setLoading(true)
     try {
@@ -68,142 +62,144 @@ export default function Login() {
     } finally { setLoading(false) }
   }
 
+  const connectSpotify = () =>
+    wake(`${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`)
+
+  // Entrance respects reduced-motion: static when reduced, a soft rise otherwise.
+  const rise = adaptive.reducedMotion
+    ? { initial: false }
+    : { initial: { opacity: 0, y: 18, filter: 'blur(6px)' },
+        animate: { opacity: 1, y: 0, filter: 'blur(0px)' },
+        transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] } }
+
+  const inputClass =
+    "w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-[#f3eee6] " +
+    "placeholder:text-[rgba(214,205,189,0.4)] outline-none transition-colors focus:border-[#e0a35c]/55 " +
+    "focus:ring-2 focus:ring-[#e0a35c]/25"
+
   return (
-    <div className="flex min-h-[100dvh] overflow-hidden bg-surface">
-      <div className="hidden lg:flex flex-col justify-between w-1/2 relative p-12 overflow-hidden"
-        style={{ background: "linear-gradient(135deg, #0d0d1a 0%, #151528 100%)" }}>
-        <Particles disabled={adaptive.lowPowerMode} />
-        <div className="absolute top-1/3 left-1/4 w-72 h-72 bg-brand-purple/15 rounded-full blur-3xl pointer-events-none" />
-        <div className="absolute bottom-1/4 right-1/4 w-48 h-48 bg-brand-pink/10 rounded-full blur-3xl pointer-events-none" />
-        <div className="relative z-10 flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-brand-purple to-brand-pink flex items-center justify-center shadow-glow-sm">
-            <Music2 className="w-5 h-5 text-white" />
-          </div>
-          <span className="text-lg font-bold text-gradient">Melody Map</span>
-        </div>
-        <div className="relative z-10">
-          <motion.h1 initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
-            className="text-5xl font-black text-white leading-tight mb-4">
-            Your music,<br /><span className="text-gradient">visualized.</span>
-          </motion.h1>
-          <motion.p initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-            className="text-slate-400 text-lg leading-relaxed max-w-sm">
-            Explore your taste as a galaxy. Find your music soulmate. Generate aesthetic moodboards from your listening history.
-          </motion.p>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.5 }}
-            className="flex flex-wrap gap-2 mt-8">
-            {["dreamy", "nostalgic", "neon", "atmospheric", "cosmic"].map((tag) => (
-              <span key={tag} className="pill">{tag}</span>
-            ))}
-          </motion.div>
-        </div>
-        <p className="relative z-10 text-slate-600 text-xs">2026 Melody Map</p>
-      </div>
+    <div className="relative z-10 flex min-h-[100dvh] items-center justify-center px-5 py-[max(1.5rem,env(safe-area-inset-top))] sm:px-6">
+      {/* Warm vignette seats the glass over the live galaxy for legibility. Static. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-0 -z-[1]"
+        style={{ background: 'radial-gradient(ellipse 58% 52% at 50% 44%, rgba(6,5,16,0.62) 0%, transparent 72%)' }}
+      />
 
-      <div className="relative flex flex-1 items-start justify-center overflow-y-auto px-4 py-[max(1.25rem,env(safe-area-inset-top))] sm:px-6 sm:py-12 lg:items-center">
-        <div className="absolute inset-0 overflow-hidden pointer-events-none lg:hidden">
-          <div className="absolute top-1/4 left-1/2 -translate-x-1/2 w-80 h-80 bg-brand-purple/15 rounded-full blur-3xl" />
+      <motion.div
+        {...rise}
+        className="shell-glass w-full max-w-md rounded-[30px] px-7 py-9 shadow-[0_34px_100px_rgba(0,0,0,0.52)] sm:px-9"
+      >
+        {/* Brand + demo */}
+        <div className="mb-8 flex items-center justify-between">
+          <span className="text-[21px] leading-none text-[#f3eee6]" style={{ fontFamily: 'var(--mm-font-display)' }}>
+            Melody Map
+          </span>
+          <Link
+            to="/demo"
+            className="shell-mono inline-flex items-center gap-1.5 text-[9px] text-[rgba(214,205,189,0.5)] outline-none transition-colors hover:text-[#e0a35c] focus-visible:text-[#e0a35c]"
+          >
+            <Eye className="h-3 w-3" /> Demo
+          </Link>
         </div>
-        <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}
-          className="relative w-full max-w-sm pb-[calc(1rem+env(safe-area-inset-bottom))]">
-          <div className="flex items-center gap-2 mb-8 lg:hidden">
-            <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-brand-purple to-brand-pink flex items-center justify-center">
-              <Music2 className="w-4 h-4 text-white" />
-            </div>
-            <span className="text-base font-bold text-gradient">Melody Map</span>
-          </div>
-          <h2 className="text-2xl font-bold text-white mb-1">{isLogin ? "Welcome back" : "Create account"}</h2>
-          <p className="text-slate-400 text-sm mb-7">{isLogin ? "Sign in to your music universe" : "Start mapping your music taste"}</p>
 
-          <button onClick={() => wake(`${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`)}
+        {/* Kicker + editorial headline */}
+        <p className="page-header-kicker mb-3">Enter the universe</p>
+        <h1
+          className="mb-3 text-[2rem] leading-[1.04]"
+          style={{ fontFamily: 'var(--mm-font-display)', fontStyle: 'italic', color: 'var(--mm-color-copy)', textWrap: 'balance' }}
+        >
+          {isLogin ? 'Step back into your orbit.' : 'Your music, made living.'}
+        </h1>
+        <p className="mb-7 max-w-sm text-sm leading-relaxed text-[rgba(210,200,184,0.72)]">
+          Connect once and your galaxy forms itself around your actual taste — every listen reshapes the universe.
+        </p>
+
+        {/* Connect actions */}
+        <div className="space-y-3">
+          <button
+            type="button"
+            onClick={connectSpotify}
             disabled={waking}
-            className="w-full flex items-center justify-center gap-3 py-3 rounded-xl font-semibold text-sm text-white mb-5 transition-all hover:opacity-90 active:scale-[0.98] disabled:opacity-70"
-            style={{ background: "linear-gradient(135deg, #8B7CFF, #B994FF 55%, #D7DFFF)" }}>
+            className="group flex w-full items-center justify-center gap-3 rounded-[14px] py-3 text-sm font-semibold text-[#1a1206] outline-none transition-all hover:opacity-95 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70 disabled:opacity-70"
+            style={{ background: 'linear-gradient(135deg, #e0a35c 0%, #ffb35a 52%, #f3d9b0 100%)' }}
+          >
             {waking
-              ? <><Loader2 className="w-4 h-4 animate-spin" /> Preparing Spotify connection...</>
-              : <><svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/>
-                </svg> Continue with Spotify</>
-            }
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Spotify connection…</>
+              : <><SpotifyGlyph className="h-5 w-5" /> Continue with Spotify</>}
           </button>
+        </div>
 
-          <div className="rounded-[22px] border border-white/8 bg-white/[0.03] p-4 mb-5">
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-xl border border-white/10 bg-white/[0.04] flex items-center justify-center text-brand-purple shrink-0">
-                {phase === "cold-start"
-                  ? <TimerReset className="w-4 h-4" />
-                  : phase === "redirecting"
-                  ? <RadioTower className="w-4 h-4" />
-                  : timedOut
-                  ? <ShieldAlert className="w-4 h-4" />
-                  : <Loader2 className={`w-4 h-4 ${waking ? "animate-spin" : ""}`} />}
-              </div>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-white">
-                  {waking
-                    ? phase === "redirecting"
-                      ? "Connecting to Spotify"
-                      : phase === "cold-start"
-                      ? "Backend cold start handled"
-                      : "Preparing the auth route"
-                    : "Fast shell, resilient auth"}
-                </p>
-                <p className="text-xs text-slate-400 leading-relaxed mt-2">
-                  {waking
-                    ? message
-                    : "The login shell appears instantly. If the backend is waking up, the UI should tell you clearly instead of looking broken."}
-                </p>
-                <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-slate-500 uppercase tracking-[0.16em]">
-                  <span>callback-safe</span>
-                  <span>session restore</span>
-                  <span>{timedOut ? "cold start visible" : "retry aware"}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 mb-5">
-            <div className="flex-1 h-px bg-white/8" />
-            <span className="text-xs text-slate-500">or</span>
-            <div className="flex-1 h-px bg-white/8" />
-          </div>
-
-          <form onSubmit={handleSubmit} className="space-y-3">
-            {!isLogin && (
-              <div className="relative">
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                <input type="text" placeholder="Username"
-                  className="w-full pl-10 pr-4 py-3 rounded-xl text-sm bg-white/4 border border-white/8 text-white placeholder-slate-500 focus:outline-none focus:border-brand-purple/60 transition-all"
-                  value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
-              </div>
-            )}
-            <div className="relative">
-              <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-              <input type="email" placeholder="Email address"
-                className="w-full pl-10 pr-4 py-3 rounded-xl text-sm bg-white/4 border border-white/8 text-white placeholder-slate-500 focus:outline-none focus:border-brand-purple/60 transition-all"
-                value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required />
-            </div>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-              <input type="password" placeholder="Password"
-                className="w-full pl-10 pr-4 py-3 rounded-xl text-sm bg-white/4 border border-white/8 text-white placeholder-slate-500 focus:outline-none focus:border-brand-purple/60 transition-all"
-                value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-            </div>
-            <button type="submit" disabled={loading}
-              className="btn-glow w-full py-3 rounded-xl font-semibold text-sm text-white bg-gradient-to-r from-brand-purple to-brand-pink hover:shadow-glow-md transition-all disabled:opacity-60 flex items-center justify-center gap-2 mt-1">
-              {loading && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isLogin ? "Sign In" : "Create Account"}
-            </button>
-          </form>
-
-          <p className="text-center text-slate-500 text-sm mt-6">
-            {isLogin ? "Don't have an account? " : "Already have an account? "}
-            <button onClick={() => setIsLogin(!isLogin)} className="text-brand-purple hover:text-indigo-300 font-medium transition-colors">
-              {isLogin ? "Sign Up" : "Sign In"}
-            </button>
+        {/* Quiet auth-route status (reuses the cold-start aware wake state) */}
+        <div className="mt-4 flex items-start gap-2.5 rounded-[16px] border border-white/8 bg-white/[0.025] px-3.5 py-3">
+          <span className="mt-0.5 text-[#e0a35c]">
+            {phase === "cold-start"
+              ? <TimerReset className="h-3.5 w-3.5" />
+              : phase === "redirecting"
+              ? <RadioTower className="h-3.5 w-3.5" />
+              : timedOut
+              ? <ShieldAlert className="h-3.5 w-3.5" />
+              : <RadioTower className="h-3.5 w-3.5" />}
+          </span>
+          <p className="text-[11px] leading-relaxed text-[rgba(214,205,189,0.6)]">
+            {waking
+              ? message
+              : "The shell appears instantly. If the signal is waking, you'll see it here — never a frozen screen."}
           </p>
-        </motion.div>
-      </div>
+        </div>
+
+        {/* Divider */}
+        <div className="my-6 flex items-center gap-3">
+          <div className="h-px flex-1 bg-white/10" />
+          <span className="shell-mono text-[9px] text-[rgba(214,205,189,0.4)]">or with email</span>
+          <div className="h-px flex-1 bg-white/10" />
+        </div>
+
+        {/* Email / password (kept) */}
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {!isLogin && (
+            <div className="relative">
+              <User className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[rgba(214,205,189,0.45)]" />
+              <input
+                type="text" placeholder="Username" className={inputClass}
+                value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required
+              />
+            </div>
+          )}
+          <div className="relative">
+            <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[rgba(214,205,189,0.45)]" />
+            <input
+              type="email" placeholder="Email address" className={inputClass}
+              value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} required
+            />
+          </div>
+          <div className="relative">
+            <Lock className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-[rgba(214,205,189,0.45)]" />
+            <input
+              type="password" placeholder="Password" className={inputClass}
+              value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required
+            />
+          </div>
+          <button
+            type="submit" disabled={loading}
+            className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#e0a35c]/25 bg-white/[0.04] py-3 text-sm font-semibold text-[#f3eee6] outline-none transition-all hover:border-[#e0a35c]/45 hover:bg-white/[0.06] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#e0a35c]/60 disabled:opacity-60"
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            {isLogin ? "Sign in with email" : "Create account"}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-[rgba(214,205,189,0.55)]">
+          {isLogin ? "New to Melody Map? " : "Already have an orbit? "}
+          <button
+            type="button"
+            onClick={() => setIsLogin(!isLogin)}
+            className="font-medium text-[#e0a35c] outline-none transition-colors hover:text-[#ffb35a] focus-visible:text-[#ffb35a]"
+          >
+            {isLogin ? "Create an account" : "Sign in"}
+          </button>
+        </p>
+      </motion.div>
     </div>
   )
 }
