@@ -1,7 +1,7 @@
 import { useState } from "react"
 import { useNavigate, Link } from "react-router-dom"
 import { motion } from "framer-motion"
-import { Mail, Lock, User, Loader2, RadioTower, TimerReset, ShieldAlert, Eye } from "lucide-react"
+import { Mail, Lock, User, Loader2, RadioTower, TimerReset, ShieldAlert, Eye, Radio } from "lucide-react"
 import toast from "react-hot-toast"
 import { authAPI } from "../services/api"
 import useStore from "../store/useStore"
@@ -22,6 +22,7 @@ function SpotifyGlyph({ className }) {
 export default function Login() {
   const [isLogin, setIsLogin] = useState(true)
   const [loading, setLoading] = useState(false)
+  const [pendingProvider, setPendingProvider] = useState(null)
   const [form, setForm] = useState({ username: "", email: "", password: "" })
   const navigate = useNavigate()
   const setUser  = useStore((s) => s.setUser)
@@ -62,8 +63,15 @@ export default function Login() {
     } finally { setLoading(false) }
   }
 
-  const connectSpotify = () =>
+  // Both providers ride the same cold-start-aware wake → backend OAuth initiation.
+  const connectSpotify = () => {
+    setPendingProvider('spotify')
     wake(`${import.meta.env.VITE_API_URL || ''}/auth/spotify/login`)
+  }
+  const connectLastfm = () => {
+    setPendingProvider('lastfm')
+    wake(`${import.meta.env.VITE_API_URL || ''}/auth/lastfm/login`)
+  }
 
   // Entrance respects reduced-motion: static when reduced, a soft rise otherwise.
   const rise = adaptive.reducedMotion
@@ -115,7 +123,7 @@ export default function Login() {
           Connect once and your galaxy forms itself around your actual taste — every listen reshapes the universe.
         </p>
 
-        {/* Connect actions */}
+        {/* Connect actions — two clear ways in */}
         <div className="space-y-3">
           <button
             type="button"
@@ -124,9 +132,20 @@ export default function Login() {
             className="group flex w-full items-center justify-center gap-3 rounded-[14px] py-3 text-sm font-semibold text-[#1a1206] outline-none transition-all hover:opacity-95 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70 disabled:opacity-70"
             style={{ background: 'linear-gradient(135deg, #e0a35c 0%, #ffb35a 52%, #f3d9b0 100%)' }}
           >
-            {waking
+            {waking && pendingProvider === 'spotify'
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Spotify connection…</>
-              : <><SpotifyGlyph className="h-5 w-5" /> Continue with Spotify</>}
+              : <><SpotifyGlyph className="h-5 w-5" /> Connect Spotify</>}
+          </button>
+
+          <button
+            type="button"
+            onClick={connectLastfm}
+            disabled={waking}
+            className="group flex w-full items-center justify-center gap-3 rounded-[14px] border border-[#c97b7b]/30 bg-white/[0.035] py-3 text-sm font-semibold text-[#f3eee6] outline-none transition-all hover:border-[#c97b7b]/55 hover:bg-white/[0.06] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#c97b7b]/60 disabled:opacity-70"
+          >
+            {waking && pendingProvider === 'lastfm'
+              ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Last.fm connection…</>
+              : <><Radio className="h-5 w-5 text-[#d98c8c]" /> Connect Last.fm</>}
           </button>
         </div>
 
