@@ -9,6 +9,7 @@ import { stableHash } from './galaxyScoring'
 import { slugifyInteraction } from './interactionModel.js'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
 import GalaxySceneBoundary from './GalaxySceneBoundary'
+import GalaxyAudioController from './GalaxyAudioController'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
 const GalaxyPostEffects   = lazy(() => import('./GalaxyPostEffects'))
@@ -1476,6 +1477,7 @@ export default function GalaxyScene({
         aria-label={`Interactive music galaxy with ${model?.nodes?.length || 0} stars. Click a star to focus it; press Escape to deselect.`}
       >
         <GalaxyA11yAnnouncer />
+        <GalaxyAudioController reducedMotion={reducedMotion} />
         <GalaxySceneBoundary resetKey={`${model?.metadata?.galaxyMode || 'universal'}:${model?.nodes?.length || 0}`}>
           <Canvas
             gl={{ antialias: !lowPower, alpha: false, toneMapping: THREE.ACESFilmicToneMapping }}
