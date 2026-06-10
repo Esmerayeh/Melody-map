@@ -28,6 +28,15 @@ const HOVER_SPRING_C   = 22    // spring damping → ζ≈0.48, ~18% overshoot
 const HOVER_OUT_LAMBDA = 11    // exponential decay on hover-out → ~280ms to ~95%
 const GLOW_LAG_LAMBDA  = 80    // glow follows scale activation with ~40ms lag
 
+// ── Click-to-focus camera tuning ────────────────────────────────────────────
+// A gentle dolly/look-at EASE toward the selected star (not a free orbit). Once
+// the ease completes, OrbitControls takes over again (orbiting the new target).
+const FOCUS_OFFSET     = new THREE.Vector3(10, 5.5, 12.5) // camera offset from the focused point
+const RESTING_POS      = new THREE.Vector3(0, 0, 26)      // home framing (matches default camera)
+const RESTING_TARGET   = new THREE.Vector3(0, 0, 0)
+const FOCUS_DURATION   = 0.8                              // seconds for the focus ease
+const easeOutCubic     = (x) => 1 - Math.pow(1 - x, 3)
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Reference "Infinite Listening Atlas" galaxy technique, ported to R3F.
 // Procedural textures + star palette + nebula colour-blend, scaled to this
@@ -313,18 +322,107 @@ function CameraTracker({ onDistance, distanceRef }) {
   return null
 }
 
-function FocusController({ focusTarget, controlsRef }) {
+// Gentle, cinematic focus move: dolly + look-at EASE toward the selected star
+// (~800ms ease-out), then hand control back to OrbitControls. Clearing the focus
+// eases back to the resting framing. This is a focus move, NOT a free orbit.
+function FocusController({ focusTarget, controlsRef, reducedMotion = false, restAutoRotate = true, enabled = true }) {
   const { camera } = useThree()
+  const tween = useRef(null)
 
   useEffect(() => {
-    if (!focusTarget || !controlsRef.current) return
-    const target = new THREE.Vector3(focusTarget.x, focusTarget.y, focusTarget.z)
-    controlsRef.current.target.copy(target)
-    camera.position.set(target.x + 10, target.y + 5.5, target.z + 12.5)
-    controlsRef.current.update()
-  }, [camera, controlsRef, focusTarget])
+    const controls = controlsRef.current
+    // When traversal is active (/universe), TraversalController owns the camera —
+    // don't fight it. The focus ease only runs on the standard galaxy stage.
+    if (!controls || !enabled) { tween.current = null; return }
+    const toTarget = focusTarget
+      ? new THREE.Vector3(focusTarget.x, focusTarget.y, focusTarget.z)
+      : RESTING_TARGET.clone()
+    const toPos = focusTarget ? toTarget.clone().add(FOCUS_OFFSET) : RESTING_POS.clone()
+
+    if (reducedMotion) {
+      // Respect prefers-reduced-motion: no camera travel. Selection is conveyed
+      // by the node highlight, ring and Auralith panel instead. Leave the camera
+      // where the user left it.
+      tween.current = null
+      return
+    }
+    // Pause autoRotate during the ease so it doesn't fight the dolly.
+    controls.autoRotate = false
+    tween.current = {
+      fromPos: camera.position.clone(),
+      fromTarget: controls.target.clone(),
+      toPos,
+      toTarget,
+      t: 0,
+    }
+  }, [camera, controlsRef, focusTarget, reducedMotion, enabled])
+
+  useFrame((_, delta) => {
+    const tw = tween.current
+    const controls = controlsRef.current
+    if (!tw || !controls) return
+    tw.t = Math.min(1, tw.t + Math.min(delta, 0.05) / FOCUS_DURATION)
+    const e = easeOutCubic(tw.t)
+    camera.position.lerpVectors(tw.fromPos, tw.toPos, e)
+    controls.target.lerpVectors(tw.fromTarget, tw.toTarget, e)
+    controls.update()
+    if (tw.t >= 1) {
+      tween.current = null
+      controls.autoRotate = restAutoRotate // resume gentle orbit around the new framing
+    }
+  })
 
   return null
+}
+
+// Single soft, warm selection ring that fades in around the focused star and
+// follows it. One mesh + one useFrame for the whole scene (not per node), eased
+// in/out so it persists until deselected. Warm amber — zero purple.
+function SelectionRing({ model, reducedMotion = false }) {
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const groupRef = useRef()
+  const matRef = useRef()
+  const fade = useRef(0)
+
+  const target = useMemo(() => {
+    if (!focusedObject) return null
+    const nodes = model?.nodes || []
+    if (focusedObject.type === 'core') {
+      const core = model?.metadata?.core
+      return core?.position ? { pos: core.position, size: 1.2 } : null
+    }
+    const node = focusedObject.type === 'cluster'
+      ? nodes.find((n) => n.clusterId === focusedObject.id)
+      : nodes.find((n) => n.id === focusedObject.id)
+    if (!node?.position) return null
+    const size = clamp(node.size || 0.5, node.type === 'track' ? 0.13 : 0.24, node.type === 'cluster' ? 1.45 : node.type === 'genre' ? 1.34 : 0.92)
+    return { pos: node.position, size }
+  }, [focusedObject, model])
+
+  useFrame((state, delta) => {
+    const g = groupRef.current
+    const m = matRef.current
+    if (!g || !m) return
+    const dt = Math.min(delta, 0.05)
+    fade.current = THREE.MathUtils.damp(fade.current, target ? 1 : 0, 6, dt) // ~500ms fade
+    m.opacity = fade.current * 0.5
+    g.visible = fade.current > 0.01
+    if (target) {
+      g.position.set(target.pos.x, target.pos.y, target.pos.z)
+      const pulse = reducedMotion ? 1 : 1 + Math.sin(state.clock.getElapsedTime() * 1.6) * 0.04
+      g.scale.setScalar(target.size * pulse)
+    }
+  })
+
+  return (
+    <Billboard ref={groupRef} visible={false}>
+      <mesh>
+        {/* Unit ring; the group scales it to the focused node's size. */}
+        <ringGeometry args={[2.0, 2.45, 56]} />
+        <meshBasicMaterial ref={matRef} color="#ffce8a" transparent opacity={0} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+    </Billboard>
+  )
 }
 
 function getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode) {
@@ -1096,8 +1194,21 @@ function SceneContents({
   const constellationOrigin = useGalaxyInteractionStore((state) => state.constellationOrigin)
   const clearFocusedObject = useGalaxyInteractionStore((state) => state.clearFocusedObject)
   const clearHoveredObject = useGalaxyInteractionStore((state) => state.clearHoveredObject)
+  const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
   const nebulaColors = getNebulaColors(model)
   const controlsRef = useRef()
+
+  // Keyboard a11y: Esc deselects the focused node (eases the camera back).
+  useEffect(() => {
+    const onKey = (event) => {
+      if (event.key !== 'Escape') return
+      if (!useGalaxyInteractionStore.getState().focusedObject) return
+      clearFocusedObject()
+      setFocusTarget(null)
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [clearFocusedObject, setFocusTarget])
   const labelLayout = useMemo(
     () => buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode),
     [cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
@@ -1154,6 +1265,13 @@ function SceneContents({
       const glowT = entry.glowT
       const selT = entry.selT
 
+      // Click bloom: a brief scale+glow pulse on the rising edge of selection.
+      // Onset is instant, decay eased (~375ms) → reads as a "bloom", not a bounce.
+      if (sel && !entry.wasSel && !reducedMotion) entry.pulse = 1
+      entry.wasSel = sel
+      entry.pulse = entry.pulse ? THREE.MathUtils.damp(entry.pulse, 0, 8, dt) : 0
+      const pulse = entry.pulse || 0
+
       if (groupRef.current) {
         if (reducedMotion) {
           // Freeze positional drift + sculptural tilt; keep nodes at rest.
@@ -1177,14 +1295,15 @@ function SceneContents({
           meshRef.current.rotation.y += node.type === 'genre' ? 0.0015 : node.type === 'cluster' ? 0.0012 : 0.0025
           meshRef.current.rotation.x = Math.sin(t * (node.type === 'track' ? 1.18 : 0.54) + basePosition.x) * 0.08
         }
-        // Eased hover scale (~1.3x) + a slightly smaller selected presence.
-        meshRef.current.scale.setScalar(1 + hoverT * 0.30 + selT * 0.22)
+        // Eased hover scale (~1.3x) + selected presence + brief click bloom.
+        meshRef.current.scale.setScalar(1 + hoverT * 0.30 + selT * 0.22 + pulse * 0.18)
       }
       if (matRef.current) {
         // Raise emissive/bloom on hover + selection (base: cluster 0.9, else 0.65).
-        // Uses the lagged glowT so light blooms a hair after the star grows.
+        // Uses the lagged glowT so light blooms a hair after the star grows; the
+        // click pulse adds a brief extra flare.
         const baseEmissive = node.type === 'cluster' ? 0.9 : 0.65
-        matRef.current.emissiveIntensity = baseEmissive + glowT * 0.85 + selT * 1.35
+        matRef.current.emissiveIntensity = baseEmissive + glowT * 0.85 + selT * 1.35 + pulse * 1.2
       }
       if (haloMatRef.current) {
         // Raise the soft halo glow with the lagged activation too.
@@ -1252,7 +1371,14 @@ function SceneContents({
       ))}
 
       <CameraTracker onDistance={setCameraDistance} distanceRef={cameraDistanceRef} />
-      <FocusController focusTarget={focusTarget} controlsRef={controlsRef} />
+      <FocusController
+        focusTarget={focusTarget}
+        controlsRef={controlsRef}
+        reducedMotion={reducedMotion}
+        restAutoRotate={!traversalEnabled || autoRotateSpeed > 0}
+        enabled={!traversalEnabled}
+      />
+      <SelectionRing model={model} reducedMotion={reducedMotion} />
       <OrbitControls
         ref={controlsRef}
         enablePan
@@ -1301,6 +1427,7 @@ function SceneContents({
         onClick={() => {
           clearFocusedObject()
           clearHoveredObject()
+          setFocusTarget(null) // ease the camera back to the resting framing
         }}
       >
         <planeGeometry args={[400, 400, 1, 1]} />
@@ -1308,6 +1435,16 @@ function SceneContents({
       </mesh>
     </>
   )
+}
+
+// Visually-hidden live region: reflects the focused node for screen readers so
+// selection isn't a purely visual event. Lives in the DOM, outside the Canvas.
+function GalaxyA11yAnnouncer() {
+  const focusedObject = useGalaxyInteractionStore((state) => state.focusedObject)
+  const message = focusedObject?.label
+    ? `Focused on ${focusedObject.label}. Press Escape to deselect.`
+    : ''
+  return <div className="sr-only" role="status" aria-live="polite">{message}</div>
 }
 
 export default function GalaxyScene({
@@ -1333,7 +1470,12 @@ export default function GalaxyScene({
     }
 
   return (
-      <div className="h-full w-full">
+      <div
+        className="relative h-full w-full"
+        role="group"
+        aria-label={`Interactive music galaxy with ${model?.nodes?.length || 0} stars. Click a star to focus it; press Escape to deselect.`}
+      >
+        <GalaxyA11yAnnouncer />
         <GalaxySceneBoundary resetKey={`${model?.metadata?.galaxyMode || 'universal'}:${model?.nodes?.length || 0}`}>
           <Canvas
             gl={{ antialias: !lowPower, alpha: false, toneMapping: THREE.ACESFilmicToneMapping }}
