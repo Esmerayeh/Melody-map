@@ -933,7 +933,7 @@ export default function Reverie() {
 
                 {activeTab === 'board' && (
                   <>
-                    <p className="text-xs text-gray-600 mb-4">{aesthetic.images?.length || 0} frames - move gently for parallax</p>
+                    <p className="text-xs text-gray-600 mb-4">move gently — the board leans with you</p>
                     <ReverieConstellation images={aesthetic.images || []} palette={aesthetic.palette} />
                   </>
                 )}

@@ -114,8 +114,8 @@ function TiltCard({ children, className = '' }) {
 // ── Stat orb ──────────────────────────────────────────────────────────────────
 function StatOrb({ icon: Icon, label, value, color, delay = 0 }) {
   const normalizedValue = value == null ? '' : String(value)
-  const displayValue = normalizedValue === '--' || normalizedValue.includes('\u00e2') || normalizedValue.includes('\u2014')
-    ? 'soft signal'
+  const displayValue = !normalizedValue || normalizedValue === '--' || normalizedValue.includes('\u00e2')
+    ? '\u2014'
     : value
   return (
     <motion.div
@@ -285,17 +285,6 @@ export default function Dashboard() {
   const metrics  = profile?.analyticsMetrics || null
   const liveTrack = liveSignal?.recentEvents?.[0] || null
   const orbAudioFeatures = liveTrack?.audio_features || profile?.audioFeatures || {}
-  const analyticsConfidence = confidence?.labels?.analytics || metrics?.metricConfidence?.energyScore?.label || 'soft signal'
-  const identityConfidence = profile?.personalityMeta?.confidence != null
-    ? profile.personalityMeta.confidence >= 0.8
-      ? 'high'
-      : profile.personalityMeta.confidence >= 0.5
-        ? 'medium'
-        : profile.personalityMeta.confidence > 0
-          ? 'low'
-          : 'soft signal'
-    : confidence?.labels?.identity || 'soft signal'
-
   // Extract pastel palette from album art and apply as CSS custom properties
   const [pastelPalette, setPastelPalette] = useState([])
   useEffect(() => {
@@ -479,12 +468,6 @@ export default function Dashboard() {
           )}
           <div className="flex flex-wrap gap-2 text-[11px] text-gray-500">
             <span>{dataQuality?.topTracksCount || tracks.length || 0} tracks in reach</span>
-            <span>-</span>
-            <span>{dataQuality?.audioFeaturesCount || 0}/{dataQuality?.audioFeaturesRequested || 0} tracks carried a deep signal</span>
-            <span>-</span>
-            <span>signal reading: {analyticsConfidence}</span>
-            <span>-</span>
-            <span>inner reading: {identityConfidence}</span>
           </div>
 
           <ModuleBoundary
@@ -497,7 +480,7 @@ export default function Dashboard() {
               <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#e0a35c'} delay={0} />
               <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '--'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
               <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '--'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
-              <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : 'soft signal'} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
+              <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : null} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
             </div>
           </ModuleBoundary>
 
@@ -556,7 +539,7 @@ export default function Dashboard() {
                 ))}
               </div>
               <p className="text-gray-400 text-sm mt-4 relative z-10">
-                Mood: <span className="text-white font-medium capitalize">{metrics.mood || 'soft signal'}</span>
+                Mood: <span className="text-white font-medium capitalize">{metrics.mood || 'still forming'}</span>
                 {metrics.sonicBrightness != null && <> / Brightness: <span className="text-white font-medium">{metrics.sonicBrightness}%</span></>}
               </p>
               <p className="text-[11px] text-gray-500 mt-2 relative z-10">

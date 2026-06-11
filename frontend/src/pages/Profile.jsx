@@ -109,17 +109,12 @@ export default function Profile() {
   const avatar = profile?.image
   const isConnected = spotifyConnected || lastfmConnected
   const genres = musicProfile?.genres?.slice(0, 6) || []
-  const metrics = musicProfile?.analyticsMetrics || null
   const mbti = musicProfile?.mbti || null
 
-  let personality = mbti ? mbti.name : 'Sonic Explorer'
-  if (!mbti && metrics) {
-    const e = (metrics.energyScore || 50) / 100
-    const v = (metrics.valenceScore || 50) / 100
-    if (e < 0.45 && v < 0.45) personality = 'Nocturnal Dreamer'
-    else if (e > 0.65) personality = 'Electric Wanderer'
-    else if (v > 0.6 && e < 0.55) personality = 'Velvet Romantic'
-  }
+  // Never fabricate identity. When MBTI hasn't formed, say so — the /identity
+  // page is the single source of truth for archetypes, and inventing one here
+  // contradicted it.
+  const personality = mbti ? mbti.name : 'identity still forming'
 
   const quickLinks = [
     { to: '/galaxy', icon: Disc3, label: 'Music Galaxy', desc: 'touch the stars that hold your taste', tone: '#e0a35c' },
@@ -198,9 +193,9 @@ export default function Profile() {
 
         {profile && (
           <div className="relative z-10 mt-6 grid grid-cols-1 gap-3 sm:grid-cols-3">
-            <MiniStat label="Followers" value={profile.followers?.toLocaleString() || 'soft signal'} tone="violet" />
-            <MiniStat label="Country" value={profile.country || 'soft signal'} tone="rose" />
-            <MiniStat label="Plan" value={profile.product || 'soft signal'} tone="sky" />
+            <MiniStat label="Followers" value={profile.followers?.toLocaleString() || '—'} tone="violet" />
+            <MiniStat label="Country" value={profile.country || '—'} tone="rose" />
+            <MiniStat label="Plan" value={profile.product || '—'} tone="sky" />
           </div>
         )}
       </motion.section>

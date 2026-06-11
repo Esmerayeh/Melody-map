@@ -4,6 +4,7 @@ import { Loader2 } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
 import { mapAPI } from '../services/api'
 import useStore from '../store/useStore'
+import useProfileStore from '../store/useProfileStore'
 import useMusicProfile from '../hooks/useMusicProfile'
 import useLiveTasteSignal from '../hooks/useLiveTasteSignal'
 import useExperienceStore from '../store/useExperienceStore'
@@ -73,8 +74,14 @@ function ClusterOverlay({ cluster, region }) {
 
 export default function MusicMap() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const { profile: profileSnapshot, loading: profileLoading, phase, readiness, tier } = useMusicProfile({ autoFetch: false })
-  const musicProfile = profileSnapshot || useStore((state) => state.musicProfile)
+  const { profile: profileSnapshot, loading: profileLoading, phase, readiness, tier } = useMusicProfile()
+  // Hooks must run unconditionally (Rules of Hooks): read both fallbacks every
+  // render, then pick. The persisted profile cache (localStorage, 6h TTL) is
+  // hydrated before auth bootstrap resolves, so a logged-in hard load renders
+  // the real sky immediately instead of falling back to the demo galaxy.
+  const legacyProfile = useStore((state) => state.musicProfile)
+  const persistedProfile = useProfileStore((state) => state.profile)
+  const musicProfile = profileSnapshot || legacyProfile || persistedProfile
   const { artifact: generatedGalaxy, loading: galaxyLoading, error: galaxyError, jobStatus, artifactMeta } = useGalaxyArtifact(musicProfile)
   const cinemaMode = useStore((state) => state.cinemaMode)
   const setCinemaMode = useStore((state) => state.setCinemaMode)
@@ -152,19 +159,6 @@ export default function MusicMap() {
       },
     },
   })
-
-  if (boot.blocked) {
-    return (
-      <ProfileBootPanel
-        variant={boot.variant}
-        title={boot.title}
-        subtitle={boot.subtitle}
-        detail={boot.detail}
-        actionLabel={boot.variant === 'error' ? 'Reload the galaxy' : undefined}
-        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
-      />
-    )
-  }
 
   const resolveFocusPosition = useCallback((ids = []) => {
     if (!model) return null
@@ -495,6 +489,22 @@ export default function MusicMap() {
     reducedMotion: adaptive.prefersReducedMotion,
     webglEnabled: adaptive.webglSupported,
   }, [activeModel, sparseMode, adaptive.lowPowerMode, adaptive.prefersReducedMotion, adaptive.webglSupported])
+
+  // This early return must stay BELOW every hook above (Rules of Hooks): it
+  // renders conditionally, and a conditional return before hooks made the hook
+  // count change between renders.
+  if (boot.blocked) {
+    return (
+      <ProfileBootPanel
+        variant={boot.variant}
+        title={boot.title}
+        subtitle={boot.subtitle}
+        detail={boot.detail}
+        actionLabel={boot.variant === 'error' ? 'Reload the galaxy' : undefined}
+        onAction={boot.variant === 'error' ? () => window.location.reload() : undefined}
+      />
+    )
+  }
 
   // Overlays only — the live galaxy comes from the persistent canvas behind this
   // transparent window.

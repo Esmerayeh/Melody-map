@@ -21,7 +21,7 @@ const pct = (value) => {
   const normalized = normalizeUnit(value)
   return normalized == null ? null : Math.round(normalized * 100)
 }
-const fmt = (v) => (v != null ? Number(v).toFixed(0) : 'soft signal')
+const fmt = (v) => (v != null ? Number(v).toFixed(0) : '—')
 const GENRE_COLORS = ['#e0a35c','#B994FF','#9DB7FF','#EAE6FF','#F0C8FF','#7A6BD8','#D6D0F0','#C7BEFF']
 const STAT_CARDS = [
   { key: 'energy',       label: 'Intensity',       icon: Zap,      color: '#f472b6', desc: 'heat and forward pull' },
@@ -42,7 +42,7 @@ function StatCard({ label, icon: Icon, color, value, desc, delay }) {
         <div className="w-8 h-8 rounded-xl flex items-center justify-center" style={{ background: `${color}20`, border: `1px solid ${color}30` }}>
           <Icon className="w-4 h-4" style={{ color }} />
         </div>
-        <span className="text-2xl font-black" style={{ color }}>{isAvailable ? `${value}%` : 'soft signal'}</span>
+        <span className="text-2xl font-black" style={{ color }}>{isAvailable ? `${value}%` : '—'}</span>
       </div>
       <p className="text-sm font-semibold text-white relative z-10">{label}</p>
       <p className="text-xs text-gray-500 mt-0.5 relative z-10">{desc}</p>
@@ -112,7 +112,7 @@ function TempoBar({ tempo }) {
       <div>
         <div className="flex items-center justify-between mb-2">
           <span className="text-sm text-gray-400">Average tempo</span>
-          <span className="text-lg font-black text-gray-500">soft signal</span>
+          <span className="text-lg font-black text-gray-500">—</span>
         </div>
         <div className="relative h-3 rounded-full overflow-hidden bg-white/5" />
         <p className="text-xs text-gray-500 mt-2">there is not enough track-level signal yet to hear the pace clearly.</p>
@@ -236,8 +236,6 @@ export default function Analytics() {
         <div className="mt-3 flex flex-wrap gap-3 text-xs text-gray-500">
           <span>voices in view: {dataQuality?.topArtistsCount || 0}/50</span>
           <span>songs in view: {dataQuality?.topTracksCount || 0}/50</span>
-          <span>deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%</span>
-          <span>signal reading: {confidence?.labels?.analytics || 'soft signal'}</span>
         </div>
         {!canComputeAnalytics && (
           <div className="mt-4 rounded-[22px] border border-white/8 bg-white/[0.03] p-4">
@@ -259,7 +257,7 @@ export default function Analytics() {
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         <div className="noire-info-card rounded-[24px] p-4">
           <p className="section-label mb-2">Strongest trend</p>
-          <p className="text-lg font-semibold text-white">{safeProfile.analyticsMetrics?.mood || 'Nocturnal pull'}</p>
+          <p className="text-lg font-semibold text-white">{safeProfile.analyticsMetrics?.mood || 'still forming'}</p>
           <p className="mt-2 text-xs text-slate-500">The dominant emotional climate currently shaping the read.</p>
         </div>
         <div className="noire-info-card rounded-[24px] p-4">
@@ -269,7 +267,7 @@ export default function Analytics() {
         </div>
         <div className="noire-info-card rounded-[24px] p-4">
           <p className="section-label mb-2">Listening balance</p>
-          <p className="text-lg font-semibold text-white">{pct(af.energy) != null ? `${pct(af.energy)} / ${pct(af.valence) || 0}` : 'Soft signal'}</p>
+          <p className="text-lg font-semibold text-white">{pct(af.energy) != null ? `${pct(af.energy)} / ${pct(af.valence) || 0}` : '—'}</p>
           <p className="mt-2 text-xs text-slate-500">A quick read of intensity against brightness so the page always opens with something concrete.</p>
         </div>
       </div>

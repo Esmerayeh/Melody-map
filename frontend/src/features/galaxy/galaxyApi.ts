@@ -24,6 +24,26 @@ const galaxyClient = axios.create({
   headers:         { 'Content-Type': 'application/json' },
 })
 
+// The backend rejects cookie-session POSTs without a CSRF token (403). This
+// standalone client bypasses the shared api.js interceptor, so it must attach
+// the token itself or every /galaxy/build and /galaxy/jobs call silently falls
+// back to the client-side builder.
+galaxyClient.interceptors.request.use((config) => {
+  const method = (config.method || 'get').toLowerCase()
+  if (!['get', 'head', 'options'].includes(method) && typeof document !== 'undefined') {
+    const prefix = 'mm_csrf='
+    const match = document.cookie
+      .split(';')
+      .map((part) => part.trim())
+      .find((part) => part.startsWith(prefix))
+    if (match) {
+      config.headers = config.headers || {}
+      config.headers['X-CSRF-Token'] = config.headers['X-CSRF-Token'] || decodeURIComponent(match.slice(prefix.length))
+    }
+  }
+  return config
+})
+
 function unwrap<T>(payload: any): T {
   if (payload?.data?.data) return payload.data.data as T
   if (payload?.data)       return payload.data as T

@@ -392,7 +392,7 @@ export default function CompatibilityCard({
               <div className="h-11 w-11 rounded-full bg-white/10" style={{ backgroundImage: profileA?.avatar ? `url(${profileA.avatar})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' }} />
               <div>
                 <p className="text-lg font-semibold text-white">{userAName}</p>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{profileA?.mbti?.type || profileA?.mbtiType || 'soft signal'}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{profileA?.mbti?.type || profileA?.mbtiType || 'still forming'}</p>
               </div>
             </div>
             <DeferredSoulOrb {...leftOrb} size={180} showLabels={false} />
@@ -414,7 +414,7 @@ export default function CompatibilityCard({
             <div className="flex items-center gap-3">
               <div>
                 <p className="text-lg font-semibold text-white">{userBName}</p>
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{profileB?.mbti?.type || profileB?.mbtiType || 'soft signal'}</p>
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-500">{profileB?.mbti?.type || profileB?.mbtiType || 'still forming'}</p>
               </div>
               <div className="h-11 w-11 rounded-full bg-white/10" style={{ backgroundImage: profileB?.avatar ? `url(${profileB.avatar})` : undefined, backgroundSize: 'cover', backgroundPosition: 'center' }} />
             </div>
