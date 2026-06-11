@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { writeHadSession } from '../app/shellEntry'
 
 const useAuthStore = create((set, get) => ({
   user: null,
@@ -21,6 +22,10 @@ const useAuthStore = create((set, get) => ({
 
   applyBootstrap: (payload) => {
     const providers = payload?.providers || {}
+    // Evidence flag for cold-load entry: the backend has CONFIRMED session
+    // state, so record it. This is what lets a returning user open straight
+    // into the shell next time, even if the backend is cold-starting.
+    writeHadSession(payload?.auth_state !== 'no_session')
     set({
       providers: {
         spotify: {
@@ -45,6 +50,7 @@ const useAuthStore = create((set, get) => ({
   },
 
   clearSession: () => {
+    writeHadSession(false)
     set({
       user: null,
       sessionToken: null,

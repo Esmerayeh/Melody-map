@@ -1,6 +1,7 @@
 import { spawnSync } from 'node:child_process'
 
 const files = [
+  'tests/shellEntry.test.js',
   'tests/routeSanity.test.js',
   'tests/galaxyInteraction.test.js',
   'tests/identityCardExport.test.js',

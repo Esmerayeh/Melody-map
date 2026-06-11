@@ -15,6 +15,7 @@ import useGalaxyStage from './features/galaxy/useGalaxyStage'
 import useProfileStore from './store/useProfileStore'
 import useAdaptiveExperience from './hooks/useAdaptiveExperience'
 import { buildGalaxyModel, guardGalaxyModel } from './features/galaxy/galaxyBuilder'
+import { PROBE_GATE_MAX_MS, readHadSession, resolveShellEntry } from './app/shellEntry'
 
 const MusicMap       = lazy(() => import('./pages/MusicMap'))
 const Discover       = lazy(() => import('./pages/Discover'))
@@ -73,7 +74,9 @@ function PersistentGalaxy() {
     }
   }, [model, persistedProfile])
 
-  if (!active && !canAccessShell) return null
+  // Mirror the shell-entry rule: optimistic entry (recent-session evidence)
+  // gets its galaxy backdrop too, not just confirmed-live sessions.
+  if (!active && !canAccessShell && !readHadSession()) return null
 
   return (
     <div className="fixed inset-0 z-0" aria-hidden="true">
@@ -253,13 +256,29 @@ const ProtectedRoute = ({ children }) => {
   const providers = useAuthStore((s) => s.providers)
   const bootPhase = useAuthStore((s) => s.bootPhase)
   const canAccessShell = Boolean(sessionToken || providers.spotify.connected || providers.lastfm.connected)
-  // The moment ANY auth evidence exists, drop straight into the shell. The
-  // shell never gates on profile hydration or a slow surface — each panel owns
-  // its own loading/failed state. This previously held the whole app hostage:
-  // 'profile_hydrating' was set after OAuth and nothing ever cleared it.
-  if (canAccessShell) return children
-  const authProbing = ['booting', 'probing_session', 'oauth_exchanging', 'profile_hydrating'].includes(bootPhase)
-  if (authProbing) return <ProtectedRouteFallback />
+  // The gate must never be a terminal state: after PROBE_GATE_MAX_MS this
+  // timer forces one re-render so resolveShellEntry falls through to /login
+  // even if the very first session probe is still hanging on a cold backend.
+  const [probeStart] = React.useState(() => Date.now())
+  const [, forceTick] = React.useReducer((tick) => tick + 1, 0)
+  useEffect(() => {
+    const timer = setTimeout(forceTick, PROBE_GATE_MAX_MS + 250)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Entry is decided on EVIDENCE, not on a live backend answer (see
+  // shellEntry.js): a returning user enters immediately on cold load even if
+  // bootstrap is hanging against a cold-started backend or errors; only a
+  // confirmed no-session routes to /login. Every panel owns its own
+  // loading/failed state — one slow surface can never hold the app.
+  const entry = resolveShellEntry({
+    canAccessShell,
+    hadRecentSession: readHadSession(),
+    bootPhase,
+    probeElapsedMs: Date.now() - probeStart,
+  })
+  if (entry === 'enter') return children
+  if (entry === 'gate') return <ProtectedRouteFallback />
   return <Navigate to="/login" replace />
 }
 
