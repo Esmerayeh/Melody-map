@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect } from 'react'
+import React, { Suspense, lazy, useEffect, useMemo } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
@@ -12,6 +12,9 @@ import AuthBootstrap from './app/AuthBootstrap'
 import { applyVibeTheme, resetVibeTheme } from './services/vibeTheme'
 import ShellSkeleton from './components/shell/ShellSkeleton'
 import useGalaxyStage from './features/galaxy/useGalaxyStage'
+import useProfileStore from './store/useProfileStore'
+import useAdaptiveExperience from './hooks/useAdaptiveExperience'
+import { buildGalaxyModel, guardGalaxyModel } from './features/galaxy/galaxyBuilder'
 
 const MusicMap       = lazy(() => import('./pages/MusicMap'))
 const Discover       = lazy(() => import('./pages/Discover'))
@@ -49,17 +52,38 @@ function PersistentGalaxy() {
   const autoRotateSpeed  = useGalaxyStage((s) => s.autoRotateSpeed)
   const extraChildren    = useGalaxyStage((s) => s.extraChildren)
 
-  if (!active) return null
+  // The galaxy is the living background of the whole app, not a page. Render
+  // it for any signed-in shell — not only when a galaxy route published a
+  // scene. When no route is driving the stage, fall back to the user's REAL
+  // sky built from the persisted profile cache (or ambient stars/nebulae
+  // before a profile exists).
+  const sessionToken = useAuthStore((s) => s.sessionToken)
+  const providers = useAuthStore((s) => s.providers)
+  const canAccessShell = Boolean(sessionToken || providers.spotify.connected || providers.lastfm.connected)
+  const persistedProfile = useProfileStore((s) => s.profile)
+  const adaptive = useAdaptiveExperience()
+
+  const ambientModel = useMemo(() => {
+    if (model) return null
+    if (!(persistedProfile?.topArtists?.length || persistedProfile?.genres?.length)) return null
+    try {
+      return guardGalaxyModel(buildGalaxyModel(persistedProfile))
+    } catch {
+      return null
+    }
+  }, [model, persistedProfile])
+
+  if (!active && !canAccessShell) return null
 
   return (
     <div className="fixed inset-0 z-0" aria-hidden="true">
       <Suspense fallback={null}>
         <GalaxyStage
-          model={model}
+          model={model || ambientModel}
           sparseMode={sparseMode}
-          lowPower={lowPower}
-          reducedMotion={reducedMotion}
-          webglEnabled={webglEnabled}
+          lowPower={lowPower || adaptive.lowPowerMode}
+          reducedMotion={reducedMotion || adaptive.prefersReducedMotion}
+          webglEnabled={webglEnabled && adaptive.webglSupported !== false}
           traversalEnabled={traversalEnabled}
           scanPulseCount={scanPulseCount}
           onScanPulse={onScanPulse}
@@ -182,13 +206,10 @@ function ProtectedRouteFallback() {
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-6">
       <div className="noire-panel max-w-xl rounded-[28px] p-8 text-center">
-        <p className="page-header-kicker mb-2">Booting the signal</p>
-        <h2 className="text-2xl font-semibold text-white">Your orbit is still settling.</h2>
+        <p className="page-header-kicker mb-2">Opening the door</p>
+        <h2 className="text-2xl font-semibold text-white">Finding your session.</h2>
         <p className="mt-3 text-sm leading-relaxed text-gray-400">
-          Spotify auth succeeded, but one of the post-login surfaces failed to fully settle. Melody Map is holding the shell open instead of dropping you into a blank page.
-        </p>
-        <p className="mt-4 text-xs uppercase tracking-[0.22em] text-gray-500">
-          Try refreshing once if the quieter boot state does not clear.
+          One quick check with the backend and you are in. This only appears while the session itself is being confirmed — never for a slow panel.
         </p>
         <button
           type="button"
@@ -231,10 +252,15 @@ const ProtectedRoute = ({ children }) => {
   const sessionToken = useAuthStore((s) => s.sessionToken)
   const providers = useAuthStore((s) => s.providers)
   const bootPhase = useAuthStore((s) => s.bootPhase)
-  const authHydrating = ['booting', 'probing_session', 'oauth_exchanging', 'profile_hydrating'].includes(bootPhase)
   const canAccessShell = Boolean(sessionToken || providers.spotify.connected || providers.lastfm.connected)
-  if (authHydrating) return <ProtectedRouteFallback />
-  return canAccessShell ? children : <Navigate to="/login" replace />
+  // The moment ANY auth evidence exists, drop straight into the shell. The
+  // shell never gates on profile hydration or a slow surface — each panel owns
+  // its own loading/failed state. This previously held the whole app hostage:
+  // 'profile_hydrating' was set after OAuth and nothing ever cleared it.
+  if (canAccessShell) return children
+  const authProbing = ['booting', 'probing_session', 'oauth_exchanging', 'profile_hydrating'].includes(bootPhase)
+  if (authProbing) return <ProtectedRouteFallback />
+  return <Navigate to="/login" replace />
 }
 
 function ProtectedShell({ children }) {

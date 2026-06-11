@@ -89,7 +89,10 @@ export default function SpotifySuccess() {
           musicProvider: payload?.music_provider || 'spotify',
           sessionId: payload?.sessionId || null,
         })
-        setBootState('profile_hydrating', 'Spotify session restored. Hydrating the first profile layer.')
+        // Do NOT set a gating boot phase here: applyBootstrap above already
+        // resolved the phase ('session_ready'/'session_restoring'), and
+        // 'profile_hydrating' had no exit transition — it left the whole app
+        // stuck behind the boot gate. Profile hydration is best-effort.
         try {
           const profileRes = await spotifyAPI.getProfile()
           const profile = unwrapApiData(profileRes?.data)

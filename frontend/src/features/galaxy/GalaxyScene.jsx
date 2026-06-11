@@ -863,7 +863,7 @@ function TasteCore({ core, model, galaxyMode }) {
         <MeshDistortMaterial
           color={core.color}
           emissive={core.color}
-          emissiveIntensity={selected ? 2.25 : hovered ? 1.75 : 1.5}
+          emissiveIntensity={selected ? 1.5 : hovered ? 1.2 : 0.9}
           roughness={0.14}
           metalness={0.58}
           transparent
@@ -1336,14 +1336,17 @@ function SceneContents({
       <GalaxyNebulae sparseGraphics={sparseMode || lowPower} reducedMotion={reducedMotion} />
 
       {/* Luminous galactic core — warm additive glow at center (reference
-          #fff0d0 + #ff8aa8) so the eye has a heart to orbit. Bloom lifts it. */}
+          #fff0d0 + #ff8aa8) so the eye has a heart to orbit. Bloom lifts it.
+          Opacities are tuned so the additive stack sums well below 1.0: the
+          center must stay a warm luminous heart, not a white blob that erases
+          stars and labels in front of it. (Was 0.55/0.30/0.18/0.09/0.04.) */}
       <group position={[0, 0, 0]}>
         {[
-          { r: 1.1,  color: '#fff0d0', opacity: 0.55 },
-          { r: 2.2,  color: '#ffd89b', opacity: 0.30 },
-          { r: 4.0,  color: '#ff8aa8', opacity: 0.18 },
-          { r: 7.0,  color: '#ff7a9d', opacity: 0.09 },
-          { r: 11.0, color: '#5fd8ff', opacity: 0.04 },
+          { r: 1.1,  color: '#fff0d0', opacity: 0.30 },
+          { r: 2.2,  color: '#ffd89b', opacity: 0.16 },
+          { r: 4.0,  color: '#ff8aa8', opacity: 0.10 },
+          { r: 7.0,  color: '#ff7a9d', opacity: 0.05 },
+          { r: 11.0, color: '#5fd8ff', opacity: 0.025 },
         ].map((layer) => (
           <mesh key={layer.r}>
             <sphereGeometry args={[layer.r, 24, 24]} />

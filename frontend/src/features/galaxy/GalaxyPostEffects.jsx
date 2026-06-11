@@ -1,12 +1,14 @@
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 
 export default function GalaxyPostEffects() {
-  // Reference UnrealBloom values (strength 1.1, radius 0.7, threshold 0.04),
-  // mapped to @react-three/postprocessing. Low threshold → dreamy additive glow
-  // on stars, nebulae and the warm core. mipmapBlur keeps it perf-safe.
+  // Bloom is a highlight pass, not a wash: threshold 0.32 means only genuinely
+  // bright pixels (core heart, hot stars, hover glow) bloom — at the old 0.04
+  // nearly every pixel qualified and the additive core stack nuked the center
+  // to a white blob that erased stars and labels in front of it.
+  // Was: intensity 1.1, threshold 0.04, smoothing 0.9, radius 0.7.
   return (
     <EffectComposer>
-      <Bloom intensity={1.1} luminanceThreshold={0.04} luminanceSmoothing={0.9} radius={0.7} mipmapBlur />
+      <Bloom intensity={0.55} luminanceThreshold={0.32} luminanceSmoothing={0.65} radius={0.6} mipmapBlur />
     </EffectComposer>
   )
 }
