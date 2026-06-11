@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from flask import Blueprint, g, request
 
 from middleware.auth import require_auth
@@ -10,6 +12,7 @@ from services.feature_store import (
     create_soulmate_request,
     get_latest_snapshot,
     get_social_public_profile,
+    get_social_public_profile_by_slug,
     list_social_public_profiles,
     list_soulmate_requests,
     upsert_social_public_profile,
@@ -18,6 +21,27 @@ from services.feature_store import (
 from utils.api import api_error, api_success
 
 social_bp = Blueprint("social", __name__)
+
+
+def _slugify(value: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (value or "").lower()).strip("-")
+
+
+def _public_slug(display_name: str | None, user_id: str) -> str:
+    suffix = str(user_id)[-6:] or "signal"
+    base = _slugify(display_name or "")
+    return f"{base}-{suffix}" if base else f"user-{suffix}"
+
+
+def _display_name_from_payload(user_id: str, payload: dict | None, existing: dict | None = None) -> str:
+    user_profile = (payload or {}).get("userProfile") or {}
+    return (
+        (existing or {}).get("display_name")
+        or user_profile.get("display_name")
+        or user_profile.get("name")
+        or user_profile.get("username")
+        or f"user-{user_id[-6:]}"
+    )
 
 
 def _snapshot_profile(user_id: str) -> dict | None:
@@ -33,14 +57,18 @@ def _public_profile_from_payload(user_id: str, payload: dict | None, existing: d
     analytics = payload.get("analyticsMetrics") or {}
     personality = payload.get("personality") or []
     mbti = payload.get("mbti") or {}
+    music_identity = payload.get("musicIdentity") or {}
+    identity_name = ((music_identity.get("type") or {}).get("name")) or payload.get("sonicPersonalityTitle") or "Music identity"
     representations = payload.get("representations") or {}
+    display_name = _display_name_from_payload(user_id, payload, existing)
     return {
         "user_id": user_id,
-        "display_name": (existing or {}).get("display_name") or (payload.get("userProfile") or {}).get("display_name") or f"user-{user_id[-6:]}",
+        "public_slug": (existing or {}).get("public_slug") or _public_slug(display_name, user_id),
+        "display_name": display_name,
         "visibility": (existing or {}).get("visibility", "private"),
         "allow_matching": bool((existing or {}).get("allow_matching", False)),
         "summary": (existing or {}).get("summary")
-        or f"{mbti.get('type', 'Soft-signal')} listener shaped by {', '.join([item.get('name') if isinstance(item, dict) else str(item) for item in artists[:3]]) or 'emerging favorites'}.",
+        or f"{identity_name} shaped by {', '.join([item.get('name') if isinstance(item, dict) else str(item) for item in artists[:3]]) or 'emerging favorites'}.",
         "top_artists": [
             {"name": item.get("name"), "genres": item.get("genres", [])[:3]}
             for item in artists[:8]
@@ -55,6 +83,7 @@ def _public_profile_from_payload(user_id: str, payload: dict | None, existing: d
         },
         "representations": representations,
         "personality": personality[:4],
+        "musicIdentity": music_identity,
         "mbti": mbti,
     }
 
@@ -66,6 +95,8 @@ def _engine_profile_from_public(profile: dict, fallback_payload: dict | None = N
     top_tracks = fallback_payload.get("topTracks") or []
     return {
         "user_id": profile.get("user_id"),
+        "public_slug": profile.get("public_slug"),
+        "publicSlug": profile.get("public_slug"),
         "username": profile.get("display_name") or "Unknown",
         "topArtists": top_artists,
         "genres": top_genres,
@@ -73,6 +104,7 @@ def _engine_profile_from_public(profile: dict, fallback_payload: dict | None = N
         "audioFeatures": profile.get("mood_vector") or fallback_payload.get("audioFeatures") or {},
         "analyticsMetrics": fallback_payload.get("analyticsMetrics") or {},
         "personality": profile.get("personality") or fallback_payload.get("personality") or [],
+        "musicIdentity": profile.get("musicIdentity") or fallback_payload.get("musicIdentity") or {},
         "mbti": profile.get("mbti") or fallback_payload.get("mbti") or {},
         "representations": profile.get("representations") or fallback_payload.get("representations") or {},
         "profileVector": ((profile.get("representations") or {}).get("profileVector")),
@@ -100,7 +132,11 @@ def _constellation_payload(left_profile: dict, right_profile: dict, score: dict)
 def get_public_profile(user_id: str):
     if user_id == "me":
         user_id = g.user_id
-    profile = get_social_public_profile(user_id)
+        profile = get_social_public_profile(user_id)
+    else:
+        profile = get_social_public_profile(user_id) or get_social_public_profile_by_slug(user_id)
+        if profile:
+            user_id = profile.get("user_id")
     if not profile:
         payload = _snapshot_profile(user_id)
         if not payload:
@@ -110,6 +146,8 @@ def get_public_profile(user_id: str):
         return api_error("User has not opted into public matching", 403, code="SOCIAL_PROFILE_PRIVATE")
     safe_profile = {
         "user_id": profile.get("user_id"),
+        "public_slug": profile.get("public_slug"),
+        "publicSlug": profile.get("public_slug"),
         "display_name": profile.get("display_name"),
         "summary": profile.get("summary"),
         "top_artists": profile.get("top_artists", []),
@@ -132,6 +170,7 @@ def upsert_public_profile():
     payload.update(
         {
             "display_name": incoming.get("display_name") or payload.get("display_name"),
+            "public_slug": existing.get("public_slug") or payload.get("public_slug"),
             "visibility": incoming.get("visibility", existing.get("visibility", "private")),
             "allow_matching": bool(incoming.get("allow_matching", existing.get("allow_matching", False))),
             "summary": incoming.get("summary") or payload.get("summary"),
@@ -163,6 +202,7 @@ def search_soulmates():
         matches.append(
             {
                 "userId": candidate.get("user_id"),
+                "publicSlug": candidate.get("public_slug"),
                 "displayName": candidate.get("display_name"),
                 "summary": candidate.get("summary"),
                 "compatibilityScore": score.get("overallCompatibility"),
@@ -185,9 +225,11 @@ def compare_social_soulmate():
     if not target_user_id:
         return api_error("target_user_id required", 400, code="SOCIAL_TARGET_REQUIRED")
     my_snapshot = _snapshot_profile(g.user_id)
+    target_public = get_social_public_profile(target_user_id) or get_social_public_profile_by_slug(target_user_id)
+    if target_public:
+        target_user_id = target_public.get("user_id")
     target_snapshot = _snapshot_profile(target_user_id)
     my_public = get_social_public_profile(g.user_id) or upsert_social_public_profile(g.user_id, _public_profile_from_payload(g.user_id, my_snapshot))
-    target_public = get_social_public_profile(target_user_id)
     if not target_public or not target_public.get("allow_matching"):
         return api_error("Target user has not opted into social matching", 403, code="SOCIAL_PROFILE_PRIVATE")
     my_profile = _engine_profile_from_public(my_public, my_snapshot)
@@ -202,6 +244,7 @@ def compare_social_soulmate():
                 "moodAlignment": score.get("emotionalCompatibility"),
                 "complementaryTasteTraits": score.get("complementaryTraits", []),
                 "constellation": _constellation_payload(my_profile, target_profile, score),
+                "publicSlug": target_public.get("public_slug"),
                 "details": score,
             }
         }
@@ -215,7 +258,9 @@ def create_request():
     target_user_id = data.get("target_user_id")
     if not target_user_id:
         return api_error("target_user_id required", 400, code="SOCIAL_TARGET_REQUIRED")
-    target_profile = get_social_public_profile(target_user_id)
+    target_profile = get_social_public_profile(target_user_id) or get_social_public_profile_by_slug(target_user_id)
+    if target_profile:
+        target_user_id = target_profile.get("user_id")
     if not target_profile or not target_profile.get("allow_matching"):
         return api_error("Target user has not opted into social matching", 403, code="SOCIAL_PROFILE_PRIVATE")
     doc = create_soulmate_request(g.user_id, target_user_id, {"note": data.get("note")})

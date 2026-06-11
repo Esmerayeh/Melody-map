@@ -8,6 +8,8 @@ GET  /api/discover/playlists   — same, via query params
 from flask import Blueprint, request, jsonify
 from middleware.rate_limit import rate_limit
 from ml.discover_engine import discover_engine
+from services.spotify_recommendation_bridge import spotify_recommendation_bridge
+from utils.provider_cookies import spotify_context_from_request
 
 discover_bp = Blueprint('discover', __name__)
 
@@ -20,6 +22,20 @@ def _parse_profile(data: dict) -> tuple[list, float, float]:
     energy  = max(0.0, min(1.0, energy))
     valence = max(0.0, min(1.0, valence))
     return genres, energy, valence
+
+
+def _spotify_token_from_request() -> str:
+    header_token = request.headers.get('X-Spotify-Token') or request.headers.get('Authorization', '')
+    cookie_token, _, _ = spotify_context_from_request(request)
+    return header_token or cookie_token or ''
+
+
+def _truthy(value, default=False) -> bool:
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    return str(value).lower() not in {'0', 'false', 'no', 'off'}
 
 
 @discover_bp.route('/api/discover/playlists', methods=['POST', 'GET'])
@@ -36,6 +52,8 @@ def get_playlists():
     n          = min(int(data.get('n', 6)), 10)
     seed       = int(data.get('seed', 0))
     serendipity = str(data.get('serendipity', 'false')).lower() == 'true'
+    grounded = str(data.get('grounded', 'true')).lower() != 'false'
+    include_live_tracks = _truthy(data.get('include_live_tracks', data.get('includeLiveTracks')), default=False)
 
     playlists = discover_engine.generate_playlists(
         genres=genres,
@@ -44,5 +62,20 @@ def get_playlists():
         n_playlists=n,
         seed=seed,
         serendipity=serendipity,
+        grounded=grounded,
     )
+    if include_live_tracks:
+        profile_context = data.get('profile') if isinstance(data.get('profile'), dict) else data
+        explicit_seeds = {
+            'seedArtists': data.get('seedArtists') or data.get('seed_artists'),
+            'seedTracks': data.get('seedTracks') or data.get('seed_tracks'),
+            'seedGenres': data.get('seedGenres') or data.get('seed_genres'),
+        }
+        playlists = spotify_recommendation_bridge.attach_to_concepts(
+            _spotify_token_from_request(),
+            playlists,
+            profile=profile_context,
+            explicit_seeds=explicit_seeds,
+            limit_per_concept=min(max(int(data.get('tracks_per_playlist', 4)), 1), 8),
+        )
     return jsonify(playlists), 200

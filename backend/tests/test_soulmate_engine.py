@@ -177,6 +177,11 @@ def test_compute_score_returns_rich_shape():
     assert result['mbtiCompatibility'] >= 60
     assert result['relationshipArchetype']
     assert result['bridgeTracks']
+    assert result['songsBothMayLove']
+    assert result['combinedGalaxy']['graph']['nodes']
+    assert result['combinedSoulOrb']['dataBasis']
+    assert result['duoIdentity']['pairName']
+    assert result['sharedAtmosphereIdentity']['unsplashQueries']
     assert result['compatibilityNarrative']
     assert result['beautifulTensionNarrative']
     assert result['orbNarrative']

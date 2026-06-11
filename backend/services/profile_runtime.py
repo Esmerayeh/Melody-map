@@ -107,11 +107,16 @@ def _store_snapshot(cache_key: str, profile: dict) -> dict:
 
 
 def _build_and_cache(cache_key: str, spotify_token: str, time_range: str, limit: int) -> dict:
+    start = time.time()
+    logger.info({"event": "build_begin", "cache_key": cache_key, "time_range": time_range, "limit": limit})
     profile_breaker.guard(PROFILE_BREAKER_KEY)
     profile = build_music_profile(spotify_token=spotify_token, time_range=time_range, limit=limit)
     profile_breaker.record_success(PROFILE_BREAKER_KEY)
+    artist_count = len(profile.get("topArtists") or [])
+    logger.info({"event": "build_pre_cache_write", "cache_key": cache_key, "topArtists": artist_count, "elapsedMs": round((time.time() - start) * 1000)})
     snapshot = _store_snapshot(cache_key, profile)
     logger.info({"event": "music_profile_cached", "cache_key": cache_key, "time_range": time_range, "limit": limit})
+    logger.info({"event": "BUILD-COMPLETE", "cache_key": cache_key, "cached": True, "topArtists": artist_count, "elapsedSec": round(time.time() - start, 1)})
     return snapshot
 
 
@@ -127,9 +132,21 @@ def enqueue_profile_refresh(cache_key: str, spotify_token: str, time_range: str,
     )
 
 
-def resolve_profile_response(spotify_token: str, time_range: str, limit: int) -> tuple[dict, int]:
-    cache_key = profile_cache_key(spotify_token, time_range, limit)
+def resolve_profile_response(spotify_token: str, time_range: str, limit: int, cache_seed: str | None = None) -> tuple[dict, int]:
+    # Key the cache on a STABLE identity (the app/Spotify user id) when available,
+    # NOT the access token. Tokens rotate (every refresh mints a new one), so a
+    # token-keyed cache misses on every subsequent request — the completed build
+    # is cached under one token's key and never read back, so the profile never
+    # converges past the 202 placeholder. A stable seed lets the next poll hit the
+    # finished build and return real data.
+    cache_key = profile_cache_key(cache_seed or spotify_token, time_range, limit)
     cached = _load_snapshot(cache_key)
+    logger.info({
+        "event": "profile_read",
+        "cache_key": cache_key,
+        "cache_seed_present": bool(cache_seed),
+        "cache_state": "hit_fresh" if (cached and cached.get("fresh")) else "hit_stale" if (cached and cached.get("stale_but_servable")) else "miss",
+    })
 
     if cached and cached.get("fresh"):
         return {

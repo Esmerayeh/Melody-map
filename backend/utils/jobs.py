@@ -54,6 +54,13 @@ class JobRegistry:
                 job["status"] = "failed"
                 job["error"] = str(exc)
                 job["finished_at"] = time.time()
+            # Surface background failures instead of swallowing them — a silent
+            # job crash looks identical to "still building" from the outside.
+            try:
+                from utils.logger import logger
+                logger.error({"event": "job_failed", "job": job.get("name"), "error": str(exc)}, exc_info=True)
+            except Exception:
+                pass
             raise
 
     def get(self, job_id: str) -> dict | None:

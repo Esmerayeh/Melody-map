@@ -3,11 +3,30 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-import faiss
-import numpy as np
+# faiss and numpy are imported lazily inside each public function so that
+# gunicorn workers don't pay the ~400 MB import cost at startup when no
+# model artifact is present.  The TYPE_CHECKING guard lets IDEs/mypy keep
+# full type information without triggering the real import.
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import numpy as np
 
 
-def _normalize_matrix(matrix: np.ndarray) -> np.ndarray:
+def _numpy():
+    """Return numpy, importing it on first call."""
+    import numpy as _np  # noqa: PLC0415
+    return _np
+
+
+def _faiss():
+    """Return faiss, importing it on first call."""
+    import faiss as _faiss  # noqa: PLC0415
+    return _faiss
+
+
+def _normalize_matrix(matrix):  # type: ignore[override]
+    np = _numpy()
     if matrix.size == 0:
         return matrix.astype(np.float32)
     matrix = matrix.astype(np.float32)
@@ -17,6 +36,8 @@ def _normalize_matrix(matrix: np.ndarray) -> np.ndarray:
 
 
 def build_faiss_index(vectors: dict[str, list[float]]) -> dict:
+    np = _numpy()
+    faiss = _faiss()
     keys = list(vectors.keys())
     matrix = np.asarray([vectors[key] for key in keys], dtype=np.float32) if keys else np.zeros((0, 0), dtype=np.float32)
     matrix = _normalize_matrix(matrix)
@@ -38,6 +59,8 @@ def build_faiss_index(vectors: dict[str, list[float]]) -> dict:
 
 
 def save_faiss_index(index_bundle: dict, output_dir: str) -> str:
+    np = _numpy()
+    faiss = _faiss()
     output = Path(output_dir)
     output.mkdir(parents=True, exist_ok=True)
     manifest = dict(index_bundle.get("manifest", {}))
@@ -61,6 +84,8 @@ def save_faiss_index(index_bundle: dict, output_dir: str) -> str:
 
 
 def load_faiss_index(path: str) -> dict:
+    np = _numpy()
+    faiss = _faiss()
     candidate = Path(path)
     if candidate.is_dir():
         candidate = candidate / "manifest.json"
@@ -80,6 +105,7 @@ def load_faiss_index(path: str) -> dict:
 
 
 def query_faiss_index(index_bundle: dict, query_vector: list[float], top_k: int = 50) -> list[tuple[str, float]]:
+    np = _numpy()
     matrix = np.asarray(index_bundle.get("matrix", np.zeros((0, 0), dtype=np.float32)), dtype=np.float32)
     if matrix.size == 0:
         return []

@@ -58,7 +58,7 @@
 ## Known limitations
 - 3D scenes are mobile-safe, but still heavier than ordinary cards on very low-end devices
 - Mobile browser download behavior is inconsistent; image-preview fallback is expected on some browsers
-- The legacy `Navbar` component is not part of the primary shell, but its route targets were aligned for safety
+- The primary shell is `Sidebar` + `TopBar` + `BottomNav`; legacy navbar code has been removed
 - Keyboard overlap has been reduced by avoiding brittle `100vh` shells, but full device-specific keyboard QA still requires manual browser testing
 
 ## Phone QA runbook
@@ -70,5 +70,5 @@
 6. Open Auralith and confirm prompt chips, textareas, and action buttons remain usable.
 7. Open Galaxy and verify either adaptive 3D mode or the fallback panel appears.
 8. Open Identity and export the share card on a narrow viewport.
-9. Open Social Soulmates and confirm privacy/match actions remain reachable.
+9. Open Soulmates and confirm privacy/match/share actions remain reachable.
 10. Simulate reduced motion and verify the experience becomes calmer rather than broken.

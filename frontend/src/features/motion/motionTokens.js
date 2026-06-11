@@ -105,3 +105,109 @@ export const MOTION_FLOAT = {
     depth: 3,
   },
 }
+
+// ── Universe / Galaxy motion tokens ────────────────────────────────────────
+export const MOTION_UNIVERSE = {
+  // Route/page transitions for the universe shell
+  warpIn: {
+    initial: { opacity: 0, scale: 0.92, filter: 'blur(12px)' },
+    animate: { opacity: 1, scale: 1,    filter: 'blur(0px)'  },
+    exit:    { opacity: 0, scale: 1.04, filter: 'blur(6px)'  },
+    transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
+  },
+  // HUD panel appearance
+  hudPanel: {
+    initial:    { opacity: 0, y: 10, scale: 0.97 },
+    animate:    { opacity: 1, y: 0,  scale: 1    },
+    transition: { duration: 0.35, ease: [0.22, 1, 0.36, 1] },
+  },
+  // Sector portal popup
+  sectorPortal: {
+    initial:    { opacity: 0, scale: 0.88, y: 16 },
+    animate:    { opacity: 1, scale: 1,    y: 0  },
+    exit:       { opacity: 0, scale: 0.90, y: 8  },
+    transition: { type: 'spring', stiffness: 360, damping: 32 },
+  },
+  // Soul orb dock expand/collapse
+  orbDock: {
+    transition: { type: 'spring', stiffness: 280, damping: 30 },
+  },
+  // Galaxy heartbeat ring
+  heartbeat: {
+    duration: 2.8,
+    interval: 6.4,
+  },
+  // Cursor gravity particles
+  gravity: {
+    lerpFactor: 0.06,
+    maxRadius:  3.5,
+  },
+  // Signal particle travel along edges
+  signal: {
+    speed: { min: 0.08, max: 0.20 },
+    size:  0.06,
+  },
+  // Supernova flare
+  supernova: {
+    pulseSpeed: 1.2,
+    amplitude:  0.14,
+  },
+  // Ghost star opacity
+  ghost: {
+    opacity: { min: 0.08, max: 0.18 },
+    pulseSpeed: 0.28,
+  },
+}
+
+// ── Performance mode presets ────────────────────────────────────────────────
+// Consumers read these to scale visual complexity.
+export const PERF_PRESETS = {
+  ultra: {
+    starDensity:        1.0,
+    bloomEnabled:       true,
+    particleCount:      1.0,
+    fogEnabled:         true,
+    signalParticles:    true,
+    cursorGravity:      true,
+    heartbeat:          true,
+    ghostStars:         true,
+    supernovaFlare:     true,
+    dpr:                [1, 2.0],
+  },
+  balanced: {
+    starDensity:        0.7,
+    bloomEnabled:       true,
+    particleCount:      0.65,
+    fogEnabled:         true,
+    signalParticles:    true,
+    cursorGravity:      true,
+    heartbeat:          true,
+    ghostStars:         true,
+    supernovaFlare:     true,
+    dpr:                [1, 1.6],
+  },
+  low: {
+    starDensity:        0.4,
+    bloomEnabled:       false,
+    particleCount:      0.35,
+    fogEnabled:         false,
+    signalParticles:    false,
+    cursorGravity:      false,
+    heartbeat:          true,
+    ghostStars:         false,
+    supernovaFlare:     false,
+    dpr:                [1, 1.1],
+  },
+  reducedMotion: {
+    starDensity:        0.35,
+    bloomEnabled:       false,
+    particleCount:      0,
+    fogEnabled:         false,
+    signalParticles:    false,
+    cursorGravity:      false,
+    heartbeat:          false,
+    ghostStars:         true,
+    supernovaFlare:     false,
+    dpr:                [1, 1.0],
+  },
+}

@@ -44,6 +44,11 @@ logs/
 *.log
 analysis_frames/
 frontend/.npm-cache/
+frontend/.vite/
+frontend/test-results/
+frontend/playwright-report/
+playwright-report/
+test-results/
 
 # Database
 *.db
@@ -54,13 +59,34 @@ coverage/
 
 # ML / generated runtime artifacts
 backend/mlruns/
+backend/backend/
+backend/.cache/
 backend/data/models/
 backend/data/indexes/
 backend/data/processed/
+backend/data/exports/
+backend/data/tmp/
+backend/data/faiss/
+backend/data/checkpoints/
+backend/ml/training/runs/
+backend/ml/training/outputs/
 tmp/
 temp/
 *.tmp
 *.temp
+
+# Generated media / local exports
+exports/
+screenshots/
+recordings/
+docs/screenshots/
+*.webm
+*.mp4
+
+# Notebook/runtime outputs
+.ipynb_checkpoints/
+notebooks/.ipynb_checkpoints/
+notebooks/outputs/
 
 # OS
 Thumbs.db

@@ -5,6 +5,7 @@ from flask import Blueprint, g, request
 from middleware.auth import require_auth
 from services.feature_store import get_latest_snapshot
 from services.identity_drift import RANGE_MAP, compute_drift, list_stored_snapshots, store_identity_snapshot
+from services.listening_memory import build_listening_memory_model
 from utils.api import api_error, api_success
 
 identity_bp = Blueprint("identity", __name__)
@@ -32,6 +33,7 @@ def identity_drift():
                 "snapshot": selected,
                 "timeline": stored,
                 "drift": compute_drift(stored),
+                "listeningMemory": build_listening_memory_model(g.user_id, payload),
             }
         )
     return api_success(
@@ -39,5 +41,16 @@ def identity_drift():
             "selectedRange": "all",
             "timeline": stored,
             "drift": compute_drift(stored),
+            "listeningMemory": build_listening_memory_model(g.user_id, payload),
         }
     )
+
+
+@identity_bp.route("/identity/memory", methods=["GET"])
+@require_auth
+def identity_memory():
+    snapshot_doc = get_latest_snapshot(g.user_id)
+    payload = (snapshot_doc or {}).get("payload")
+    if not payload:
+        return api_error("Listening profile not ready", 404, code="IDENTITY_PROFILE_NOT_FOUND")
+    return api_success({"memory": build_listening_memory_model(g.user_id, payload)})

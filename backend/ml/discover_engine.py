@@ -335,6 +335,23 @@ _ADJ_LOW_VALENCE   = ['Midnight', 'Obsidian', 'Phantom', 'Dusk', 'Ash', 'Shadowe
 _ADJ_MID           = ['Velvet', 'Cobalt', 'Silver', 'Lunar', 'Ivory', 'Hazy', 'Drifting']
 
 
+def _genre_label(value) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return str(value.get('genre') or value.get('name') or '').strip()
+    return ''
+
+
+def _normalize_genres(genres: list) -> list[str]:
+    labels: list[str] = []
+    for genre in genres or []:
+        label = _genre_label(genre)
+        if label and label not in labels:
+            labels.append(label)
+    return labels
+
+
 def _pick_adj(energy: float, valence: float, rng: random.Random) -> str:
     if energy > 0.65:
         pool = _ADJ_HIGH_ENERGY
@@ -392,6 +409,7 @@ class DiscoverEngine:
         valence: float,
     ) -> float:
         """Score how well an archetype matches the user's taste profile."""
+        genres = _normalize_genres(genres)
         score = 0.0
 
         # Energy/valence range match
@@ -426,6 +444,7 @@ class DiscoverEngine:
         valence: float,
         n: int = 5,
         seed: int = 0,
+        serendipity: bool = False,
     ) -> list[PlaylistArchetype]:
         """Select the n best-matching archetypes, with some randomness for variety."""
         scored = [
@@ -442,6 +461,62 @@ class DiscoverEngine:
         selected = top + rest[:max(0, n - 3)]
         return selected[:n]
 
+    def _grounded_why(
+        self,
+        archetype: PlaylistArchetype,
+        energy: float,
+        valence: float,
+        genres: list[str],
+        *,
+        serendipity: bool = False,
+        grounded: bool = True,
+    ) -> dict:
+        genres = _normalize_genres(genres)
+        if not grounded:
+            return {
+                'text': 'This is a preview seed because the Spotify profile was not ready; connect or refresh listening data for grounded recommendation reasons.',
+                'evidence': ['Spotify profile was not ready for Discover'],
+                'grounded': False,
+                'methodology': 'ungrounded_preview_seed',
+            }
+        lower = [genre.lower() for genre in genres]
+        matched_genres = []
+        for seed_genre in archetype.seed_genres:
+            for user_genre in lower:
+                if seed_genre in user_genre or user_genre in seed_genre:
+                    matched_genres.append(seed_genre)
+                    break
+
+        evidence = []
+        if matched_genres:
+            evidence.append(f"your Spotify genre anchors overlap with {', '.join(matched_genres[:3])}")
+        if energy < 0.4:
+            evidence.append(f"your current Spotify energy average is quiet at {round(energy * 100)}%")
+        elif energy > 0.65:
+            evidence.append(f"your current Spotify energy average is charged at {round(energy * 100)}%")
+        else:
+            evidence.append(f"your current Spotify energy average sits in the middle at {round(energy * 100)}%")
+        if valence < 0.4:
+            evidence.append(f"your valence average leans darker at {round(valence * 100)}%")
+        elif valence > 0.65:
+            evidence.append(f"your valence average leans brighter at {round(valence * 100)}%")
+        else:
+            evidence.append(f"your valence average is balanced at {round(valence * 100)}%")
+
+        if serendipity:
+            text = f"This exists as a controlled stretch: {'; '.join(evidence[:3])}, while the seed genres step outside the closest match."
+        elif matched_genres:
+            text = f"This exists because {'; '.join(evidence[:3])}."
+        else:
+            text = f"This is a light discovery bridge because {'; '.join(evidence[:2])}; add more Spotify genre history for sharper reasons."
+
+        return {
+            'text': text,
+            'evidence': evidence[:4],
+            'grounded': True,
+            'methodology': 'spotify_genre_overlap_plus_energy_valence',
+        }
+
     def generate_playlist_concept(
         self,
         archetype: PlaylistArchetype,
@@ -449,20 +524,25 @@ class DiscoverEngine:
         valence: float,
         genres: list[str],
         seed: int = 0,
+        serendipity: bool = False,
+        grounded: bool = True,
     ) -> dict:
         """Generate a single playlist concept (no real tracks yet — seeds for Spotify)."""
+        genres = _normalize_genres(genres)
         rng = random.Random(seed + hash(archetype.id) % (2 ** 16))
 
         adj = _pick_adj(energy, valence, rng)
         title = rng.choice(archetype.title_templates).format(adj=adj)
         description = rng.choice(archetype.descriptions)
-        why = rng.choice(archetype.why_templates)
+        grounded_why = self._grounded_why(archetype, energy, valence, genres, serendipity=serendipity, grounded=grounded)
 
         return {
             'id':             archetype.id + f'_{seed}',
             'title':          title,
             'description':    description,
-            'why_it_fits':    why,
+            'why_it_fits':    grounded_why['text'],
+            'why_receipts':   grounded_why['evidence'],
+            'why_methodology': grounded_why['methodology'],
             'mood_tags':      archetype.mood_tags,
             'aesthetic_tags': archetype.aesthetic_tags[:4],
             'era_tags':       archetype.era_tags,
@@ -480,9 +560,11 @@ class DiscoverEngine:
         n_playlists: int = 6,
         seed: int = 0,
         serendipity: bool = False,
+        grounded: bool = True,
     ) -> list[dict]:
         """Generate n playlist concepts for the given taste profile."""
         # Compute Harmonic Mood Vector — a richer descriptor than raw energy/valence
+        genres = _normalize_genres(genres)
         hmv = self._harmonic_mood_vector(genres, energy, valence)
 
         if serendipity:
@@ -493,7 +575,7 @@ class DiscoverEngine:
 
         playlists = []
         for i, archetype in enumerate(archetypes):
-            concept = self.generate_playlist_concept(archetype, energy, valence, genres, seed=seed + i)
+            concept = self.generate_playlist_concept(archetype, energy, valence, genres, seed=seed + i, serendipity=serendipity, grounded=grounded)
             concept['harmonic_mood_vector'] = hmv
             playlists.append(concept)
         return playlists

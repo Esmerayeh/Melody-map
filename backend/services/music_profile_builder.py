@@ -15,12 +15,20 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 import math
+import time
 
 import requests as req
 from ml.graph_topology import build_galaxy_topology
 from ml.graph_walk_embeddings import GRAPH_EMBEDDING_VERSION, project_node_vectors
 from ml.representation_learning import summarize_profile_embeddings
+from services.listening_identity import (
+    attach_mbti_evidence,
+    attach_personality_evidence,
+    build_identity_layers,
+    build_music_code_evidence,
+)
 from services.spotify_service import SpotifyService
+from utils.logger import logger
 
 PROFILE_SCHEMA_VERSION = '2026-03-profile-v2'
 CANONICAL_TOP_LIMIT = 50
@@ -137,15 +145,22 @@ def _get_spotify_service() -> SpotifyService | None:
     return _spotify_service if getattr(_spotify_service, 'sp', None) else None
 
 
-def _safe_get_json(url: str, headers: dict, params: dict | None = None) -> tuple[dict, int | None, str | None]:
+def _safe_get_json(url: str, headers: dict, params: dict | None = None, timeout: int = 10) -> tuple[dict, int | None, str | None]:
     try:
-        response = req.get(url, headers=headers, params=params, timeout=10)
+        response = req.get(url, headers=headers, params=params, timeout=timeout)
         status = response.status_code
         if not response.ok:
             return {}, status, response.text[:240]
         return response.json(), status, None
     except Exception as exc:
         return {}, None, str(exc)
+
+
+# Supplementary Spotify calls (artist-genre enrichment, per-track audio features)
+# are best-effort. Cap each one short and the whole enrichment phase with a hard
+# wall-clock budget so a slow/throttled/dead endpoint can NEVER stall the build.
+_SUPPLEMENTARY_TIMEOUT = 4
+_ENRICHMENT_BUDGET_SECONDS = 6
 
 
 def _normalize_audio_feature_row(feature_row: dict) -> dict | None:
@@ -182,6 +197,7 @@ def _fetch_audio_features(track_ids: list[str], spotify_root: str, headers: dict
         f'{spotify_root}/audio-features',
         headers=headers,
         params={'ids': ','.join(track_ids[:100])},
+        timeout=_SUPPLEMENTARY_TIMEOUT,
     )
     diagnostics['batchStatus'] = batch_status
     diagnostics['batchError'] = batch_error
@@ -196,26 +212,41 @@ def _fetch_audio_features(track_ids: list[str], spotify_root: str, headers: dict
         diagnostics['source'] = 'spotify_batch_user_token'
         return batch_rows, diagnostics
 
-    diagnostics['fallbackUsed'] = True
-    fallback_rows = []
-    fallback_errors = 0
-    for track_id in track_ids[:50]:
-        row_data, row_status, row_error = _safe_get_json(f'{spotify_root}/audio-features/{track_id}', headers=headers)
-        if row_status is not None and diagnostics['fallbackStatus'] is None:
-            diagnostics['fallbackStatus'] = row_status
-        if row_error:
-            fallback_errors += 1
-            diagnostics['fallbackError'] = row_error
-            continue
-        normalized = _normalize_audio_feature_row(row_data)
-        if normalized:
-            fallback_rows.append(normalized)
+    # CRITICAL: when the batch endpoint returns a hard client block (401/403/404/
+    # 429), do NOT fall back to 50 per-track calls — they will fail identically.
+    # Spotify deprecated /audio-features in Nov 2024, so blocked apps get a 403 on
+    # the batch AND every single track; hammering all 50 added ~60s to every build
+    # (measured), so builds never finished within the poll window and the job pool
+    # starved. A 200-with-null payload or a transient 5xx still warrants per-track.
+    hard_client_block = batch_status in (401, 403, 404, 429)
+    if not hard_client_block:
+        diagnostics['fallbackUsed'] = True
+        fallback_rows = []
+        fallback_errors = 0
+        # Bounded probe: try a few individual tracks, and STOP at the first failure.
+        # The endpoint is deprecated — if one per-track call fails, the rest will
+        # too, and 50 sequential 10s timeouts would hang the entire build (the
+        # exact failure we are fixing). A short probe recovers the rare transient
+        # batch-null case without ever blocking on a dead endpoint.
+        for track_id in track_ids[:8]:
+            row_data, row_status, row_error = _safe_get_json(f'{spotify_root}/audio-features/{track_id}', headers=headers, timeout=_SUPPLEMENTARY_TIMEOUT)
+            if row_status is not None and diagnostics['fallbackStatus'] is None:
+                diagnostics['fallbackStatus'] = row_status
+            if row_error or (row_status is not None and row_status >= 400):
+                fallback_errors += 1
+                diagnostics['fallbackError'] = row_error or f'status_{row_status}'
+                break  # deprecated/throttled endpoint won't recover — bail immediately
+            normalized = _normalize_audio_feature_row(row_data)
+            if normalized:
+                fallback_rows.append(normalized)
 
-    if fallback_rows:
-        diagnostics['source'] = 'spotify_single_user_token'
-        if fallback_errors:
-            diagnostics['fallbackError'] = f'partial_single_track_failures:{fallback_errors}'
-        return fallback_rows, diagnostics
+        if fallback_rows:
+            diagnostics['source'] = 'spotify_single_user_token'
+            if fallback_errors:
+                diagnostics['fallbackError'] = f'partial_single_track_failures:{fallback_errors}'
+            return fallback_rows, diagnostics
+    else:
+        diagnostics['fallbackSkipped'] = f'batch_client_error_{batch_status}'
 
     spotify_service = _get_spotify_service()
     if spotify_service:
@@ -258,31 +289,35 @@ def _enrich_artist_genres(artists: list[dict], spotify_root: str, headers: dict)
         return artists, diagnostics
 
     enriched = []
-    spotify_service = _get_spotify_service()
+    # Hard wall-clock budget: enrichment is best-effort. If /artists/{id} is slow
+    # or throttled, looping 50 artists (each a 4s call, plus a second service
+    # call) would stall the whole build for minutes — the exact failure we hit in
+    # production. Once the budget is spent, the rest pass through unmodified and
+    # the profile degrades gracefully (galaxy falls back to artist-name layout).
+    start = time.time()
+    give_up = False
     for artist in artists:
         artist_id = artist.get('id')
-        if not artist_id:
+        if not artist_id or give_up:
+            enriched.append(artist)
+            continue
+
+        if (time.time() - start) > _ENRICHMENT_BUDGET_SECONDS:
+            give_up = True
+            diagnostics['gaveUpAfter'] = diagnostics['attempted']
             enriched.append(artist)
             continue
 
         diagnostics['attempted'] += 1
         updated = dict(artist)
-        row_data, row_status, row_error = _safe_get_json(f'{spotify_root}/artists/{artist_id}', headers=headers)
+        row_data, _row_status, row_error = _safe_get_json(
+            f'{spotify_root}/artists/{artist_id}', headers=headers, timeout=_SUPPLEMENTARY_TIMEOUT
+        )
         if row_data:
             updated['genres'] = row_data.get('genres') or updated.get('genres') or []
             updated['popularity'] = row_data.get('popularity', updated.get('popularity'))
             if row_data.get('images') and not updated.get('image'):
                 updated['image'] = row_data['images'][0]['url']
-        elif spotify_service:
-            try:
-                info = spotify_service.get_artist_info(artist_id)
-                if info:
-                    updated['genres'] = info.get('genres') or updated.get('genres') or []
-                    updated['popularity'] = info.get('popularity', updated.get('popularity'))
-                    if info.get('image_url') and not updated.get('image'):
-                        updated['image'] = info['image_url']
-            except Exception as exc:
-                diagnostics['error'] = str(exc)
         elif row_error:
             diagnostics['error'] = row_error
 
@@ -627,6 +662,7 @@ def _build_galaxy_nodes(artists: list[dict], genres: list[dict], audio_features:
             'z': round(radius * math.sin(angle), 2),
             'connections': [],
             'count': genre_item['count'],
+            'explanation': f"{genre_item['genre']} appears as a galaxy anchor because it recurs across your Spotify top artists with weight {genre_item['count']}.",
         })
         genre_node_ids[genre_item['genre']] = genre_id
 
@@ -664,6 +700,11 @@ def _build_galaxy_nodes(artists: list[dict], genres: list[dict], audio_features:
             'connections': [],
             'popularity': raw_popularity,
             'spotify_url': artist.get('spotify_url'),
+            'explanation': (
+                f"{artist.get('name', 'This artist')} orbits near {primary_genre} because Spotify lists that genre on the artist profile."
+                if primary_genre else
+                f"{artist.get('name', 'This artist')} is positioned from artist recurrence and available Spotify popularity because genre data is thin."
+            ),
         }
         if primary_genre and primary_genre in genre_node_ids:
             node['connections'].append(genre_node_ids[primary_genre])
@@ -846,41 +887,86 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
     now_iso = datetime.now(timezone.utc).isoformat()
     headers = {'Authorization': f'Bearer {spotify_token}'}
 
+    # End-to-end stage tracer. Logs ENTRY to each stage with cumulative elapsed,
+    # so a hang shows the last stage entered (no completion log after it) and a
+    # crash is caught by job_registry's job_failed traceback at the next stage.
+    _build_start = time.time()
+
+    def _mark(stage: str) -> None:
+        logger.info({'event': 'build_stage', 'stage': stage, 'elapsedMs': round((time.time() - _build_start) * 1000)})
+
+    fetch_diag: list[dict] = []
+
     def _get(path: str, params: dict | None = None) -> dict:
         try:
             response = req.get(f'{spotify_root}{path}', headers=headers, params=params, timeout=10)
+            fetch_diag.append({'path': path, 'status': response.status_code})
             if response.status_code == 401:
                 return {}
             response.raise_for_status()
             return response.json()
-        except Exception:
+        except Exception as exc:
+            fetch_diag.append({'path': path, 'status': None, 'error': str(exc)[:120]})
             return {}
 
+    _mark('spotify_fetch')
     user_profile_raw = _get('/me')
     top_artists_raw = _get('/me/top/artists', {'limit': requested_limit, 'time_range': time_range})
     top_tracks_raw = _get('/me/top/tracks', {'limit': requested_limit, 'time_range': time_range})
     recently_played_raw = _get('/me/player/recently-played', {'limit': 50})
     saved_tracks_raw = _get('/me/tracks', {'limit': 50})
 
+    # Evidence trail: exactly which Spotify calls succeeded and how much data each
+    # returned for THIS token. Distinguishes a failed/blocked endpoint or a missing
+    # scope from a genuinely thin listening history.
+    logger.info({
+        'event': 'music_profile_spotify_fetch',
+        'token_prefix': (spotify_token or '')[:8],
+        'time_range': time_range,
+        'calls': fetch_diag,
+        'meCount': 1 if user_profile_raw.get('id') else 0,
+        'topArtistsRaw': len(top_artists_raw.get('items') or []),
+        'topTracksRaw': len(top_tracks_raw.get('items') or []),
+        'recentlyPlayedRaw': len(recently_played_raw.get('items') or []),
+        'savedRaw': len(saved_tracks_raw.get('items') or []),
+    })
+
     top_artists = [_normalize_artist(item) for item in (top_artists_raw.get('items') or []) if item]
     top_tracks = [_normalize_track(item) for item in (top_tracks_raw.get('items') or []) if item]
+    _enrich_start = time.time()
     top_artists, genre_enrichment = _enrich_artist_genres(top_artists, spotify_root, headers)
+    logger.info({
+        'event': 'music_profile_genre_enrichment',
+        'source': genre_enrichment.get('source'),
+        'attempted': genre_enrichment.get('attempted'),
+        'resolved': genre_enrichment.get('resolved'),
+        'gaveUpAfter': genre_enrichment.get('gaveUpAfter'),
+        'elapsedMs': round((time.time() - _enrich_start) * 1000),
+    })
 
     recent_tracks = []
+    recent_behavior_tracks = []
     seen_ids: set[str] = {track['id'] for track in top_tracks if track.get('id')}
     for entry in (recently_played_raw.get('items') or []):
         item = entry.get('track') if isinstance(entry, dict) and 'track' in entry else entry
-        if not item or not item.get('id') or item['id'] in seen_ids:
+        if not item or not item.get('id'):
             continue
-        seen_ids.add(item['id'])
-        recent_tracks.append({
+        normalized_recent = {
             'id': item.get('id'),
             'title': item.get('name'),
             'artist': item['artists'][0]['name'] if item.get('artists') else '',
+            'artists': [artist['name'] for artist in item.get('artists', [])],
             'album_art': item['album']['images'][0]['url'] if item.get('album', {}).get('images') else None,
             'popularity': item.get('popularity'),
             'release_date': item.get('album', {}).get('release_date', ''),
-        })
+            'spotify_url': item.get('external_urls', {}).get('spotify'),
+            'played_at': entry.get('played_at') if isinstance(entry, dict) else None,
+        }
+        recent_behavior_tracks.append(normalized_recent)
+        if item['id'] in seen_ids:
+            continue
+        seen_ids.add(item['id'])
+        recent_tracks.append(normalized_recent)
 
     saved_tracks = []
     for entry in (saved_tracks_raw.get('items') or []):
@@ -891,13 +977,23 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
             'id': item.get('id'),
             'title': item.get('name'),
             'artist': item['artists'][0]['name'] if item.get('artists') else '',
+            'artists': [artist['name'] for artist in item.get('artists', [])],
             'album_art': item['album']['images'][0]['url'] if item.get('album', {}).get('images') else None,
             'popularity': item.get('popularity'),
             'release_date': item.get('album', {}).get('release_date', ''),
+            'spotify_url': item.get('external_urls', {}).get('spotify'),
         })
 
     canonical_track_ids = [track['id'] for track in top_tracks if track.get('id')][:CANONICAL_TOP_LIMIT]
     audio_features_list, audio_feature_diagnostics = _fetch_audio_features(canonical_track_ids, spotify_root, headers)
+    logger.info({
+        'event': 'music_profile_audio_features',
+        'requested': len(canonical_track_ids),
+        'resolved': len(audio_features_list),
+        'source': audio_feature_diagnostics.get('source'),
+        'batchStatus': audio_feature_diagnostics.get('batchStatus'),
+        'fallbackStatus': audio_feature_diagnostics.get('fallbackStatus'),
+    })
 
     average_audio_features = {}
     for key in AUDIO_FEATURE_KEYS:
@@ -908,6 +1004,7 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
     for track in top_tracks:
         track['audio_features'] = features_by_track_id.get(track.get('id'))
 
+    _mark('analytics')
     genres = _extract_genres(top_artists)
     genre_artists_count = _count_artists_with_genres(top_artists)
     analytics = _build_analytics(genres, average_audio_features, top_tracks)
@@ -985,6 +1082,35 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'confidence': confidence,
     }
 
+    _mark('identity_layers')
+    identity_layers = build_identity_layers(
+        top_artists=top_artists,
+        top_tracks=top_tracks,
+        recently_played=recent_behavior_tracks,
+        saved_tracks=saved_tracks,
+        audio_features=average_audio_features,
+        audio_features_list=audio_features_list,
+        genres=genres,
+        analytics=analytics,
+        data_quality=data_quality,
+    )
+    personality_traits = attach_personality_evidence(personality_meta.get('traits'), identity_layers)
+    personality_meta = {
+        **personality_meta,
+        'traits': personality_traits,
+        'evidenceSchemaVersion': identity_layers.get('schemaVersion'),
+        'methodology': 'spotify-grounded-music-archetypes-v2',
+    }
+    mbti_evidence = build_music_code_evidence(mbti_meta.get('value'), average_audio_features, genres, top_artists)
+    mbti_value = attach_mbti_evidence(mbti_meta.get('value'), mbti_evidence)
+    mbti_meta = {
+        **mbti_meta,
+        'value': mbti_value,
+        'evidence': mbti_evidence,
+        'methodology': 'spotify-behavior-code-v2',
+    }
+
+    _mark('galaxy_nodes')
     galaxy_nodes = _build_galaxy_nodes(top_artists, genres, average_audio_features)
     aesthetic_tags = _build_aesthetic_tags(genres, average_audio_features.get('energy'), average_audio_features.get('valence'))
     images = user_profile_raw.get('images') or []
@@ -1013,11 +1139,24 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'analyticsMetrics': analytics,
         'personality': personality_meta.get('traits'),
         'personalityMeta': personality_meta,
-        'mbti': mbti_meta.get('value'),
+        'mbti': mbti_value,
         'mbtiMeta': mbti_meta,
         'galaxyNodes': galaxy_nodes,
         'aestheticTags': aesthetic_tags,
         'genres': genres,
+        'identitySignals': identity_layers.get('signals'),
+        'musicIdentity': identity_layers.get('musicIdentity'),
+        'sonicAxes': identity_layers.get('sonicAxes'),
+        'identityMetrics': identity_layers.get('identityMetrics'),
+        'sonicField': identity_layers.get('sonicField'),
+        'listeningEvidence': identity_layers.get('spotifyEvidence'),
+        'livingIdentity': identity_layers.get('livingIdentity'),
+        'spotifyEvidence': identity_layers.get('spotifyEvidence'),
+        'recommendationContext': identity_layers.get('recommendationContext'),
+        'identityDNA': identity_layers.get('identityDNA'),
+        'musicIdentitySummary': identity_layers.get('musicIdentitySummary'),
+        'sonicPersonalityTitle': identity_layers.get('sonicPersonalityTitle'),
+        'soulOrbProfile': identity_layers.get('soulOrbProfile'),
         'timeRange': time_range,
         'dataQuality': data_quality,
         'confidence': confidence,
@@ -1025,9 +1164,13 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'identityReadiness': identity_readiness,
         'soulmateReadiness': soulmate_readiness,
     }
+    _mark('representations')
     profile['representations'] = summarize_profile_embeddings(profile)
+    _mark('topology')
     profile['galaxyTopology'] = build_galaxy_topology(galaxy_nodes)
     node_vectors = profile['galaxyTopology'].get('nodeVectors') or {}
     profile['galaxyTopology']['projectionVersion'] = GRAPH_EMBEDDING_VERSION
+    _mark('projection')
     profile['galaxyTopology']['stableCoordinates'] = project_node_vectors(node_vectors)
+    _mark('build_return')
     return profile

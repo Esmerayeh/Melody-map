@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useQuery, useQueryClient } from '@tanstack/react-query'
 import useAuthStore from '../store/useAuthStore'
 import useProfileStore from '../store/useProfileStore'
 import useStore from '../store/useStore'
@@ -18,6 +18,7 @@ export default function AuthBootstrap() {
   const clearSession = useAuthStore((s) => s.clearSession)
   const setProviderState = useStore((s) => s.setProviderState)
   const clearProfile = useProfileStore((s) => s.clearProfile)
+  const queryClient = useQueryClient()
 
   const query = useQuery({
     queryKey: [...queryKeys.sessionBootstrap, Boolean(sessionToken)],
@@ -56,10 +57,27 @@ export default function AuthBootstrap() {
     }
   }, [applyBootstrap, clearProfile, query.data, query.error, query.isLoading, sessionToken, setBootState, setProviderState])
 
+  // A 401 on a data route no longer force-logs-out. Instead the API layer asks
+  // us to re-validate: refetch the session bootstrap (the single source of
+  // truth). If the session is genuinely gone, applyBootstrap will flip
+  // auth_state to no_session and routing moves to /login; if it is still valid
+  // (e.g. the failure was a transient/expired-token blip the refresh recovered),
+  // nothing is wiped and the user keeps working mid-session.
   useEffect(() => {
-    const onUnauthorized = () => {
+    const onSessionSuspect = () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.sessionBootstrap })
+    }
+
+    window.addEventListener('melodymap:session-suspect', onSessionSuspect)
+    return () => window.removeEventListener('melodymap:session-suspect', onSessionSuspect)
+  }, [queryClient])
+
+  // Hard clear only when the bootstrap itself confirms there is no session and
+  // no connected provider — the authoritative logout signal.
+  useEffect(() => {
+    if (!query.data) return
+    if (query.data.auth_state === 'no_session' && !query.data.music_provider && !sessionToken) {
       clearSession()
-      clearProfile()
       setProviderState({
         spotifyConnected: false,
         lastfmConnected: false,
@@ -69,10 +87,7 @@ export default function AuthBootstrap() {
         sessionId: null,
       })
     }
-
-    window.addEventListener('melodymap:session-expired', onUnauthorized)
-    return () => window.removeEventListener('melodymap:session-expired', onUnauthorized)
-  }, [clearProfile, clearSession, setProviderState])
+  }, [clearSession, query.data, sessionToken, setProviderState])
 
   return null
 }

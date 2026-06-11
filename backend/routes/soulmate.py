@@ -83,6 +83,8 @@ def _profile_to_engine_format(doc: dict) -> dict:
     return {
         'user_id':  doc.get('user_id'),
         'username': doc.get('username', 'Unknown'),
+        'public_slug': doc.get('public_slug'),
+        'publicSlug': doc.get('public_slug'),
         'avatar':   doc.get('avatar'),
         'topArtists': doc.get('top_artists', []),
         'topTracks': doc.get('top_tracks',  []),
@@ -395,8 +397,8 @@ def compare(uid_b: str):
 
     comparison = {
         **result,
-        'user_a': {'user_id': user_id,  'username': profile_a['username'], 'avatar': profile_a.get('avatar')},
-        'user_b': {'user_id': uid_b,    'username': profile_b['username'], 'avatar': profile_b.get('avatar')},
+        'user_a': {'user_id': user_id,  'username': profile_a['username'], 'public_slug': profile_a.get('public_slug'), 'publicSlug': profile_a.get('public_slug'), 'avatar': profile_a.get('avatar')},
+        'user_b': {'user_id': uid_b,    'username': profile_b['username'], 'public_slug': profile_b.get('public_slug'), 'publicSlug': profile_b.get('public_slug'), 'avatar': profile_b.get('avatar')},
         'profile_a': profile_a,
         'profile_b': profile_b,
         'graph':  graph,
@@ -441,8 +443,8 @@ def compare_public(slug: str):
 
     comparison = {
         **result,
-        'user_a': {'user_id': user_id, 'username': profile_a['username'], 'avatar': profile_a.get('avatar')},
-        'user_b': {'user_id': profile_b.get('user_id'), 'username': profile_b['username'], 'avatar': profile_b.get('avatar')},
+        'user_a': {'user_id': user_id, 'username': profile_a['username'], 'public_slug': profile_a.get('public_slug'), 'publicSlug': profile_a.get('public_slug'), 'avatar': profile_a.get('avatar')},
+        'user_b': {'user_id': profile_b.get('user_id'), 'username': profile_b['username'], 'public_slug': profile_b.get('public_slug'), 'publicSlug': profile_b.get('public_slug'), 'avatar': profile_b.get('avatar')},
         'profile_a': profile_a,
         'profile_b': profile_b,
         'graph': graph,

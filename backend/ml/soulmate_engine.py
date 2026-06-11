@@ -32,10 +32,59 @@ from ml.soulmate_scoring import (
     compute_tension_profile,
     confidence_label,
     generate_bridge_tracks,
+    genre_weight_map,
+    normalize_audio,
     normalize_score,
     normalize_name_set,
+    display_name,
+    slugify,
 )
 from ml.representation_learning import cosine_similarity
+
+
+def _names(items: list[dict | str] | None, *keys: str, limit: int = 6) -> list[str]:
+    output = []
+    for item in items or []:
+        name = display_name(item, *keys)
+        if name and name not in output:
+            output.append(name)
+        if len(output) >= limit:
+            break
+    return output
+
+
+def _identity_label(profile: dict) -> str:
+    identity = profile.get('musicIdentity') or {}
+    identity_type = identity.get('type') if isinstance(identity, dict) else {}
+    return (
+        (identity_type or {}).get('name')
+        or profile.get('sonicPersonalityTitle')
+        or ((profile.get('mbtiProfile') or profile.get('mbti') or {}).get('name') if isinstance(profile.get('mbtiProfile') or profile.get('mbti'), dict) else None)
+        or profile.get('mbtiType')
+        or 'listening self'
+    )
+
+
+def _blend_audio(profile_a: dict, profile_b: dict) -> dict:
+    audio_a = normalize_audio(profile_a.get('audioFeatures') or profile_a.get('audio'))
+    audio_b = normalize_audio(profile_b.get('audioFeatures') or profile_b.get('audio'))
+    blended = {}
+    for key in AUDIO_KEYS:
+        values = [value for value in [audio_a.get(key), audio_b.get(key)] if value is not None]
+        if values:
+            blended[key] = round(sum(values) / len(values), 3)
+    return blended
+
+
+def _shared_list(*groups: list[str], limit: int = 8) -> list[str]:
+    output = []
+    for group in groups:
+        for item in group or []:
+            if item and item not in output:
+                output.append(item)
+            if len(output) >= limit:
+                return output
+    return output
 
 
 class SoulmateEngine:
@@ -120,6 +169,29 @@ class SoulmateEngine:
         }
 
         note = build_confidence_note(confidence_score)
+        evidence_receipts = []
+        shared_artists = artist.details.get('sharedArtists', [])
+        shared_genres = genre.details.get('sharedGenres', [])
+        shared_tracks = [item.get('title') for item in bridges.get('sharedTracks', []) if item.get('title')]
+        metrics['sharedArtists'] = shared_artists
+        metrics['sharedGenres'] = shared_genres
+        if shared_artists:
+            evidence_receipts.append(f"Shared Spotify artist anchors: {', '.join(shared_artists[:5])}.")
+        if shared_genres:
+            evidence_receipts.append(f"Shared genre gravity: {', '.join(shared_genres[:5])}.")
+        if shared_tracks:
+            evidence_receipts.append(f"{len(shared_tracks)} shared top-track anchors were detected.")
+        if emotional.details.get('audioSimilarity') is not None:
+            evidence_receipts.append(f"Audio-feature similarity scored {emotional.details.get('audioSimilarity')} across {', '.join(AUDIO_KEYS[:6])}.")
+        if embedding_similarity:
+            evidence_receipts.append(f"Learned profile-vector similarity contributed {embedding_similarity} points.")
+        evidence_receipts.append(f"Overall confidence is {confidence['label']} from available artist, genre, track, audio, and identity fields.")
+
+        combined_galaxy = self.build_combined_galaxy(profile_a, profile_b, metrics, bridges)
+        combined_orb = self.build_combined_soul_orb(profile_a, profile_b, metrics)
+        duo_identity = self.build_duo_identity(profile_a, profile_b, metrics, evidence_receipts)
+        shared_atmosphere_identity = self.build_shared_atmosphere(profile_a, profile_b, metrics)
+        dual_recommendations = self.build_dual_recommendations(profile_a, profile_b, bridges, metrics)
 
         result = {
             **metrics,
@@ -127,7 +199,7 @@ class SoulmateEngine:
             'rarityLabel': rarity.details.get('rarityLabel'),
             'sharedArtists': artist.details.get('sharedArtists', []),
             'sharedGenres': genre.details.get('sharedGenres', []),
-            'sharedTracks': [item.get('title') for item in bridges.get('sharedTracks', [])],
+            'sharedTracks': shared_tracks,
             'bridgeTracks': bridges.get('bridgeTracks', []),
             'userAToUserBRecommendations': bridges.get('userAToUserBRecommendations', []),
             'userBToUserARecommendations': bridges.get('userBToUserARecommendations', []),
@@ -139,6 +211,22 @@ class SoulmateEngine:
             'discoveryNarrative': build_discovery_narrative(metrics),
             'archetypeSummary': archetype.get('archetypeSummary'),
             'whyThisWorks': build_compatibility_narrative(metrics),
+            'evidenceReceipts': evidence_receipts,
+            'whyThisWorksEvidence': evidence_receipts[:5],
+            'combinedGalaxy': combined_galaxy,
+            'combinedSoulOrb': combined_orb,
+            'duoIdentity': duo_identity,
+            'sharedAtmosphereIdentity': shared_atmosphere_identity,
+            'songsBothMayLove': dual_recommendations.get('songsBothMayLove', []),
+            'comfortSongs': dual_recommendations.get('comfortSongs', []),
+            'discoverySongs': dual_recommendations.get('discoverySongs', []),
+            'bridgeSongs': dual_recommendations.get('bridgeSongs', []),
+            'shareSafeSummary': {
+                'sharedArtists': shared_artists[:5],
+                'sharedGenres': shared_genres[:5],
+                'compatibilityPercentage': overall,
+                'rawListeningHistoryIncluded': False,
+            },
             'whereItGetsInteresting': build_tension_narrative(metrics),
             'confidence': confidence,
             'learnedCompatibility': embedding_similarity,
@@ -180,6 +268,205 @@ class SoulmateEngine:
         }
         return result
 
+    def build_combined_galaxy(self, profile_a: dict, profile_b: dict, metrics: dict, bridges: dict | None = None) -> dict:
+        graph = self.build_constellation_graph(
+            profile_a,
+            profile_b,
+            user_a_name=profile_a.get('username', 'You'),
+            user_b_name=profile_b.get('username', 'Soulmate'),
+        )
+        shared_artists = metrics.get('sharedArtists') or []
+        shared_genres = metrics.get('sharedGenres') or []
+        bridge_tracks = (bridges or {}).get('bridgeTracks', [])
+
+        regions = []
+        if shared_artists:
+            regions.append({
+                'id': 'overlap_constellation',
+                'label': 'Overlap constellation',
+                'kind': 'shared',
+                'description': f"This cluster glows from shared artist anchors like {', '.join(shared_artists[:3])}.",
+                'evidence': shared_artists[:5],
+            })
+        if bridge_tracks:
+            regions.append({
+                'id': 'bridge_arc',
+                'label': 'Bridge arc',
+                'kind': 'bridge',
+                'description': 'These songs sit between both profiles and are the best share-safe bridge candidates.',
+                'evidence': [track.get('title') for track in bridge_tracks[:5] if track.get('title')],
+            })
+        if metrics.get('tensionScore', 0) >= 55:
+            regions.append({
+                'id': 'contrast_zone',
+                'label': 'Contrast zone',
+                'kind': 'contrast',
+                'description': 'This region shows where one listener can expand the other without flattening the match.',
+                'evidence': metrics.get('contrastingTraits', [])[:4],
+            })
+
+        return {
+            'graph': graph,
+            'regions': regions,
+            'legend': {
+                'shared': 'shared artist nodes',
+                'user_a': f"{profile_a.get('username', 'User A')}-only anchors",
+                'user_b': f"{profile_b.get('username', 'User B')}-only anchors",
+                'bridge': 'songs or artists that connect the two maps',
+            },
+            'explanations': [
+                'Shared nodes glow brighter because both Spotify profiles contain the same artist anchors.',
+                'Bridge arcs are derived from top tracks that fit the other listener by artist, genre, era, or audio-feature profile.',
+                'Contrast zones are shown when discovery and tension scores suggest useful difference rather than pure mismatch.',
+            ],
+            'summary': f"Your combined galaxy is built from {len(shared_artists)} shared artists, {len(shared_genres)} shared genres, and {len(bridge_tracks)} bridge tracks.",
+        }
+
+    def build_combined_soul_orb(self, profile_a: dict, profile_b: dict, metrics: dict) -> dict:
+        blended = _blend_audio(profile_a, profile_b)
+        compatibility = metrics.get('overallCompatibility', 0)
+        complementarity = max(metrics.get('tensionScore', 0), metrics.get('discoveryCompatibility', 0))
+        emotional = metrics.get('emotionalCompatibility', 0)
+        valence = blended.get('valence', 0.45)
+        energy = blended.get('energy', 0.45)
+        acousticness = blended.get('acousticness', 0.3)
+
+        if emotional >= 78 and complementarity < 58:
+            mode = 'merged center glow'
+        elif complementarity >= 62:
+            mode = 'two orbiting cores'
+        else:
+            mode = 'soft braided orbit'
+
+        if valence < 0.38 and acousticness >= 0.35:
+            colors = ['#8f75ff', '#f28ddf', '#8baaff', '#f5c98a']
+            signature = 'atmospheric melancholy'
+        elif energy >= 0.62:
+            colors = ['#9fd0ff', '#f5b97a', '#ff7cc8', '#b68dff']
+            signature = 'charged motion'
+        else:
+            colors = ['#b68dff', '#c8b8ff', '#8baaff', '#f28ddf']
+            signature = 'soft resonance'
+
+        return {
+            'name': f"{metrics.get('relationshipArchetype', 'Dual Orbit')} orb",
+            'mode': mode,
+            'colors': colors,
+            'blendedAudio': blended,
+            'pulseSync': metrics.get('phaseAlignment') or metrics.get('orbResonanceScore', 0),
+            'haloStrength': emotional,
+            'orbitDistance': normalize_score(100 - emotional + complementarity * 0.28),
+            'compatibilityScore': compatibility,
+            'complementarityScore': complementarity,
+            'description': f"Your shared orb pulses strongest around {signature}, shaped by audio-feature similarity, shared genres, and productive contrast.",
+            'dataBasis': ['audio features', 'shared genres', 'artist overlap', 'tension score', 'discovery score'],
+        }
+
+    def build_duo_identity(self, profile_a: dict, profile_b: dict, metrics: dict, evidence: list[str]) -> dict:
+        archetype_id = metrics.get('archetypeId')
+        name_map = {
+            'rare_alignment': 'The Twin Nocturnes',
+            'twin_dreamers': 'The Twin Nocturnes',
+            'midnight_orbit': 'The Moonlit Frequency',
+            'magnetic_contrast': 'The Velvet Collision',
+            'silver_echoes': 'The Liminal Pair',
+        }
+        pair_name = name_map.get(archetype_id, 'The Dream-Static Bond')
+        shared_artists = metrics.get('sharedArtists') or []
+        shared_genres = metrics.get('sharedGenres') or []
+        shared_atmosphere = metrics.get('sharedAtmosphere') or []
+
+        dominant_axis = 'emotional resonance' if metrics.get('emotionalCompatibility', 0) >= max(metrics.get('artistOverlapScore', 0), metrics.get('genreOverlapScore', 0)) else 'taste overlap'
+        complementary_axis = 'discovery tension' if metrics.get('tensionScore', 0) >= 55 else 'comfort recognition'
+
+        meet = f"You meet through {', '.join(shared_artists[:3])}." if shared_artists else f"You meet through {', '.join(shared_genres[:3]) or 'adjacent emotional texture'}."
+        diverge = 'One of you can open a discovery corridor for the other.' if metrics.get('discoveryCompatibility', 0) >= 55 else 'Your differences are subtle, mostly in how each profile carries the same mood.'
+
+        return {
+            'pairName': pair_name,
+            'compatibilityArchetype': metrics.get('relationshipArchetype'),
+            'sharedEmotionalSignature': ', '.join(shared_atmosphere[:3]) or metrics.get('orbHarmony') or 'shared resonance',
+            'dominantSharedAxis': dominant_axis,
+            'complementaryAxis': complementary_axis,
+            'whatYouBothSeek': f"{profile_a.get('username', 'One listener')} and {profile_b.get('username', 'the other')} both seek music with {dominant_axis}.",
+            'whereYouMeet': meet,
+            'whereYouDiverge': diverge,
+            'oneLine': f"{pair_name}: {metrics.get('archetypeSummary', 'two music identities in a shared field')}",
+            'evidence': evidence[:5],
+            'individualIdentities': [_identity_label(profile_a), _identity_label(profile_b)],
+        }
+
+    def build_shared_atmosphere(self, profile_a: dict, profile_b: dict, metrics: dict) -> dict:
+        shared_genres = metrics.get('sharedGenres') or []
+        shared_artists = metrics.get('sharedArtists') or []
+        shared_atmosphere = metrics.get('sharedAtmosphere') or []
+        blended = _blend_audio(profile_a, profile_b)
+        valence = blended.get('valence', 0.45)
+        energy = blended.get('energy', 0.45)
+        acousticness = blended.get('acousticness', 0.25)
+
+        first = 'Silver Rain' if valence < 0.4 else 'Violet Light' if energy < 0.55 else 'Neon Bloom'
+        second = 'Cathedral' if acousticness >= 0.38 else 'Observatory' if shared_genres else 'Afterglow'
+        name = f"{first} {second}"
+
+        tags = _shared_list(
+            shared_atmosphere,
+            shared_genres,
+            ['moonlit rooms' if valence < 0.42 else 'warm light', 'soft grain', 'listening-era fragments'],
+            limit=8,
+        )
+        palette = ['#090815', '#8f75ff', '#f28ddf', '#8baaff', '#f5c98a'] if valence < 0.45 else ['#070912', '#9fd0ff', '#f5b97a', '#f28ddf', '#c8b8ff']
+        query_core = ' '.join((shared_genres or shared_atmosphere or ['cinematic music atmosphere'])[:3])
+
+        return {
+            'name': name,
+            'palette': palette,
+            'visualTags': tags,
+            'unsplashQueries': [
+                f"{query_core} night atmosphere",
+                f"{query_core} cinematic light",
+                f"{query_core} dreamy interior",
+            ],
+            'pinterestReadyQueries': [
+                f"{name} music atmosphere",
+                f"{query_core} editorial mood archive",
+            ],
+            'explanation': f"This atmosphere comes from shared Spotify evidence: {', '.join(shared_artists[:3]) or 'adjacent artists'}, {', '.join(shared_genres[:3]) or 'nearby genres'}, and blended audio features.",
+            'source': 'Spotify-derived mood and genre translation; no Pinterest API connection is assumed.',
+        }
+
+    def build_dual_recommendations(self, profile_a: dict, profile_b: dict, bridges: dict, metrics: dict) -> dict:
+        def enrich(track: dict, category: str, fallback_reason: str) -> dict:
+            return {
+                'title': track.get('title'),
+                'artist': track.get('artist'),
+                'score': track.get('score', metrics.get('overallCompatibility', 0)),
+                'category': category,
+                'whyItFitsBoth': track.get('reason') or fallback_reason,
+                'source': track.get('source') or category,
+            }
+
+        shared_tracks = [enrich(track, 'comfort', 'Both profiles already contain this song as a shared anchor.') for track in bridges.get('sharedTracks', [])]
+        bridge_tracks = [enrich(track, 'bridge', 'This track sits between one profile and the other by artist, genre, era, or audio features.') for track in bridges.get('bridgeTracks', [])]
+        discovery_a = [enrich(track, 'discovery', f"This comes from {profile_a.get('username', 'one listener')}'s orbit and fits the other profile.") for track in bridges.get('userAToUserBRecommendations', [])]
+        discovery_b = [enrich(track, 'discovery', f"This comes from {profile_b.get('username', 'the other listener')}'s orbit and fits the other profile.") for track in bridges.get('userBToUserARecommendations', [])]
+
+        combined = []
+        seen = set()
+        for item in shared_tracks + bridge_tracks + discovery_a + discovery_b:
+            key = slugify(f"{item.get('title')} {item.get('artist')}")
+            if not item.get('title') or key in seen:
+                continue
+            seen.add(key)
+            combined.append(item)
+
+        return {
+            'songsBothMayLove': combined[:8],
+            'comfortSongs': shared_tracks[:4],
+            'bridgeSongs': bridge_tracks[:6],
+            'discoverySongs': (discovery_a + discovery_b)[:6],
+        }
+
     def rank_matches(self, user_profile: dict, all_profiles: list[dict]) -> list[dict]:
         results = []
         for other in all_profiles:
@@ -187,6 +474,8 @@ class SoulmateEngine:
             results.append({
                 'user_id': other.get('user_id'),
                 'username': other.get('username', 'Unknown'),
+                'public_slug': other.get('public_slug') or other.get('publicSlug'),
+                'publicSlug': other.get('public_slug') or other.get('publicSlug'),
                 'avatar': other.get('avatar'),
                 'match_score': result['match_score'],
                 'overallCompatibility': result['overallCompatibility'],

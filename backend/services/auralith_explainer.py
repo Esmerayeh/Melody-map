@@ -9,7 +9,7 @@ def build_explainability_payload(answer_payload: dict, retrieval_context: dict, 
         "retrieval_trace": {
             "snapshotId": (retrieval_context.get("snapshot") or {}).get("snapshot_id"),
             "memoriesUsed": len(retrieval_context.get("memories", [])),
-            "nearestTracks": retrieval_context.get("nearest_tracks", [])[:6],
-            "recentEventsUsed": retrieval_context.get("recent_events", [])[:6],
+            "nearestTracks": (retrieval_context.get("nearest_tracks") or [])[:6],
+            "recentEventsUsed": (retrieval_context.get("recent_events") or [])[:6],
         },
     }

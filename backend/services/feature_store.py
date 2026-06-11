@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 
 from utils.online_cache import read_live_signal, write_live_signal
@@ -45,6 +46,7 @@ def init_mongo(mongo_instance):
         _mongo.db.auralith_chunks.create_index([("user_id", 1), ("source_type", 1), ("updated_at", -1)])
         _mongo.db.identity_snapshots.create_index([("user_id", 1), ("range_key", 1)], unique=True)
         _mongo.db.social_public_profiles.create_index("user_id", unique=True)
+        _mongo.db.social_public_profiles.create_index("public_slug", unique=True, sparse=True)
         _mongo.db.soulmate_requests.create_index("request_id", unique=True)
         _mongo.db.soulmate_matches.create_index("match_id", unique=True)
     except Exception:
@@ -56,17 +58,34 @@ def _stable_hash(payload: dict) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _stable_public_slug(display_name: str | None, user_id: str) -> str:
+    suffix = str(user_id)[-6:] or "signal"
+    base = re.sub(r"[^a-z0-9]+", "-", (display_name or "").lower()).strip("-")
+    return f"{base}-{suffix}" if base else f"user-{suffix}"
+
+
 def register_profile_snapshot(profile: dict, user_id: str | None = None, provider_user_id: str | None = None) -> dict:
     base_payload = {
         "profileSchemaVersion": profile.get("profileSchemaVersion"),
         "provider": profile.get("provider"),
         "timeRange": profile.get("timeRange"),
-        "topArtists": profile.get("topArtists", [])[:20],
-        "topTracks": profile.get("topTracks", [])[:20],
-        "genres": profile.get("genres", [])[:20],
+        "topArtists": (profile.get("topArtists") or [])[:20],
+        "topTracks": (profile.get("topTracks") or [])[:20],
+        "genres": (profile.get("genres") or [])[:20],
         "audioFeatures": profile.get("audioFeatures", {}),
         "analyticsMetrics": profile.get("analyticsMetrics", {}),
-        "personality": profile.get("personality", [])[:10],
+        "identitySignals": profile.get("identitySignals", []),
+        "musicIdentity": profile.get("musicIdentity", {}),
+        "sonicAxes": profile.get("sonicAxes", []),
+        "identityMetrics": profile.get("identityMetrics", []),
+        "sonicField": profile.get("sonicField", {}),
+        "livingIdentity": profile.get("livingIdentity", {}),
+        "listeningMemory": profile.get("listeningMemory", {}),
+        "spotifyEvidence": profile.get("spotifyEvidence", {}),
+        "recommendationContext": profile.get("recommendationContext", {}),
+        "identityDNA": profile.get("identityDNA", []),
+        "soulOrbProfile": profile.get("soulOrbProfile", {}),
+        "personality": (profile.get("personality") or [])[:10],
         "mbti": profile.get("mbti", {}),
         "aesthetic": profile.get("aesthetic"),
         "representations": profile.get("representations", {}),
@@ -372,14 +391,17 @@ def list_identity_snapshots(user_id: str) -> list[dict]:
 
 
 def upsert_social_public_profile(user_id: str, payload: dict) -> dict:
+    display_name = payload.get("display_name")
+    public_slug = payload.get("public_slug") or _stable_public_slug(display_name, user_id)
     document = {
         "user_id": user_id,
-        "display_name": payload.get("display_name"),
+        "public_slug": public_slug,
+        "display_name": display_name,
         "visibility": payload.get("visibility", "private"),
         "allow_matching": bool(payload.get("allow_matching", False)),
         "summary": payload.get("summary"),
-        "top_artists": payload.get("top_artists", [])[:12],
-        "top_genres": payload.get("top_genres", [])[:12],
+        "top_artists": (payload.get("top_artists") or [])[:12],
+        "top_genres": (payload.get("top_genres") or [])[:12],
         "mood_vector": payload.get("mood_vector") or {},
         "representations": payload.get("representations") or {},
         "updated_at": datetime.now(UTC),
@@ -395,6 +417,19 @@ def get_social_public_profile(user_id: str) -> dict | None:
     if _mongo is None:
         return _local_social_public_profiles.get(user_id)
     doc = _mongo.db.social_public_profiles.find_one({"user_id": user_id})
+    if not doc:
+        return None
+    doc.pop("_id", None)
+    return doc
+
+
+def get_social_public_profile_by_slug(public_slug: str) -> dict | None:
+    public_slug = (public_slug or "").strip()
+    if not public_slug:
+        return None
+    if _mongo is None:
+        return next((doc for doc in _local_social_public_profiles.values() if doc.get("public_slug") == public_slug), None)
+    doc = _mongo.db.social_public_profiles.find_one({"public_slug": public_slug})
     if not doc:
         return None
     doc.pop("_id", None)
@@ -587,7 +622,7 @@ def create_co_curation_artifact(owner_user_id: str, payload: dict) -> dict:
         "owner_user_id": owner_user_id,
         "partner_user_id": payload.get("partner_user_id"),
         "title": payload.get("title") or "Co-curation ritual",
-        "seed_tracks": payload.get("seed_tracks", [])[:20],
+        "seed_tracks": (payload.get("seed_tracks") or [])[:20],
         "notes": payload.get("notes"),
         "visibility": payload.get("visibility", "private"),
         "created_at": datetime.now(UTC),

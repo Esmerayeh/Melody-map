@@ -58,6 +58,24 @@ def test_social_search_and_compare_work_for_opted_in_users():
     assert "constellation" in comparison
 
 
+def test_social_public_profiles_expose_stable_slug_and_compare_by_slug():
+    register_profile_snapshot(_profile("Slug You"), user_id="social-slug-me")
+    register_profile_snapshot(_profile("Slug Twin"), user_id="social-slug-match")
+    me = upsert_social_public_profile("social-slug-me", {"display_name": "Slug You", "public_slug": "slug-you-g-me", "allow_matching": True, "visibility": "public"})
+    match = upsert_social_public_profile("social-slug-match", {"display_name": "Slug Twin", "public_slug": "slug-twin-match", "allow_matching": True, "visibility": "public"})
+    client = _auth_client("social-slug-me")
+    headers = {"X-CSRF-Token": "csrf-token"}
+
+    assert me["public_slug"] == "slug-you-g-me"
+    profile_response = client.get(f"/api/social/public-profile/{match['public_slug']}")
+    assert profile_response.status_code == 200
+    assert profile_response.get_json()["data"]["publicSlug"] == "slug-twin-match"
+
+    compare_response = client.post("/api/social/soulmate/compare", json={"target_user_id": match["public_slug"]}, headers=headers)
+    assert compare_response.status_code == 200
+    assert compare_response.get_json()["data"]["comparison"]["publicSlug"] == "slug-twin-match"
+
+
 def test_identity_drift_route_returns_timeline():
     register_profile_snapshot(_profile("Drift Artist", mbti="ENFP", genre="indie folk", energy=0.61, valence=0.48), user_id="identity-user")
     client = _auth_client("identity-user")

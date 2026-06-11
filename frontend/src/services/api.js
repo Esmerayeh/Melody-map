@@ -66,13 +66,37 @@ async function attachRequestMetadata(config, client) {
   return nextConfig
 }
 
+// Endpoints whose own 401/5xx must NOT trigger a token-refresh or
+// session-revalidation loop (they ARE the auth/refresh path).
+function isAuthEndpoint(config) {
+  const url = `${config?.baseURL || ''}${config?.url || ''}`
+  return /\/(auth\/(spotify|lastfm)\/(refresh|exchange|logout)|auth\/login|auth\/register|session\/bootstrap)/.test(url)
+}
+
+// Single-flight Spotify token refresh: many requests can 401 at once when the
+// 1-hour access cookie expires; collapse them into one refresh network call so
+// we don't stampede Spotify or re-mint the token N times.
+let spotifyRefreshPromise = null
+function refreshSpotifyOnce() {
+  if (!spotifyRefreshPromise) {
+    spotifyRefreshPromise = authAPI
+      .refreshSpotify()
+      .then(() => true)
+      .catch(() => false)
+      .finally(() => { spotifyRefreshPromise = null })
+  }
+  return spotifyRefreshPromise
+}
+
 async function withRetry(err) {
   const config = err?.config
   const status = err?.response?.status
   const method = (config?.method || 'get').toLowerCase()
-  const canRetry = status === 429 && ['get', 'head'].includes(method) && !(config?._retried)
+  const isIdempotent = ['get', 'head'].includes(method)
+  const noResponse = !err?.response // network failure / timeout
 
-  if (canRetry) {
+  // 1) Rate-limit backoff (idempotent reads only).
+  if (status === 429 && isIdempotent && !config?._retried) {
     config._retried = true
     const retryAfterHeader = Number(err?.response?.headers?.['retry-after'])
     const retryDelayMs = Number.isFinite(retryAfterHeader) ? retryAfterHeader * 1000 : 750
@@ -80,16 +104,32 @@ async function withRetry(err) {
     return (config?._retryClient || api)(config)
   }
 
-  const normalized = normalizeError(err)
-  err.normalized = normalized
+  // 2) Transient server/network failure → retry once. A 5xx or a timeout is a
+  //    blip, NEVER a logout. Idempotent reads only, and never the auth path.
+  if ((noResponse || (status && status >= 500)) && isIdempotent && !config?._retriedTransient && !isAuthEndpoint(config)) {
+    config._retriedTransient = true
+    await sleep(600)
+    return (config?._retryClient || api)(config)
+  }
 
-  if (status === 401 && !config?.meta?.suppressAuthRedirect) {
-    window.dispatchEvent(new CustomEvent('melodymap:session-expired', { detail: normalized }))
-    if (window.location.pathname !== '/login') {
-      window.location.href = '/login'
+  // 3) 401 → the access token likely expired. Try a one-time Spotify refresh
+  //    and replay the original request. We do NOT hard-redirect to /login here:
+  //    only the session bootstrap (the single source of truth) may eject a user.
+  if (status === 401 && !isAuthEndpoint(config) && !config?._authRetried) {
+    config._authRetried = true
+    const refreshed = await refreshSpotifyOnce()
+    if (refreshed) {
+      return (config?._retryClient || api)(config)
+    }
+    if (!config?.meta?.suppressAuthRedirect) {
+      // Ask the bootstrap layer to re-validate; if the session is genuinely
+      // gone it will flip auth state and routing will move to /login.
+      window.dispatchEvent(new CustomEvent('melodymap:session-suspect', { detail: normalizeError(err) }))
     }
   }
 
+  const normalized = normalizeError(err)
+  err.normalized = normalized
   return Promise.reject(err)
 }
 
@@ -216,6 +256,7 @@ export const auralithAPI = {
   critiquePlaylist: (data) => api.post('/auralith/critique-playlist', data),
   conceptPlaylist: (data) => api.post('/auralith/concept-playlist', data),
   agentTurn: (data) => api.post('/auralith/agent-turn', data),
+  soulmate: (data) => api.post('/auralith/soulmate', data),
   rag: (data) => api.post('/auralith/rag', data),
   threads: (limit = 8) => api.get(`/auralith/threads?limit=${limit}`),
 }

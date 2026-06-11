@@ -152,6 +152,40 @@ def test_fetch_audio_features_falls_back_to_single_track_endpoint(monkeypatch):
     assert any('/audio-features/track-1' in call[0] for call in calls)
 
 
+def test_fetch_audio_features_skips_per_track_fallback_on_batch_403(monkeypatch):
+    """Spotify's deprecated /audio-features returns 403 for blocked apps. The
+    per-track fallback must be skipped (it would 403 50× and add ~60s/build),
+    not attempted."""
+    class FakeResponse:
+        def __init__(self, ok, payload, status_code=200, text=''):
+            self.ok = ok
+            self._payload = payload
+            self.status_code = status_code
+            self.text = text
+
+        def json(self):
+            return self._payload
+
+    calls = []
+
+    def fake_get(url, headers=None, params=None, timeout=10):
+        calls.append(url)
+        # Batch and every per-track call return 403 Forbidden.
+        return FakeResponse(False, {}, status_code=403, text='Forbidden')
+
+    monkeypatch.setattr('services.music_profile_builder.req.get', fake_get)
+    monkeypatch.setattr('services.music_profile_builder._get_spotify_service', lambda: None)
+
+    rows, diagnostics = _fetch_audio_features([f'track-{i}' for i in range(50)], 'https://api.spotify.com/v1', {'Authorization': 'Bearer token'})
+
+    assert rows == []
+    assert diagnostics['source'] == 'unavailable'
+    assert diagnostics.get('fallbackSkipped') == 'batch_client_error_403'
+    # Only the single batch call should have been made — no 50-call per-track storm.
+    per_track_calls = [u for u in calls if '/audio-features/' in u and not u.endswith('/audio-features')]
+    assert per_track_calls == []
+
+
 def test_profile_representation_vectors_are_deterministic():
     profile = {
         'topArtists': [{'name': 'Beach House', 'genres': ['dream pop']}],
@@ -180,3 +214,18 @@ def test_galaxy_topology_assigns_communities():
     assert topology['communityCount'] >= 1
     assert 'a1' in topology['communities']
     assert 'a2' in topology['nodeVectors']
+
+
+def test_galaxy_topology_handles_nodes_without_edges():
+    """Artists with no genre links produce a graph with nodes but zero edges.
+    Community detection divides by edge count, so this must not raise
+    ZeroDivisionError — it previously crashed the whole profile build."""
+    topology = build_galaxy_topology([
+        {'id': 'a1', 'type': 'artist', 'name': 'Artist One', 'genre': ''},
+        {'id': 'a2', 'type': 'artist', 'name': 'Artist Two', 'genre': ''},
+        {'id': 'a3', 'type': 'artist', 'name': 'Artist Three', 'genre': ''},
+    ])
+
+    assert topology['communityCount'] == 0
+    assert topology['communities']['a1'] == 0
+    assert 'a3' in topology['nodeVectors']

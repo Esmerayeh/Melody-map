@@ -30,9 +30,9 @@ function TraitBar({ label, emoji, pct, color, delay = 0 }) {
   )
 }
 
-function AxisRow({ axis, data, delay = 0 }) {
-  const pct = Math.min(100, Math.max(0, data.score))
-  const color = data.flipped ? '#8fc0ff' : '#c09bff'
+function AxisRow({ axis, delay = 0 }) {
+  const pct = axis.score == null ? 0 : Math.min(100, Math.max(0, axis.score))
+  const color = axis.direction === axis.left ? '#c09bff' : '#8fc0ff'
 
   return (
     <motion.div
@@ -41,8 +41,8 @@ function AxisRow({ axis, data, delay = 0 }) {
       transition={{ ...MOTION_TOKENS.panel, delay }}
       className="flex items-center gap-3"
     >
-      <span className="w-4 shrink-0 font-mono text-xs text-gray-500">{axis}</span>
-      <span className="w-20 shrink-0 text-xs font-semibold" style={{ color }}>{data.label}</span>
+      <span className="w-24 shrink-0 text-xs text-gray-500">{axis.left}</span>
+      <span className="w-28 shrink-0 text-xs font-semibold" style={{ color }}>{axis.direction}</span>
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/5">
         <motion.div
           className="h-full rounded-full"
@@ -60,14 +60,15 @@ function AxisRow({ axis, data, delay = 0 }) {
 export default function MusicIdentityPanel({ profile }) {
   const personality = profile?.personality
   const personalityMeta = profile?.personalityMeta
-  const mbti = profile?.mbti
-  const mbtiMeta = profile?.mbtiMeta
+  const musicIdentity = profile?.musicIdentity || {}
+  const identityType = musicIdentity.type || {}
+  const sonicAxes = profile?.sonicAxes || musicIdentity.axes || []
   const dataQuality = profile?.dataQuality
   const confidence = profile?.confidence
 
   if (!profile) return null
 
-  if (!mbti && !personality?.length) {
+  if (!identityType?.name && !personality?.length) {
     return (
       <div className="noire-info-card p-6 text-center">
         <p className="page-header-kicker mb-2">Inner music self</p>
@@ -158,38 +159,39 @@ export default function MusicIdentityPanel({ profile }) {
             <p className="page-header-kicker">Inner music self</p>
           </div>
 
-          {mbti ? (
+          {identityType?.name ? (
             <>
               <motion.div
                 initial={{ scale: 0.9, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.1 }}
-                className="mb-3 inline-flex items-center gap-2"
+                className="mb-3"
               >
-                <span className="text-gradient-aurora text-4xl font-semibold tracking-[0.18em]">{mbti.type}</span>
-                <span className="text-sm font-medium text-gray-400">- {mbti.name}</span>
+                <span className="text-gradient-aurora text-3xl font-semibold leading-tight">{identityType.name}</span>
               </motion.div>
 
-              <p className="mb-4 text-sm leading-relaxed text-gray-400">{mbti.desc}</p>
+              <p className="mb-4 text-sm leading-relaxed text-gray-400">
+                {musicIdentity.poeticLine || identityType.description || 'A music identity interpretation derived from Spotify listening behavior.'}
+              </p>
 
               <div className="space-y-2.5">
-                {(mbti?.axes ? Object.entries(mbti.axes) : []).map(([axis, data], index) => (
-                  <AxisRow key={axis} axis={axis[0]} data={data} delay={0.14 + index * 0.05} />
+                {sonicAxes.map((axis, index) => (
+                  <AxisRow key={axis.id || axis.left} axis={axis} delay={0.14 + index * 0.05} />
                 ))}
-                {!mbti?.axes && (
+                {!sonicAxes.length && (
                   <p className="text-xs text-gray-500">The axis details will appear once the profile has enough depth.</p>
                 )}
               </div>
             </>
           ) : (
             <div className="noire-panel-soft p-4">
-              <p className="mb-2 text-sm text-gray-300">The four-letter reading needs a steadier signal first.</p>
+              <p className="mb-2 text-sm text-gray-300">Your identity is still forming.</p>
               <p className="text-xs leading-relaxed text-gray-500">
-                Deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%. We can trace the softer contours, but the full type stays quiet until the profile is more complete.
+                Deep signal: {Math.round((dataQuality?.audioCoverage || 0) * 100)}%. Melody Map will not invent a full identity until the Spotify evidence is stronger.
               </p>
-              {mbtiMeta?.missingInputs?.length > 0 && (
+              {musicIdentity?.confidence?.missing?.length > 0 && (
                 <p className="mt-2 text-[11px] text-gray-500">
-                  missing inputs: {mbtiMeta.missingInputs.slice(0, 4).join(', ')}
+                  missing inputs: {musicIdentity.confidence.missing.slice(0, 4).join(', ')}
                 </p>
               )}
             </div>

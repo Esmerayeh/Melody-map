@@ -17,6 +17,7 @@ from config import Config
 from middleware.auth import optional_auth, require_auth
 from middleware.rate_limit import rate_limit
 from routes.aesthetic import aesthetic_bp
+from routes.galaxy import galaxy_bp
 from routes.auralith import auralith_bp
 from routes.discover import discover_bp
 from routes.lastfm_auth import lastfm_auth_bp
@@ -31,6 +32,8 @@ from routes.share import share_bp
 from routes.social import social_bp
 from routes.soulmate import init_mongo as soulmate_init_mongo
 from routes.soulmate import soulmate_bp
+from routes.spotify_auth import init_mongo as spotify_auth_init_mongo
+from routes.spotify_auth import create_spotify_app_session, refresh_spotify_token
 from routes.spotify_auth import spotify_auth_bp
 from routes.spotify_data import spotify_data_bp
 from services.feature_store import (
@@ -48,6 +51,7 @@ from services.feature_store import (
 )
 from services.event_logger import log_event
 from services.kafka_producer import publish_event
+from services.listening_identity import build_recommendation_reason
 from services.metrics_logger import log_model_latency
 from services.metrics_logger import log_candidate_count, log_recommendation_fallback, log_recommendation_trace, log_shadow_run
 from ml.serving.ranking_service import RankingService
@@ -58,7 +62,7 @@ from utils.csrf import CSRF_COOKIE, csrf_valid, issue_csrf_token
 from utils.jobs import job_registry
 from utils.logger import logger
 from utils.online_cache import write_request_trace
-from utils.provider_cookies import lastfm_context_from_request, spotify_context_from_request
+from utils.provider_cookies import lastfm_context_from_request, set_spotify_cookies, spotify_context_from_request
 
 mongo = PyMongo()
 
@@ -195,6 +199,13 @@ def create_app() -> Flask:
         soulmate_init_mongo(mongo)
         public_profile_init_mongo(mongo)
         feature_store_init_mongo(mongo)
+        spotify_auth_init_mongo(mongo)
+        # Artist feature cache for Last.fm / non-Spotify semantic enrichment
+        try:
+            from services.artist_feature_cache import init_mongo as afc_init
+            afc_init(mongo)
+        except Exception:
+            pass
 
     app.register_blueprint(spotify_auth_bp)
     app.register_blueprint(spotify_data_bp, url_prefix="/api")
@@ -202,6 +213,7 @@ def create_app() -> Flask:
     app.register_blueprint(lastfm_data_bp, url_prefix="/api")
     app.register_blueprint(soulmate_bp, url_prefix="/api")
     app.register_blueprint(aesthetic_bp)
+    app.register_blueprint(galaxy_bp)
     app.register_blueprint(discover_bp)
     app.register_blueprint(music_profile_bp)
     app.register_blueprint(public_profile_bp)
@@ -322,12 +334,12 @@ def register_routes(app: Flask) -> None:
         external_urls = song.get("external_urls") or {}
         return song.get("spotify_url") or external_urls.get("spotify")
 
-    def _reason_text(mode: str, item: dict) -> str:
+    def _reason_payload(mode: str, item: dict, song: dict, profile: dict | None) -> dict:
+        reason = build_recommendation_reason(profile, song, mode=mode)
         if item.get("reason"):
-            return item["reason"]
-        if mode == "canary_learned":
-            return "Matched by learned retrieval and re-ranked against your recent session signal."
-        return "Matched by the baseline hybrid recommender using your listening profile and interaction history."
+            reason["evidence"] = [item["reason"], *reason.get("evidence", [])][:5]
+            reason["text"] = f"{item['reason']} {reason['text']}"
+        return reason
 
     def _hydrate_recommendation_items(
         items: list[dict],
@@ -339,6 +351,7 @@ def register_routes(app: Flask) -> None:
         retrieval_model_version: str | None,
         ranking_model_version: str | None,
         candidate_source: str,
+        profile: dict | None = None,
     ) -> list[dict]:
         song_index = _build_song_index(songs)
         hydrated: list[dict] = []
@@ -347,6 +360,7 @@ def register_routes(app: Flask) -> None:
             song = song_index.get(track_key, {})
             title = song.get("title") or song.get("name") or track_key
             artist = song.get("artist") or song.get("primary_artist") or "Unknown artist"
+            reason = _reason_payload(mode, item, song, profile)
             hydrated.append(
                 {
                     "track_key": track_key,
@@ -359,8 +373,10 @@ def register_routes(app: Flask) -> None:
                     "preview_url": song.get("preview_url"),
                     "spotify_url": _song_spotify_url(song),
                     "audio_features": song.get("audio_features") or {},
-                    "reason": _reason_text(mode, item),
-                    "explanation": item.get("explanation") or _reason_text(mode, item),
+                    "reason": reason.get("text"),
+                    "reasonEvidence": reason.get("evidence", []),
+                    "reasonMethodology": reason.get("methodology"),
+                    "explanation": item.get("explanation") or reason.get("text"),
                     "score": item.get("score"),
                     "retrieval_score": item.get("retrieval_score"),
                     "ranking_score": item.get("ranking_score"),
@@ -466,20 +482,43 @@ def register_routes(app: Flask) -> None:
             except jwt.InvalidTokenError:
                 user_id = None
 
-        spotify_access, _, spotify_expires_at = spotify_context_from_request(request)
+        spotify_access, spotify_refresh, spotify_expires_at = spotify_context_from_request(request)
         lastfm_session, lastfm_username = lastfm_context_from_request(request)
-        music_provider = "spotify" if spotify_access else "lastfm" if lastfm_session else None
+
+        # ── Self-heal the Spotify access token ───────────────────────────────
+        # The access cookie lives only ~1 hour while the app session (JWT) and
+        # the refresh cookie live 30 days. Without this, an authenticated user
+        # whose access cookie expired reads as "Spotify disconnected" across the
+        # whole app (galaxy shows demo, profile stops computing). If the access
+        # cookie is gone but we hold a refresh token, mint a fresh access token
+        # now and re-set the cookies so every downstream provider call works.
+        refreshed_spotify = None
+        if not spotify_access and spotify_refresh:
+            refreshed_spotify = refresh_spotify_token(spotify_refresh)
+            if refreshed_spotify:
+                spotify_access = refreshed_spotify["access_token"]
+
+        promoted_spotify_session = None
+        if not user_id and spotify_access:
+            promoted_spotify_session = create_spotify_app_session(spotify_access)
+            if promoted_spotify_session:
+                user_id = promoted_spotify_session["user_id"]
+
+        # A provider is "connected" when we hold a usable access token OR can
+        # mint one from a refresh token — the durable signal, not the 1h cookie.
+        spotify_connected = bool(spotify_access or spotify_refresh)
+        music_provider = "spotify" if spotify_connected else "lastfm" if lastfm_session else None
         auth_state = "authenticated" if user_id else "provider_connected" if music_provider else "no_session"
         profile_boot_status = "ready_to_hydrate" if music_provider else "awaiting_provider"
 
-        return api_success(
+        response, status = api_success(
             {
                 "auth_state": auth_state,
                 "user": {"id": user_id} if user_id else None,
                 "sessionId": _derive_session_id(),
                 "providers": {
                     "spotify": {
-                        "connected": bool(spotify_access),
+                        "connected": spotify_connected,
                         "expires_at": spotify_expires_at,
                     },
                     "lastfm": {
@@ -495,6 +534,16 @@ def register_routes(app: Flask) -> None:
                 "latest_snapshot": get_latest_snapshot(user_id) if user_id else None,
             }
         )
+        if refreshed_spotify:
+            set_spotify_cookies(
+                response,
+                access_token=refreshed_spotify["access_token"],
+                refresh_token=refreshed_spotify["refresh_token"],
+                expires_in=refreshed_spotify["expires_in"],
+            )
+        if promoted_spotify_session:
+            set_auth_cookie(response, promoted_spotify_session["token"], ttl_seconds=60 * 60 * 24 * 30)
+        return response, status
 
     @app.route("/api/auth/register", methods=["POST"])
     @rate_limit(max_requests=10, window_seconds=60)
@@ -544,7 +593,9 @@ def register_routes(app: Flask) -> None:
 
             user = mongo.db.users.find_one({"email": data["email"]})
             if user:
-                stored = user["password_hash"]
+                stored = user.get("password_hash")
+                if not stored:
+                    return api_error("Invalid credentials", 401, code="INVALID_CREDENTIALS")
                 if isinstance(stored, str):
                     stored = stored.encode()
                 if bcrypt.checkpw(data["password"].encode(), stored):
@@ -631,10 +682,24 @@ def register_routes(app: Flask) -> None:
         data = request.get_json(silent=True) or {}
         if not data.get("track_id") and not data.get("title"):
             return api_error("track_id or title required", 400, code="EVENT_TRACK_REQUIRED")
-        event_id = request.headers.get("Idempotency-Key") or data.get("event_id")
-        event = log_event(g.user_id, data, request_id=g.get("request_id"), event_id=event_id)
+        event_id   = request.headers.get("Idempotency-Key") or data.get("event_id")
+        event      = log_event(g.user_id, data, request_id=g.get("request_id"), event_id=event_id)
         live_signal = summarize_live_signal(g.user_id, limit=24)
         upsert_online_features_cached(g.user_id, live_signal, source_event_id=event.get("event_id"))
+
+        # ── Wire Auralith memory pipeline ──────────────────────────────────────
+        # Index this event as a memory chunk so the RAG oracle can retrieve it.
+        # Failures here must NEVER break listening event ingestion — warning only.
+        try:
+            from services.auralith_memory import build_memory_chunks
+            build_memory_chunks(g.user_id, limit=8)
+        except Exception as mem_exc:
+            logger.warning({
+                "event":   "auralith_memory_index_failed",
+                "user_id": g.user_id,
+                "error":   str(mem_exc),
+            })
+
         return api_success({"event": event}, status=202)
 
     @app.route("/api/events/listening", methods=["GET"])
@@ -842,6 +907,7 @@ def register_routes(app: Flask) -> None:
                 retrieval_model_version=None,
                 ranking_model_version=None,
                 candidate_source="heuristic",
+                profile=profile if isinstance(profile, dict) else None,
             )
             retrieval_model_version = None
             ranking_model_version = None
@@ -866,6 +932,7 @@ def register_routes(app: Flask) -> None:
                             retrieval_model_version=retrieval_model_version,
                             ranking_model_version=ranking_model_version,
                             candidate_source="ranker",
+                            profile=profile if isinstance(profile, dict) else None,
                         )
                         served_mode = "canary_learned"
                     else:
@@ -934,7 +1001,11 @@ def register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(500)
     def internal_error(error):
-        logger.error({"event": "unhandled_error", "error": str(error)})
+        original = getattr(error, "original_exception", None) or error
+        logger.error(
+            {"event": "unhandled_error", "error": str(original), "path": request.path},
+            exc_info=original,
+        )
         return api_error("Internal server error", 500, code="INTERNAL_SERVER_ERROR")
 
 

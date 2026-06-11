@@ -18,6 +18,28 @@ function mapLastfmPeriod(timeRange) {
   return '6month'
 }
 
+// A profile "has content" once it carries at least artists or genres. The
+// backend returns an empty placeholder (HTTP 202) on the first load while it
+// builds the real profile in the background — that placeholder has none.
+function profileHasContent(data) {
+  if (!data) return false
+  return (data.topArtists?.length || 0) > 0 || (data.genres?.length || 0) > 0
+}
+
+// True while the backend is still assembling the first profile snapshot. We
+// poll only in this state (not for a genuinely empty account or an open
+// circuit, which polling cannot resolve) so real data replaces the placeholder
+// instead of the UI freezing on "identity still forming".
+function isProfilePending(data, provider) {
+  if (!data || provider === 'lastfm') return false
+  if (profileHasContent(data)) return false
+  const reasons = [
+    ...(Array.isArray(data.warnings) ? data.warnings : []),
+    ...(data.dataQuality?.degradedReasons || []),
+  ]
+  return reasons.includes('profile_bootstrap_pending') || reasons.includes('refresh_enqueued')
+}
+
 async function buildLastfmProfile(timeRange) {
   const period = mapLastfmPeriod(timeRange)
   const [userProfile, topArtistsRaw, topTracksRaw] = await Promise.all([
@@ -127,6 +149,12 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
     enabled,
     staleTime: 60_000,
     retry: 1,
+    // While the backend is still building the first snapshot, poll every ~2.5s
+    // (capped at ~28 tries / ~70s — the first build does live Spotify calls and
+    // can take ~30s) so the placeholder is replaced by real data automatically;
+    // the background job's result is otherwise never picked up.
+    refetchInterval: (q) =>
+      isProfilePending(q.state.data, truthProvider) && q.state.dataUpdateCount < 28 ? 2500 : false,
     queryFn: async () => {
       let rawProfile
       if (truthProvider === 'lastfm') {
@@ -145,7 +173,10 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
   })
 
   useEffect(() => {
-    if (query.data) {
+    // Persist only a profile with real content — never the empty bootstrap
+    // placeholder, which would otherwise latch the galaxy/dashboard onto a
+    // confidence-0 read (and surface "borrowed sky" while authenticated).
+    if (query.data && profileHasContent(query.data)) {
       setProfile(query.data, { provider: truthProvider, timeRange })
       setLegacyMusicProfile(query.data)
       const af = query.data.audioFeatures || {}
@@ -176,9 +207,16 @@ export default function useMusicProfile({ autoFetch = true } = {}) {
   }, [query.data, query.error, setError])
 
   const cachedProfileMatchesProvider = !storedProfile || !cachedProvider || cachedProvider === truthProvider
-  const profile = query.data || (cachedProfileMatchesProvider ? storedProfile : null)
+  const pending = isProfilePending(query.data, truthProvider)
+  // Surface real content only: the live result if it has content, else a
+  // matching cached profile. While the backend is still building (pending),
+  // resolve to the cache or null — not the empty placeholder — so consumers
+  // render an honest "assembling" state instead of a hollow profile.
+  const profile = profileHasContent(query.data)
+    ? query.data
+    : (cachedProfileMatchesProvider && profileHasContent(storedProfile) ? storedProfile : null)
   const error = query.error?.message || storedError
-  const loading = enabled && query.isLoading && !profile
+  const loading = enabled && (query.isLoading || pending) && !profile
 
   return {
     profile,

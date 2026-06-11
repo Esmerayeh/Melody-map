@@ -1,4 +1,5 @@
 import { computePersonalityDetails, computeMBTIDetails } from '../utils/personalityEngine.js'
+import { computeMusicIdentityDetails } from '../utils/musicIdentityEngine.js'
 
 export const PROFILE_SCHEMA_VERSION = '2026-03-profile-v2'
 
@@ -132,17 +133,33 @@ export function normalizeProfile(raw, provider) {
 
   const backendPersonalityMeta = raw.personalityMeta && typeof raw.personalityMeta === 'object' ? raw.personalityMeta : null
   const backendMbtiMeta = raw.mbtiMeta && typeof raw.mbtiMeta === 'object' ? raw.mbtiMeta : null
+  const backendMusicIdentity = raw.musicIdentity && typeof raw.musicIdentity === 'object' ? raw.musicIdentity : null
   const personalityDetails = backendPersonalityMeta || computePersonalityDetails({
     audioFeatures: normalized.audioFeatures || {},
     genres: normalized.genres || [],
   })
+  const musicIdentityDetails = backendMusicIdentity
+    ? {
+        value: backendMusicIdentity,
+        confidence: Number(backendMusicIdentity?.confidence?.score || normalized.confidence?.identity || 0),
+        missingInputs: backendMusicIdentity?.confidence?.missing || [],
+        inputsUsed: ['backendMusicIdentity'],
+        methodology: backendMusicIdentity?.framework || 'sonic-field-v1',
+      }
+    : computeMusicIdentityDetails(normalized)
   const mbtiDetails = backendMbtiMeta || (
     normalized.dataQuality?.hasAudioProfile === false
-      ? { value: null, confidence: 0, missingInputs: ['audioFeatures'], inputsUsed: [], methodology: 'music-mbti-v1' }
+      ? { value: null, confidence: 0, missingInputs: ['audioFeatures'], inputsUsed: [], methodology: 'legacy-behavior-code' }
       : computeMBTIDetails(normalized)
   )
 
   normalized.personality = raw.personality ?? personalityDetails.traits
+  normalized.musicIdentity = backendMusicIdentity || musicIdentityDetails.value
+  normalized.sonicAxes = raw.sonicAxes || normalized.musicIdentity?.axes || []
+  normalized.identityMetrics = raw.identityMetrics || normalized.musicIdentity?.metrics || []
+  normalized.sonicField = raw.sonicField || normalized.musicIdentity?.sonicField || null
+  normalized.musicIdentitySummary = raw.musicIdentitySummary || normalized.musicIdentity?.poeticLine || raw.livingIdentity?.summary
+  normalized.sonicPersonalityTitle = raw.sonicPersonalityTitle || normalized.musicIdentity?.type?.name || raw.livingIdentity?.title
   normalized.mbti = raw.mbti ?? mbtiDetails.value
   normalized.confidence = deriveConfidence(normalized.dataQuality || {}, normalized, raw.confidence)
   const identityConfidence = Math.min(
@@ -165,6 +182,10 @@ export function normalizeProfile(raw, provider) {
     ...mbtiDetails,
     confidence: Number(mbtiDetails?.confidence || normalized.confidence.identity || 0),
   }
+  normalized.musicIdentityMeta = {
+    ...musicIdentityDetails,
+    confidence: Number(musicIdentityDetails?.confidence || normalized.confidence.identity || 0),
+  }
   normalized.analyticsReadiness = raw.analyticsReadiness || {
     ready: normalized.dataQuality?.hasAudioProfile === true,
     confidence: { score: normalized.confidence.analytics, label: normalized.confidence.labels.analytics },
@@ -173,6 +194,7 @@ export function normalizeProfile(raw, provider) {
   normalized.identityReadiness = raw.identityReadiness || {
     ready: Boolean(normalized.genres?.length),
     confidence: { score: normalized.confidence.identity, label: normalized.confidence.labels.identity },
+    musicIdentityReady: Boolean(normalized.musicIdentity?.type?.name && !normalized.musicIdentity?.confidence?.lowData),
     mbtiReady: Boolean(normalized.mbti?.type),
     reasons: normalized.genres?.length ? [] : ['insufficient_identity_inputs'],
   }

@@ -42,7 +42,14 @@ def build_galaxy_topology(nodes: list[dict]) -> dict:
             if str(artist.get("genre") or "").lower() == str(other.get("genre") or "").lower() and artist.get("genre"):
                 graph.add_edge(str(artist.get("id")), str(other.get("id")), weight=0.42)
 
-    communities = list(nx.algorithms.community.greedy_modularity_communities(graph)) if graph.number_of_nodes() else []
+    # greedy_modularity_communities computes q0 = 1/m where m is the EDGE count,
+    # so it raises ZeroDivisionError on a graph that has nodes but no edges (e.g.
+    # top artists with no genre links to connect them). Guard on edges, not nodes:
+    # with no edges there are no communities to detect — every node defaults to 0.
+    communities = (
+        list(nx.algorithms.community.greedy_modularity_communities(graph))
+        if graph.number_of_edges() else []
+    )
     community_lookup: dict[str, int] = {}
     for community_id, community in enumerate(communities):
         for node_id in community:

@@ -12,16 +12,15 @@ share_bp = Blueprint("share", __name__)
 @require_auth
 def share_identity_card():
     data = request.get_json(silent=True) or {}
-    archetype = data.get("archetype") or "Music self"
-    mbti = data.get("mbti") or "Soft-signal"
+    archetype = data.get("identityType") or data.get("archetype") or "Music self"
     genres = ", ".join((data.get("topGenres") or [])[:3])
-    share_text = f"My Melody Map identity is {archetype} ({mbti}) shaped by {genres or 'an evolving set of genres'}."
+    share_text = f"My Melody Map music identity is {archetype}, shaped by {genres or 'an evolving set of Spotify anchors'}."
     return api_success(
         {
             "shareText": share_text,
             "meta": {
                 "archetype": archetype,
-                "mbti": mbti,
+                "identityType": archetype,
                 "topGenres": data.get("topGenres") or [],
             },
         }

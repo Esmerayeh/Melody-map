@@ -1,0 +1,29 @@
+/**
+ * TraversalController
+ * -------------------
+ * R3F component — must be rendered inside a Canvas.
+ * Combines useTraversalCamera (keyboard/WASD/return/focus/tour)
+ * and ScanPulseEffect (Space-key ring shockwave).
+ *
+ * Receives controlsRef from the parent SceneContents so it can
+ * cooperate with OrbitControls without fighting it.
+ */
+import { Suspense } from 'react'
+import { useTraversalCamera } from './useTraversalCamera'
+import ScanPulseEffect from './ScanPulseEffect'
+
+function TraversalBrain({ controlsRef, focusTarget, scanPulseCount, onScanPulse, reducedMotion, enabled }) {
+  useTraversalCamera({ controlsRef, focusTarget, onScanPulse, reducedMotion, enabled })
+  return (
+    <ScanPulseEffect triggerCount={scanPulseCount} reducedMotion={reducedMotion} />
+  )
+}
+
+export default function TraversalController(props) {
+  if (!props.enabled) return null
+  return (
+    <Suspense fallback={null}>
+      <TraversalBrain {...props} />
+    </Suspense>
+  )
+}

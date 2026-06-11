@@ -23,6 +23,101 @@ export function seededOffset(seed, scale = 1) {
   return { x: x * scale, y: y * scale, z: z * scale }
 }
 
+/**
+ * buildSemanticPosition
+ * ─────────────────────
+ * Converts audio features into a deterministic 3-D galaxy coordinate.
+ *
+ * Axis semantics:
+ *   x = valence   — emotional brightness (dark/melancholic ←0.5→ bright/joyful)
+ *   y = energy    — intensity            (quiet/ambient   ←0.5→ loud/intense)
+ *   z = texture   — 0.6×acousticness + 0.4×(1-danceability)
+ *                   (electronic/kinetic  ←0.5→ organic/still)
+ *
+ * Scale: ±SCALE_X/Y/Z units from the galaxy centre.
+ *
+ * @param {object} features  audio feature object { valence, energy, acousticness, danceability }
+ * @param {string} jitterSeed  stable string for deterministic jitter (artist ID or name)
+ * @param {object} options
+ * @param {number} [options.jitterScale=0.9]   visual scatter — keep small so semantics dominate
+ * @param {number} [options.radialBoost=1.0]   discovery/frontier push multiplier
+ * @returns {{ x, y, z, _basis }}
+ */
+export function buildSemanticPosition(features = {}, jitterSeed = '', options = {}) {
+  const { jitterScale = 0.9, radialBoost = 1.0 } = options
+
+  const v = clamp(features.valence       ?? 0.5)  // 0 = dark, 1 = bright
+  const e = clamp(features.energy        ?? 0.5)  // 0 = quiet, 1 = intense
+  const a = clamp(features.acousticness  ?? 0.5)  // 0 = electronic, 1 = acoustic
+  const d = clamp(features.danceability  ?? 0.5)  // 0 = static, 1 = kinetic
+  const organic = a * 0.6 + (1 - d) * 0.4         // 0 = synthetic/kinetic, 1 = organic/still
+
+  const jitter = seededOffset(jitterSeed || 'default', jitterScale)
+
+  return {
+    x: Number(((v - 0.5) * 18 * radialBoost + jitter.x).toFixed(2)),
+    y: Number(((e - 0.5) * 15 * radialBoost + jitter.y).toFixed(2)),
+    z: Number(((organic - 0.5) * 13 * radialBoost + jitter.z).toFixed(2)),
+    // basis exposed so Auralith can explain why two stars are near each other
+    _basis: { valence: +v.toFixed(3), energy: +e.toFixed(3), acousticness: +a.toFixed(3), danceability: +d.toFixed(3), organic: +organic.toFixed(3) },
+  }
+}
+
+/**
+ * averageFeatures
+ * ───────────────
+ * Compute the mean of each audio feature dimension across an array of
+ * feature objects.  Used to derive a genre's representative sonic position.
+ */
+export function averageFeatures(featureArray = []) {
+  const keys = ['valence', 'energy', 'acousticness', 'danceability', 'instrumentalness']
+  const result = {}
+  keys.forEach((key) => {
+    const valid = featureArray.map((f) => f?.[key]).filter((v) => v != null && !Number.isNaN(v))
+    result[key] = valid.length ? valid.reduce((s, v) => s + v, 0) / valid.length : null
+  })
+  return result
+}
+
+/**
+ * featureDistance
+ * ───────────────
+ * Euclidean distance in audio-feature space: [valence, energy, organic].
+ * Returns 0 (identical) – √3 (maximally different).
+ * Used for Auralith galaxy explanations.
+ */
+export function featureDistance(a = {}, b = {}) {
+  const va = clamp(a.valence ?? 0.5), vb = clamp(b.valence ?? 0.5)
+  const ea = clamp(a.energy  ?? 0.5), eb = clamp(b.energy  ?? 0.5)
+  const oa = (clamp(a.acousticness ?? 0.5) * 0.6 + (1 - clamp(a.danceability ?? 0.5)) * 0.4)
+  const ob = (clamp(b.acousticness ?? 0.5) * 0.6 + (1 - clamp(b.danceability ?? 0.5)) * 0.4)
+  return +Math.sqrt((va-vb)**2 + (ea-eb)**2 + (oa-ob)**2).toFixed(4)
+}
+
+/**
+ * explainProximity
+ * ────────────────
+ * Returns a human-readable sentence explaining why two nodes are close.
+ */
+export function explainProximity(featA = {}, featB = {}) {
+  const axes = [
+    { key: 'valence',      label: 'emotional brightness', aName: 'dark', bName: 'bright' },
+    { key: 'energy',       label: 'intensity',            aName: 'quiet', bName: 'loud'  },
+    { key: 'acousticness', label: 'texture',              aName: 'electronic', bName: 'acoustic' },
+  ]
+  const shared = []
+  axes.forEach(({ key, label, aName, bName }) => {
+    const va = featA[key] ?? 0.5
+    const vb = featB[key] ?? 0.5
+    if (Math.abs(va - vb) < 0.18) {
+      const side = va < 0.38 ? aName : va > 0.62 ? bName : 'mid-range'
+      shared.push(`${label} (both ${side})`)
+    }
+  })
+  if (shared.length === 0) return 'They share a general sonic neighbourhood despite surface differences.'
+  return `They occupy the same region of ${shared.join(' and ')} in the audio-feature space.`
+}
+
 export function sonicColor(features = {}, confidence = 1) {
   const valence = features.valence ?? 0.5
   const energy = features.energy ?? 0.5

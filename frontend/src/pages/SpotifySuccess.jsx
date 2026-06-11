@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Music2, CheckCircle, XCircle, Loader2, RadioTower } from 'lucide-react'
 import useStore from '../store/useStore'
@@ -18,45 +18,68 @@ export default function SpotifySuccess() {
   const setBootState = useAuthStore((s) => s.setBootState)
   const [status, setStatus] = useState('loading')
   const [message, setMessage] = useState('')
+  // Run-once guard. Under React 18 StrictMode the effect fires twice; the first
+  // run strips the query string (replaceState), so a naive second run would read
+  // an empty URL and wrongly report "no auth code" — and would also try to
+  // re-consume the single-use exchange code. This ref ensures the flow runs once.
+  const startedRef = useRef(false)
 
   useEffect(() => {
-    let cancelled = false
+    if (startedRef.current) return
+    startedRef.current = true
+
+    // Capture params BEFORE stripping the query.
     const params = new URLSearchParams(window.location.search)
     const authCode = params.get('auth_code')
     const error = params.get('error')
     window.history.replaceState({}, document.title, '/spotify-success')
 
-    const redirectHome = (delay = 1200) => window.setTimeout(() => {
-      if (!cancelled) navigate('/', { replace: true, state: { justLoggedIn: true } })
-    }, delay)
+    const goHome = (delay = 1000) =>
+      window.setTimeout(() => navigate('/', { replace: true, state: { justLoggedIn: true } }), delay)
+    const goLogin = (delay = 2800) =>
+      window.setTimeout(() => navigate('/login', { replace: true }), delay)
 
-    if (error) {
-      setStatus('error')
-      setMessage(error === 'access_denied' ? 'You denied access to Spotify.' : `Spotify error: ${error}`)
-      const timeoutId = redirectHome(2800)
-      return () => {
-        cancelled = true
-        window.clearTimeout(timeoutId)
+    const run = async () => {
+      if (error) {
+        setStatus('error')
+        setMessage(error === 'access_denied' ? 'You denied access to Spotify.' : `Spotify error: ${error}`)
+        goLogin()
+        return
       }
-    }
 
-    if (!authCode) {
-      setStatus('error')
-      setMessage('No auth code received from Spotify.')
-      const timeoutId = redirectHome(2800)
-      return () => {
-        cancelled = true
-        window.clearTimeout(timeoutId)
+      if (!authCode) {
+        // No code in the URL. Most often this is a refresh of the (already
+        // query-stripped) callback page after a flow that may have succeeded.
+        // Check for an existing session before declaring failure.
+        try {
+          const { data } = await sessionAPI.bootstrap()
+          const payload = unwrapApiData(data)
+          if (payload?.providers?.spotify?.connected || payload?.auth_state === 'authenticated') {
+            applyBootstrap(payload)
+            setProviderState({
+              spotifyConnected: Boolean(payload?.providers?.spotify?.connected),
+              lastfmConnected: Boolean(payload?.providers?.lastfm?.connected),
+              lastfmUsername: payload?.providers?.lastfm?.username || null,
+              musicProvider: payload?.music_provider || 'spotify',
+              sessionId: payload?.sessionId || null,
+            })
+            setStatus('success')
+            goHome(600)
+            return
+          }
+        } catch {
+          // fall through to the recoverable error state
+        }
+        setStatus('error')
+        setMessage('No auth code received from Spotify. Returning you to sign-in.')
+        goLogin()
+        return
       }
-    }
 
-    setBootState('oauth_exchanging', 'Exchanging the Spotify callback for a secure session.')
-
-    let timeoutId
-    authAPI.exchangeSpotify(authCode)
-      .then(() => sessionAPI.bootstrap())
-      .then(({ data }) => {
-        if (cancelled) return
+      setBootState('oauth_exchanging', 'Exchanging the Spotify callback for a secure session.')
+      try {
+        await authAPI.exchangeSpotify(authCode)
+        const { data } = await sessionAPI.bootstrap()
         const payload = unwrapApiData(data)
         applyBootstrap(payload)
         setProviderState({
@@ -67,28 +90,23 @@ export default function SpotifySuccess() {
           sessionId: payload?.sessionId || null,
         })
         setBootState('profile_hydrating', 'Spotify session restored. Hydrating the first profile layer.')
-        return spotifyAPI.getProfile()
-      })
-      .then(({ data }) => {
-        if (cancelled || !data) return
-        const profile = unwrapApiData(data)
-        if (profile && typeof profile === 'object') {
-          setSpotifyProfile(profile)
+        try {
+          const profileRes = await spotifyAPI.getProfile()
+          const profile = unwrapApiData(profileRes?.data)
+          if (profile && typeof profile === 'object') setSpotifyProfile(profile)
+        } catch {
+          // Profile hydration is best-effort; the session is already valid.
         }
         setStatus('success')
-        timeoutId = redirectHome(1000)
-      })
-      .catch((err) => {
-        if (cancelled) return
+        goHome(800)
+      } catch (err) {
         setStatus('error')
         setMessage(err?.response?.data?.error?.message || err?.message || 'Spotify session bootstrap failed.')
-        timeoutId = redirectHome(3000)
-      })
-
-    return () => {
-      cancelled = true
-      if (timeoutId) window.clearTimeout(timeoutId)
+        goLogin(3000)
+      }
     }
+
+    run()
   }, [applyBootstrap, navigate, setBootState, setProviderState, setSpotifyProfile])
 
   return (

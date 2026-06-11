@@ -1,14 +1,13 @@
 /**
  * IdentityReveal
  * Cinematic "Music Identity Reveal" experience.
- * Reads profile.mbti and profile.personality — never recomputes.
+ * Reads the Spotify-derived profile and shows receipts for every claim.
  *
- * Export shape (for future "Compare Identities"):
- *   { type, name, desc, axes }          ← mbti
- *   [{ id, label, emoji, pct, color }]  ← personality (top-3 traits)
- *   contradictions[]                    ← per-MBTI strings
- *   intenseLine                         ← dynamic audio-feature line
- *   rarity                              ← computed integer 0–99
+ * Export shape:
+ *   { type, name, desc, axes } from mbti evidence
+ *   [{ id, label, emoji, pct, color }] from personality signals
+ *   intenseLine from Spotify receipts
+ *   signalClarity from identity confidence and audio coverage
  */
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
@@ -16,155 +15,26 @@ import { X, Share2, Download, Sparkles } from 'lucide-react'
 import html2canvas from 'html2canvas'
 import toast from 'react-hot-toast'
 
-// ─────────────────────────────────────────────────────────────────────────────
-// RARITY — computed from MBTI base + genre uniqueness + trait spread
-// ─────────────────────────────────────────────────────────────────────────────
-const TYPE_RARITY_BASE = {
-  INFJ: 95, INTJ: 93, ENTJ: 91, INFP: 90, INTP: 89,
-  ENFJ: 87, ENTP: 85, ISFJ: 80, ISFP: 78, ISTJ: 76,
-  ISTP: 74, ENFP: 72, ESFJ: 68, ESFP: 66, ESTJ: 63, ESTP: 60,
+function getSignalClarity(profile) {
+  const identityConfidence = profile?.confidence?.identity?.score
+  const audioCoverage = profile?.dataQuality?.audioCoverage
+  const signalConfidence = profile?.livingIdentity?.topSignal?.confidence
+  return Math.round(Math.max(identityConfidence ?? 0, audioCoverage ?? 0, signalConfidence ?? 0) * 100)
 }
 
-/**
- * getRarity(mbtiType, personality, profile)
- * Deterministic — same inputs always produce same output.
- * Factors: MBTI base rarity + genre count uniqueness + trait spread.
- */
-function getRarity(mbtiType, personality, profile) {
-  const base = TYPE_RARITY_BASE[mbtiType] ?? 72
-
-  // Genre uniqueness bonus: more unique genres = rarer listener
-  const genreCount = (profile?.genres || []).length
-  const genreBonus = Math.min(4, Math.floor(genreCount / 4))
-
-  // Trait spread bonus: if top trait dominates heavily (>50%), listener is more defined = rarer
-  const topPct = personality?.[0]?.pct ?? 40
-  const spreadBonus = topPct > 50 ? 2 : topPct > 45 ? 1 : 0
-
-  // Rare archetype bonus
-  const topId = personality?.[0]?.id
-  const archetypeBonus = (topId === "cosmic" || topId === "melancholic") ? 2 : 0
-
-  return Math.min(99, base + genreBonus + spreadBonus + archetypeBonus)
+function getDynamicLine(profile) {
+  return (
+    profile?.livingIdentity?.summary ||
+    profile?.identitySignals?.find((signal) => signal?.evidence?.length)?.evidence?.[0] ||
+    profile?.spotifyEvidence?.receipts?.[0] ||
+    "Melody Map needs more Spotify evidence before making an identity claim."
+  )
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// DYNAMIC EMOTIONAL LINE — derived from audio features, not static per archetype
-// ─────────────────────────────────────────────────────────────────────────────
-function getDynamicLine(audioFeatures) {
-  const e = audioFeatures?.energy    ?? 0.5
-  const v = audioFeatures?.valence   ?? 0.5
-  const d = audioFeatures?.danceability ?? 0.5
-  const a = audioFeatures?.acousticness ?? 0.3
-
-  // Matrix of emotional states based on energy + valence quadrants
-  if (e < 0.35 && v > 0.55) return "You try to stay light, even when you're not okay."
-  if (e > 0.65 && v < 0.4)  return "You keep moving so you don't have to sit with what you feel."
-  if (e < 0.4  && v < 0.4)  return "You sit with the weight of things most people skip past."
-  if (e > 0.65 && v > 0.6)  return "You use music to convince yourself everything is fine."
-  if (e < 0.45 && a > 0.6)  return "You need music that sounds like being alone doesn't hurt."
-  if (d > 0.7  && v < 0.45) return "You dance through things you haven't processed yet."
-  if (d < 0.35 && a > 0.55) return "You listen like you're searching for something you lost."
-  if (e > 0.55 && d < 0.4)  return "You feel intensely but rarely let it show."
-  if (v > 0.7  && d > 0.65) return "You choose joy deliberately. That takes more strength than it looks."
-  if (e < 0.5  && v > 0.65) return "You find peace in music the way others find it in people."
-  // Default — still personal, not generic
-  return "Your music knows things about you that you haven't said out loud."
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// CONTRADICTIONS — all double-quoted to avoid apostrophe syntax errors
-// ─────────────────────────────────────────────────────────────────────────────
-const CONTRADICTIONS = {
-  INFP: [
-    "Craves connection, listens alone",
-    "Finds joy in sad songs",
-    "Wants to be understood, resists being known",
-  ],
-  INFJ: [
-    "Deeply social, deeply private",
-    "Seeks meaning in noise",
-    "Feels everything, shows little",
-  ],
-  INTP: [
-    "Loves music, can't explain why",
-    "Analyzes emotion instead of feeling it",
-    "Finds patterns in chaos",
-  ],
-  INTJ: [
-    "Curates obsessively, shares rarely",
-    "Emotionally moved, intellectually detached",
-    "Builds walls with playlists",
-  ],
-  ISFP: [
-    "Feels deeply, speaks softly",
-    "Lives in the moment, haunted by the past",
-    "Gentle taste, intense inner world",
-  ],
-  ISFJ: [
-    "Loyal to old favorites, afraid of new ones",
-    "Comforts others with music, rarely asks for comfort",
-    "Quiet listener, loud memory",
-  ],
-  ISTP: [
-    "Appreciates craft, dismisses sentiment",
-    "Minimal words, maximal feeling",
-    "Detached observer of their own emotions",
-  ],
-  ISTJ: [
-    "Resistant to change, moved by nostalgia",
-    "Disciplined listener, chaotic inner life",
-    "Trusts the familiar, longs for the unknown",
-  ],
-  ENFP: [
-    "Loves everything, commits to nothing",
-    "Starts 10 playlists, finishes none",
-    "Enthusiastic about music no one else knows yet",
-  ],
-  ENFJ: [
-    "Curates for others, forgets themselves",
-    "Feels responsible for the room's mood",
-    "Gives music as a love language",
-  ],
-  ENTP: [
-    "Argues about music they secretly love",
-    "Contrarian taste, mainstream feelings",
-    "Deconstructs songs while crying to them",
-  ],
-  ENTJ: [
-    "Controls the aux, controls the energy",
-    "Efficient with playlists, inefficient with feelings",
-    "Leads with sound",
-  ],
-  ESFP: [
-    "Lives in the beat, dies in the silence",
-    "Dances alone, feels most alive in crowds",
-    "Impulsive listener, deliberate mood-setter",
-  ],
-  ESFJ: [
-    "Plays what others want, feels what they need",
-    "Harmony in music, harmony in life",
-    "Remembers every song from every moment",
-  ],
-  ESTP: [
-    "Needs the drop, hates the buildup",
-    "Moves fast, feels slow",
-    "Adrenaline seeker with a soft playlist",
-  ],
-  ESTJ: [
-    "Has a system for everything, including shuffle",
-    "Reliable taste, unpredictable emotions",
-    "Organized chaos in headphones",
-  ],
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// SCAN PHASES — humanized, personal, slightly haunting
-// ─────────────────────────────────────────────────────────────────────────────
 const PHASES = [
-  { id: "scan1",  text: "Reading your late night music patterns...", duration: 1900 },
-  { id: "scan2",  text: "Understanding what you feel but don't say...", duration: 1900 },
-  { id: "scan3",  text: "Noticing what you hide in your playlists...", duration: 1700 },
+  { id: "scan1",  text: "Reading Spotify artist anchors...", duration: 1900 },
+  { id: "scan2",  text: "Checking audio-feature evidence...", duration: 1900 },
+  { id: "scan3",  text: "Assembling identity receipts...", duration: 1700 },
   { id: "reveal", text: null, duration: null },
 ]
 
@@ -220,13 +90,16 @@ function IdentityCard({ mbti, personality, profile, cardRef }) {
   const primaryColor = topTrait?.color || "#a78bfa"
   const secondColor  = personality?.[1]?.color || "#60a5fa"
 
-  const rarity      = getRarity(mbti.type, personality, profile)
-  const contras     = CONTRADICTIONS[mbti.type] || [
-    "Feels deeply, speaks rarely",
-    "Thinks differently, listens loudly",
-    "Searches for meaning in every track",
+  const signalClarity = getSignalClarity(profile)
+  const receipts = [
+    ...(profile?.livingIdentity?.receipts || []),
+    ...(topTrait?.evidence || []),
+  ].filter(Boolean)
+  const contras = receipts.length ? receipts.slice(0, 3) : [
+    "More Spotify listening history is needed before Melody Map can show receipts here.",
   ]
-  const intenseLine = getDynamicLine(profile?.audioFeatures)
+  const intenseLine = getDynamicLine(profile)
+  const description = profile?.musicIdentitySummary || profile?.livingIdentity?.summary || mbti.desc
 
   return (
     <motion.div
@@ -284,17 +157,17 @@ function IdentityCard({ mbti, personality, profile, cardRef }) {
             <p className="text-white font-bold text-lg leading-tight">{mbti.name}</p>
           </div>
 
-          {/* Rarity badge */}
+          {/* Signal clarity badge */}
           <div className="shrink-0 text-right">
             <div
               className="inline-flex flex-col items-center px-3 py-2 rounded-2xl"
               style={{ background: `${primaryColor}15`, border: `1px solid ${primaryColor}30` }}
             >
               <span className="text-2xl font-black" style={{ color: primaryColor }}>
-                {rarity}%
+                {signalClarity || "--"}%
               </span>
-              <span className="text-[10px] text-gray-500 uppercase tracking-wider leading-tight">
-                rarer than
+              <span className="text-[10px] text-gray-500 tracking-wider leading-tight">
+                signal clarity
               </span>
             </div>
           </div>
@@ -303,7 +176,7 @@ function IdentityCard({ mbti, personality, profile, cardRef }) {
 
       {/* Description + dynamic emotional line */}
       <div className="relative z-10 mb-5">
-        <p className="text-gray-300 text-sm leading-relaxed mb-3">{mbti.desc}</p>
+        <p className="text-gray-300 text-sm leading-relaxed mb-3">{description}</p>
         <p className="text-sm font-semibold italic leading-snug" style={{ color: primaryColor }}>
           "{intenseLine}"
         </p>
@@ -331,10 +204,10 @@ function IdentityCard({ mbti, personality, profile, cardRef }) {
         ))}
       </div>
 
-      {/* Contradictions */}
+      {/* Evidence receipts */}
       <div className="relative z-10 space-y-2 mb-6">
-        <p className="text-[10px] uppercase tracking-[0.25em] text-gray-600 mb-2">
-          Your contradictions
+        <p className="text-[10px] tracking-[0.25em] text-gray-600 mb-2">
+          Spotify receipts
         </p>
         {contras.map((c, i) => (
           <motion.div
