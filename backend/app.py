@@ -206,6 +206,18 @@ def create_app() -> Flask:
             afc_init(mongo)
         except Exception:
             pass
+        # Server-side enrichment caches: Last.fm genre tags (keyed by artist)
+        # and external audio features (keyed by track). Both best-effort.
+        try:
+            from services.genre_tag_enrichment import init_mongo as genre_tags_init
+            genre_tags_init(mongo)
+        except Exception:
+            pass
+        try:
+            from services.audio_features_service import init_mongo as audio_features_init
+            audio_features_init(mongo)
+        except Exception:
+            pass
 
     app.register_blueprint(spotify_auth_bp)
     app.register_blueprint(spotify_data_bp, url_prefix="/api")

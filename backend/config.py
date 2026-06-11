@@ -77,6 +77,7 @@ class AppConfig:
     lastfm_api_key: str | None
     lastfm_api_secret: str | None
     lastfm_redirect_uri: str
+    audio_features_provider: str
     unsplash_access_key: str | None
     pinterest_access_token: str | None
     redis_url: str | None
@@ -167,6 +168,7 @@ def get_config() -> AppConfig:
         lastfm_api_key=_env("LASTFM_API_KEY"),
         lastfm_api_secret=_env("LASTFM_API_SECRET"),
         lastfm_redirect_uri=_env("LASTFM_REDIRECT_URI", "http://127.0.0.1:5000/auth/lastfm/callback") or "http://127.0.0.1:5000/auth/lastfm/callback",
+        audio_features_provider=(_env("AUDIO_FEATURES_PROVIDER", "reccobeats") or "reccobeats").lower(),
         unsplash_access_key=_env("UNSPLASH_ACCESS_KEY"),
         pinterest_access_token=_env("PINTEREST_ACCESS_TOKEN"),
         redis_url=_env("REDIS_URL"),

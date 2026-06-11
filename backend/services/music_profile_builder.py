@@ -44,13 +44,13 @@ AUDIO_FEATURE_KEYS = [
 ]
 
 ANALYTICS_METHODS = {
-    'energyScore': 'mean(spotify_audio_features.energy)',
-    'valenceScore': 'mean(spotify_audio_features.valence)',
-    'danceabilityScore': 'mean(spotify_audio_features.danceability)',
-    'acousticnessScore': 'mean(spotify_audio_features.acousticness)',
-    'tempoAvg': 'mean(spotify_audio_features.tempo)',
-    'speechinessScore': 'mean(spotify_audio_features.speechiness)',
-    'instrumentalScore': 'mean(spotify_audio_features.instrumentalness)',
+    'energyScore': 'mean(track_audio_features.energy)',
+    'valenceScore': 'mean(track_audio_features.valence)',
+    'danceabilityScore': 'mean(track_audio_features.danceability)',
+    'acousticnessScore': 'mean(track_audio_features.acousticness)',
+    'tempoAvg': 'mean(track_audio_features.tempo)',
+    'speechinessScore': 'mean(track_audio_features.speechiness)',
+    'instrumentalScore': 'mean(track_audio_features.instrumentalness)',
     'nostalgiaIndex': 'normalized age of release years from canonical top tracks',
     'diversityScore': 'normalized genre entropy derived from canonical top artists',
     'sonicBrightness': '0.45*valence + 0.35*energy + 0.2*(1-acousticness)',
@@ -944,6 +944,22 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'elapsedMs': round((time.time() - _enrich_start) * 1000),
     })
 
+    # ── Genre recovery via Last.fm tags (server-side, invisible to the user) ──
+    # Spotify returns empty genres[] on artist objects now, which starves
+    # aesthetic tags, galaxy genre nodes, diversity, personality, and MBTI.
+    # Last.fm artist top-tags are public data and user-independent, so fill the
+    # gap from there. Best-effort with its own budget — never blocks the build.
+    if any(not artist.get('genres') for artist in top_artists):
+        try:
+            from services.genre_tag_enrichment import enrich_artist_genres_via_lastfm
+            top_artists, lastfm_genre_diag = enrich_artist_genres_via_lastfm(top_artists)
+            genre_enrichment['lastfm'] = lastfm_genre_diag
+            if lastfm_genre_diag.get('resolved'):
+                genre_enrichment['source'] = 'lastfm_tags'
+            logger.info({'event': 'music_profile_lastfm_genres', **lastfm_genre_diag})
+        except Exception as lastfm_exc:
+            logger.warning({'event': 'music_profile_lastfm_genres_failed', 'error': str(lastfm_exc)})
+
     recent_tracks = []
     recent_behavior_tracks = []
     seen_ids: set[str] = {track['id'] for track in top_tracks if track.get('id')}
@@ -994,6 +1010,29 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
         'batchStatus': audio_feature_diagnostics.get('batchStatus'),
         'fallbackStatus': audio_feature_diagnostics.get('fallbackStatus'),
     })
+
+    # ── Audio-feature recovery via the provider-agnostic service ─────────────
+    # Spotify's /audio-features is dead (403). Resolve whatever is missing from
+    # the configured external provider behind a permanent per-track cache.
+    # Coverage gaps are expected: uncovered tracks just don't contribute, and
+    # the readings stay honest. Best-effort — never blocks or fails the build.
+    if len(audio_features_list) < len(canonical_track_ids):
+        try:
+            from services.audio_features_service import get_audio_features_for_tracks
+            resolved_ids = {row['id'] for row in audio_features_list if row.get('id')}
+            missing_tracks = [track for track in top_tracks if track.get('id') and track['id'] not in resolved_ids]
+            recovered_rows, recovery_diag = get_audio_features_for_tracks(missing_tracks)
+            audio_feature_diagnostics['recovery'] = recovery_diag
+            if recovered_rows:
+                audio_features_list = audio_features_list + recovered_rows
+                recovered_source = recovery_diag.get('source') or recovery_diag.get('provider') or 'external_provider'
+                if audio_feature_diagnostics.get('source') in (None, 'none', 'unavailable'):
+                    audio_feature_diagnostics['source'] = recovered_source
+                else:
+                    audio_feature_diagnostics['source'] = f"{audio_feature_diagnostics['source']}+{recovered_source}"
+            logger.info({'event': 'music_profile_audio_recovery', **recovery_diag})
+        except Exception as recovery_exc:
+            logger.warning({'event': 'music_profile_audio_recovery_failed', 'error': str(recovery_exc)})
 
     average_audio_features = {}
     for key in AUDIO_FEATURE_KEYS:
