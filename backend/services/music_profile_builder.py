@@ -567,18 +567,48 @@ def _score_personality_archetypes(audio_features: dict, genres: list[dict]) -> d
     }
 
 
-def _compute_mbti(audio_features: dict, genres: list[dict], artists: list[dict]) -> dict:
+def _jp_axis_basis(artists: list[dict], tracks: list[dict] | None) -> tuple[float, str] | None:
+    """Signal for the Judging/Perceiving axis, normalized to 0..1.
+
+    Preferred: spread of artist popularity (mainstream anchor vs eclectic reach).
+    Spotify now returns popularity as null on top-artist items, so when it is
+    absent fall back to the spread of top-track release years — drifting across
+    eras is the same exploratory behavior, read from data we actually have.
+    Returns (score, basis) or None when neither signal exists."""
+    popularities = [artist.get('popularity') / 100.0 for artist in artists if isinstance(artist.get('popularity'), (int, float))]
+    if popularities:
+        avg = sum(popularities) / len(popularities)
+        spread = math.sqrt(sum((value - avg) ** 2 for value in popularities) / len(popularities))
+        return min(spread * 2.0, 1.0), 'artist_popularity_spread'
+
+    years = []
+    for track in tracks or []:
+        release_date = str(track.get('release_date') or '')
+        if len(release_date) >= 4:
+            try:
+                years.append(int(release_date[:4]))
+            except ValueError:
+                continue
+    if len(years) >= 8:
+        avg_year = sum(years) / len(years)
+        std_years = math.sqrt(sum((year - avg_year) ** 2 for year in years) / len(years))
+        # ~15 years of std deviation = fully era-exploratory listening.
+        return min(std_years / 15.0, 1.0), 'release_era_spread'
+    return None
+
+
+def _compute_mbti(audio_features: dict, genres: list[dict], artists: list[dict], tracks: list[dict] | None = None) -> dict:
     input_keys = ['acousticness', 'danceability', 'instrumentalness', 'valence']
     available_audio = [key for key in input_keys if audio_features.get(key) is not None]
-    popularities = [artist.get('popularity') / 100.0 for artist in artists if artist.get('popularity') is not None]
+    jp_signal = _jp_axis_basis(artists, tracks)
 
-    if len(available_audio) < len(input_keys) or not genres or not artists or not popularities:
+    if len(available_audio) < len(input_keys) or not genres or not artists or jp_signal is None:
         missing = [key for key in input_keys if audio_features.get(key) is None]
         if not genres:
             missing.append('genres')
         if not artists:
             missing.append('topArtists')
-        if not popularities:
+        if jp_signal is None:
             missing.append('artistPopularity')
         return {
             'value': None,
@@ -595,9 +625,8 @@ def _compute_mbti(audio_features: dict, genres: list[dict], artists: list[dict])
     is_intuition = genre_diversity > 0.5
     tf = _clamp(audio_features.get('instrumentalness')) * 0.5 + (1 - _clamp(audio_features.get('valence'))) * 0.5
     is_thinking = tf > 0.5
-    avg_popularity = sum(popularities) / len(popularities)
-    spread = math.sqrt(sum((value - avg_popularity) ** 2 for value in popularities) / len(popularities))
-    is_perceiving = spread > 0.25
+    spread, jp_basis = jp_signal
+    is_perceiving = spread > 0.5
     mbti_type = f'{"I" if is_introvert else "E"}{"N" if is_intuition else "S"}{"T" if is_thinking else "F"}{"P" if is_perceiving else "J"}'
     meta = MBTI_TYPES.get(mbti_type, {'name': 'The Sonic Explorer', 'desc': 'Your taste defies easy categorization.'})
     confidence = min(1.0, (len(available_audio) / len(input_keys)) * 0.7 + min(1.0, len(genres) / 12.0) * 0.15 + min(1.0, len(artists) / 50.0) * 0.15)
@@ -611,7 +640,7 @@ def _compute_mbti(audio_features: dict, genres: list[dict], artists: list[dict])
                 'IE': {'label': 'Introvert' if is_introvert else 'Extravert', 'score': round(ie * 100), 'flipped': not is_introvert},
                 'NS': {'label': 'Intuition' if is_intuition else 'Sensing', 'score': round(genre_diversity * 100), 'flipped': not is_intuition},
                 'TF': {'label': 'Thinking' if is_thinking else 'Feeling', 'score': round(tf * 100), 'flipped': not is_thinking},
-                'JP': {'label': 'Perceiving' if is_perceiving else 'Judging', 'score': round(spread * 200), 'flipped': not is_perceiving},
+                'JP': {'label': 'Perceiving' if is_perceiving else 'Judging', 'score': round(spread * 100), 'flipped': not is_perceiving, 'basis': jp_basis},
             },
         },
         'confidence': round(confidence, 3),
@@ -1049,7 +1078,7 @@ def build_music_profile(spotify_token: str, time_range: str = 'medium_term', lim
     analytics = _build_analytics(genres, average_audio_features, top_tracks)
     analytics = _build_metric_metadata(audio_features_list, len(canonical_track_ids), genres, analytics, top_tracks)
     personality_meta = _score_personality_archetypes(average_audio_features, genres)
-    mbti_meta = _compute_mbti(average_audio_features, genres, top_artists)
+    mbti_meta = _compute_mbti(average_audio_features, genres, top_artists, top_tracks)
     audio_coverage = round(len(audio_features_list) / len(canonical_track_ids), 3) if canonical_track_ids else 0.0
     confidence = _build_domain_confidence(audio_coverage, len(top_artists), len(top_tracks), len(genres), personality_meta, mbti_meta)
     feature_coverage_by_metric = {

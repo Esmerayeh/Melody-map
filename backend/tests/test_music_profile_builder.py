@@ -229,3 +229,29 @@ def test_galaxy_topology_handles_nodes_without_edges():
     assert topology['communityCount'] == 0
     assert topology['communities']['a1'] == 0
     assert 'a3' in topology['nodeVectors']
+
+
+def test_compute_mbti_falls_back_to_release_era_spread_when_popularity_is_null():
+    """Spotify now returns popularity: null on top-artist items. The JP axis
+    must derive from top-track release-era spread instead of going missing."""
+    audio = {'acousticness': 0.36, 'danceability': 0.57, 'instrumentalness': 0.14, 'valence': 0.54}
+    genres = [{'genre': f'g{i}', 'count': 2} for i in range(12)]
+    artists = [{'name': f'a{i}', 'popularity': None} for i in range(20)]
+    tracks = [{'release_date': f'{1970 + i * 4}-01-01'} for i in range(14)]
+
+    meta = _compute_mbti(audio, genres, artists, tracks)
+
+    assert meta['value'] is not None
+    assert meta['value']['axes']['JP']['basis'] == 'release_era_spread'
+    assert meta['confidence'] > 0
+
+
+def test_compute_mbti_stays_honest_without_any_jp_signal():
+    audio = {'acousticness': 0.36, 'danceability': 0.57, 'instrumentalness': 0.14, 'valence': 0.54}
+    genres = [{'genre': f'g{i}', 'count': 2} for i in range(12)]
+    artists = [{'name': f'a{i}', 'popularity': None} for i in range(20)]
+
+    meta = _compute_mbti(audio, genres, artists, tracks=[])
+
+    assert meta['value'] is None
+    assert 'artistPopularity' in meta['missingInputs']
