@@ -193,6 +193,7 @@ class RouteCrashBoundary extends React.Component {
     console.error('[ROUTE_CRASH]', error?.message || error)
     console.error('[ROUTE_CRASH] stack:', error?.stack)
     console.error('[ROUTE_CRASH] componentStack:', info?.componentStack)
+    this.setState({ componentStack: info?.componentStack || '' })
   }
 
   componentDidUpdate(prevProps) {
@@ -204,7 +205,7 @@ class RouteCrashBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       if (this.props.fallbackRender) {
-        return this.props.fallbackRender(this.state.error)
+        return this.props.fallbackRender(this.state.error, this.state.componentStack)
       }
       return this.props.fallback
     }
@@ -243,7 +244,15 @@ function ProtectedRouteFallback() {
   )
 }
 
-function ShellCrashFallback({ error }) {
+function ShellCrashFallback({ error, componentStack }) {
+  // First few component frames — enough to identify the crashing surface from
+  // a single screenshot, without dumping the whole tree on the user.
+  const stackPreview = String(componentStack || '')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 4)
+    .join('  ·  ')
   // DISTINCT from the boot gate on purpose: a render crash inside the shell
   // used to reuse the gate's copy, making a crashed dashboard indistinguishable
   // from an auth lockout. This screen names the real error so a single
@@ -258,6 +267,9 @@ function ShellCrashFallback({ error }) {
         </p>
         {error ? (
           <p className="mt-3 rounded-xl bg-black/30 px-3 py-2 text-xs text-amber-200/90 break-words">{String(error?.message || error)}</p>
+        ) : null}
+        {stackPreview ? (
+          <p className="mt-2 rounded-xl bg-black/30 px-3 py-2 text-[10px] leading-relaxed text-gray-400 break-words">{stackPreview}</p>
         ) : null}
         <div className="mt-5 flex items-center justify-center gap-3">
           <button
@@ -339,7 +351,7 @@ function ProtectedShell({ children }) {
     <ProtectedRoute>
       <RouteCrashBoundary
         resetKey={location.pathname}
-        fallbackRender={(error) => <ShellCrashFallback error={error} />}
+        fallbackRender={(error, componentStack) => <ShellCrashFallback error={error} componentStack={componentStack} />}
       >
         <AppShell>{children}</AppShell>
       </RouteCrashBoundary>

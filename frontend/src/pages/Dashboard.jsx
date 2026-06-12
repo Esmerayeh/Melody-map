@@ -23,7 +23,10 @@ import HaloButton from '../components/premium/HaloButton'
 import ShimmerDivider from '../components/premium/ShimmerDivider'
 import NebulaLoader from '../components/premium/NebulaLoader'
 
-const cleanCopy = (value = '') => value
+// Coerce first: callers sometimes hand this richer objects (post-recovery
+// personality traits are {label, evidence, ...} dicts) \u2014 calling .replace on
+// a non-string crashed the whole dashboard ("value.replace is not a function").
+const cleanCopy = (value = '') => String(value ?? '')
   .replace(/\u00e2\u20ac\u201d/g, '--')
   .replace(/\u00e2\u20ac\u00a2/g, '*')
   .replace(/\u00c2\u00b7/g, '-')
@@ -205,7 +208,12 @@ function IdentityCard({ profile }) {
   const archetype      = primary?.archetype || primary?.label || 'Sonic Explorer'
   const description    = primary?.description || personalityMeta?.description
     || 'Your taste is forming a pattern. Connect more listening history to sharpen the reading.'
-  const traits         = primary?.traits || personalityMeta?.traits || []
+  // Chips: the primary trait's grounded evidence signals (real receipts), or
+  // the labels of the other archetypes. Personality entries are OBJECTS
+  // ({label, evidence, evidenceSignals, ...}) — never render them raw.
+  const traits = (primary?.evidenceSignals || []).map((signal) => signal?.label).filter(Boolean).length
+    ? (primary?.evidenceSignals || []).map((signal) => signal?.label).filter(Boolean)
+    : personality.slice(1, 5).map((trait) => trait?.label || trait?.archetype).filter(Boolean)
   const accentColor    = primary?.color  || personalityMeta?.color  || '#e0a35c'
 
   return (
