@@ -162,7 +162,10 @@ export const authAPI = {
 }
 
 export const sessionAPI = {
-  bootstrap: () => api.get('/session/bootstrap', { meta: { suppressAuthRedirect: true } }),
+  // Hard timeout: against a dead/cold backend an untimed bootstrap hangs for
+  // minutes, pinning bootPhase at 'probing_session'. Failing fast lets the
+  // boot state machine resolve ('error') and routing move on.
+  bootstrap: () => api.get('/session/bootstrap', { timeout: 12000, meta: { suppressAuthRedirect: true } }),
 }
 
 export const mapAPI = {

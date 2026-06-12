@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { motion } from 'framer-motion'
@@ -210,25 +210,24 @@ class RouteCrashBoundary extends React.Component {
 }
 
 function ProtectedRouteFallback() {
-  const handleReload = () => {
-    window.location.reload()
-  }
-
+  // NO reload button here: reloading restarts the probe timer from zero, so
+  // against a dead backend it turned this brief gate into a permanent trap.
+  // The only action offered moves FORWARD to sign-in, which the gate itself
+  // also does automatically after PROBE_GATE_MAX_MS.
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-6">
       <div className="noire-panel max-w-xl rounded-[28px] p-8 text-center">
         <p className="page-header-kicker mb-2">Opening the door</p>
         <h2 className="text-2xl font-semibold text-white">Finding your session.</h2>
         <p className="mt-3 text-sm leading-relaxed text-gray-400">
-          One quick check with the backend and you are in. This only appears while the session itself is being confirmed — never for a slow panel.
+          One quick check and you are in. If the signal is quiet, this hands you to sign-in by itself in a few seconds.
         </p>
-        <button
-          type="button"
-          onClick={handleReload}
-          className="mt-5 noire-chip rounded-full px-4 py-2 text-xs font-semibold text-white"
+        <Link
+          to="/login"
+          className="mt-5 inline-block noire-chip rounded-full px-4 py-2 text-xs font-semibold text-white"
         >
-          Reload the shell
-        </button>
+          Continue to sign-in
+        </Link>
       </div>
     </div>
   )

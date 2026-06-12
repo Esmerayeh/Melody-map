@@ -18,8 +18,10 @@ export const PROFILE_CACHE_KEY = 'music_profile_cache_v1'
 
 // How long a brand-new visitor may see the boot gate while the very first
 // session probe runs. After this it falls through to /login no matter what —
-// the gate can never be a terminal state.
-export const PROBE_GATE_MAX_MS = 12_000
+// the gate can never be a terminal state. Kept SHORT: against a dead backend
+// the probe never resolves, and every second on the gate is a second the
+// user reads as "locked out".
+export const PROBE_GATE_MAX_MS = 4_000
 
 const PROBING_PHASES = ['booting', 'probing_session', 'oauth_exchanging', 'profile_hydrating']
 
