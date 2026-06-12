@@ -12,6 +12,7 @@ import AuthBootstrap from './app/AuthBootstrap'
 import { applyVibeTheme, resetVibeTheme } from './services/vibeTheme'
 import ShellSkeleton from './components/shell/ShellSkeleton'
 import useGalaxyStage from './features/galaxy/useGalaxyStage'
+import GalaxySceneBoundary from './features/galaxy/GalaxySceneBoundary'
 import useProfileStore from './store/useProfileStore'
 import useAdaptiveExperience from './hooks/useAdaptiveExperience'
 import { buildGalaxyModel, guardGalaxyModel } from './features/galaxy/galaxyBuilder'
@@ -78,22 +79,29 @@ function PersistentGalaxy() {
   // gets its galaxy backdrop too, not just confirmed-live sessions.
   if (!active && !canAccessShell && !readHadSession()) return null
 
+  // GalaxySceneBoundary is non-negotiable here: PersistentGalaxy sits at the
+  // app root, OUTSIDE every route boundary. An unguarded 3D crash would
+  // unmount the entire app — indistinguishable from an auth lockout. With the
+  // boundary, a scene fault costs only the backdrop and logs
+  // [GALAXY_SCENE_ERROR]; the shell and every route stay usable.
   return (
     <div className="fixed inset-0 z-0" aria-hidden="true">
-      <Suspense fallback={null}>
-        <GalaxyStage
-          model={model || ambientModel}
-          sparseMode={sparseMode}
-          lowPower={lowPower || adaptive.lowPowerMode}
-          reducedMotion={reducedMotion || adaptive.prefersReducedMotion}
-          webglEnabled={webglEnabled && adaptive.webglSupported !== false}
-          traversalEnabled={traversalEnabled}
-          scanPulseCount={scanPulseCount}
-          onScanPulse={onScanPulse}
-          autoRotateSpeed={autoRotateSpeed}
-          extraChildren={extraChildren}
-        />
-      </Suspense>
+      <GalaxySceneBoundary resetKey={(model || ambientModel)?.metadata?.source || 'ambient'}>
+        <Suspense fallback={null}>
+          <GalaxyStage
+            model={model || ambientModel}
+            sparseMode={sparseMode}
+            lowPower={lowPower || adaptive.lowPowerMode}
+            reducedMotion={reducedMotion || adaptive.prefersReducedMotion}
+            webglEnabled={webglEnabled && adaptive.webglSupported !== false}
+            traversalEnabled={traversalEnabled}
+            scanPulseCount={scanPulseCount}
+            onScanPulse={onScanPulse}
+            autoRotateSpeed={autoRotateSpeed}
+            extraChildren={extraChildren}
+          />
+        </Suspense>
+      </GalaxySceneBoundary>
     </div>
   )
 }
