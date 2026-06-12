@@ -1,5 +1,5 @@
 import React, { Suspense, lazy, useEffect, useMemo } from 'react'
-import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate, Link, useLocation, useNavigate } from 'react-router-dom'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'react-hot-toast'
 import { motion } from 'framer-motion'
@@ -179,11 +179,11 @@ function RouteModule({ shell = false, children }) {
 class RouteCrashBoundary extends React.Component {
   constructor(props) {
     super(props)
-    this.state = { hasError: false }
+    this.state = { hasError: false, error: null }
   }
 
-  static getDerivedStateFromError() {
-    return { hasError: true }
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error }
   }
 
   componentDidCatch(error, info) {
@@ -203,6 +203,9 @@ class RouteCrashBoundary extends React.Component {
 
   render() {
     if (this.state.hasError) {
+      if (this.props.fallbackRender) {
+        return this.props.fallbackRender(this.state.error)
+      }
       return this.props.fallback
     }
     return this.props.children
@@ -212,8 +215,15 @@ class RouteCrashBoundary extends React.Component {
 function ProtectedRouteFallback() {
   // NO reload button here: reloading restarts the probe timer from zero, so
   // against a dead backend it turned this brief gate into a permanent trap.
-  // The only action offered moves FORWARD to sign-in, which the gate itself
-  // also does automatically after PROBE_GATE_MAX_MS.
+  // The hand-off to /login is IMPERATIVE (useNavigate on a timer owned by this
+  // component) so it cannot be defeated by parent re-render/remount mechanics —
+  // if this screen is on for PROBE_GATE_MAX_MS, it leaves. Full stop.
+  const navigate = useNavigate()
+  useEffect(() => {
+    const timer = setTimeout(() => navigate('/login', { replace: true }), PROBE_GATE_MAX_MS)
+    return () => clearTimeout(timer)
+  }, [navigate])
+
   return (
     <div className="flex min-h-[60vh] items-center justify-center px-6">
       <div className="noire-panel max-w-xl rounded-[28px] p-8 text-center">
@@ -228,6 +238,39 @@ function ProtectedRouteFallback() {
         >
           Continue to sign-in
         </Link>
+      </div>
+    </div>
+  )
+}
+
+function ShellCrashFallback({ error }) {
+  // DISTINCT from the boot gate on purpose: a render crash inside the shell
+  // used to reuse the gate's copy, making a crashed dashboard indistinguishable
+  // from an auth lockout. This screen names the real error so a single
+  // screenshot identifies the failure.
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center px-6">
+      <div className="noire-panel max-w-xl rounded-[28px] p-8 text-center">
+        <p className="page-header-kicker mb-2">A surface cracked</p>
+        <h2 className="text-2xl font-semibold text-white">This page hit a render fault.</h2>
+        <p className="mt-3 text-sm leading-relaxed text-gray-400">
+          Your session is fine — one surface crashed while drawing. The exact fault is below and in the console as [ROUTE_CRASH].
+        </p>
+        {error ? (
+          <p className="mt-3 rounded-xl bg-black/30 px-3 py-2 text-xs text-amber-200/90 break-words">{String(error?.message || error)}</p>
+        ) : null}
+        <div className="mt-5 flex items-center justify-center gap-3">
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="noire-chip rounded-full px-4 py-2 text-xs font-semibold text-white"
+          >
+            Try again
+          </button>
+          <Link to="/login" className="noire-chip rounded-full px-4 py-2 text-xs font-semibold text-white">
+            Continue to sign-in
+          </Link>
+        </div>
       </div>
     </div>
   )
@@ -294,7 +337,10 @@ function ProtectedShell({ children }) {
 
   return (
     <ProtectedRoute>
-      <RouteCrashBoundary resetKey={location.pathname} fallback={<ProtectedRouteFallback />}>
+      <RouteCrashBoundary
+        resetKey={location.pathname}
+        fallbackRender={(error) => <ShellCrashFallback error={error} />}
+      >
         <AppShell>{children}</AppShell>
       </RouteCrashBoundary>
     </ProtectedRoute>
