@@ -10,6 +10,7 @@ import { slugifyInteraction } from './interactionModel.js'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
 import GalaxySceneBoundary from './GalaxySceneBoundary'
 import GalaxyAudioController from './GalaxyAudioController'
+import { applyTierLayout } from './galaxyTierLayout'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
 const GalaxyPostEffects   = lazy(() => import('./GalaxyPostEffects'))
@@ -479,10 +480,15 @@ function getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode) {
 
 function shouldShowNodeLabel(node, cameraDistance, selected, hovered) {
   if (selected || hovered) return true
-  if (node.type === 'genre') return cameraDistance < 24
-  if (node.role === 'anchor-star') return cameraDistance < 18
-  if (node.type === 'artist') return cameraDistance < 12 && (node.metrics?.significance || 0) > 0.7
-  if (node.type === 'track') return cameraDistance < 8 && (node.metrics?.significance || 0) > 0.74
+  const sig = node.metrics?.significance ?? node.significance ?? 0
+  // Genres = always-on region titles. Top artists = always-on named stars.
+  // Lesser artists + tracks reveal their label only as the camera approaches.
+  if (node.type === 'genre') return true
+  if (node.type === 'artist') {
+    if (node.role === 'anchor-star' || node.role === 'bridge-star' || sig > 0.6) return true
+    return cameraDistance < 15
+  }
+  if (node.type === 'track') return cameraDistance < 9 && sig > 0.55
   return false
 }
 
@@ -507,15 +513,30 @@ function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, sh
     })
     .sort((left, right) => labelPriority(right) - labelPriority(left))
 
-  const threshold = cameraDistance < 10 ? 1.45 : cameraDistance < 16 ? 1.9 : 2.5
-  const maxLabels = sparseMode ? 8 : 24
+  // Collision spacing in world units. Genres are exempt (they are the
+  // structure and are already well-separated by the tier layout); artists and
+  // tracks declutter against everything already accepted, so the higher-
+  // priority node in a cluster keeps its label and the rest wait for approach.
+  const threshold = cameraDistance < 10 ? 2.0 : cameraDistance < 16 ? 2.8 : 3.6
+  const maxLabels = sparseMode ? 12 : 30
   const accepted = []
   const layout = new Map()
 
+  const place = (node) => {
+    accepted.push(node)
+    const hash = stableHash(node.id || node.label || 'label')
+    layout.set(node.id, {
+      y: (node.type === 'genre' ? 0.7 : node.type === 'track' ? 0.32 : 0.5) + ((hash % 3) - 1) * 0.1,
+      x: (((hash >> 3) % 3) - 1) * 0.14,
+    })
+  }
+
   candidates.forEach((node) => {
+    if (node.type === 'genre') { place(node); return } // never suppressed
     if (accepted.length >= maxLabels) return
     const position = node.position || { x: 0, y: 0, z: 0 }
     const collides = accepted.some((acceptedNode) => {
+      if (acceptedNode.type === 'genre') return false // labels float above regions; don't block on them
       const other = acceptedNode.position || { x: 0, y: 0, z: 0 }
       const dx = position.x - other.x
       const dy = position.y - other.y
@@ -523,22 +544,18 @@ function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, sh
       return Math.sqrt((dx * dx) + (dy * dy) + (dz * dz)) < threshold
     })
     if (collides) return
-
-    accepted.push(node)
-    const hash = stableHash(node.id || node.label || 'label')
-    layout.set(node.id, {
-      y: (node.type === 'track' ? 0.34 : 0.55) + ((hash % 3) - 1) * 0.12,
-      x: (((hash >> 3) % 3) - 1) * 0.16,
-    })
+    place(node)
   })
 
   return layout
 }
 
+// Warm filmic label tones (zero purple). Genre reads as a big editorial region
+// title; artist as a named warm star; track as a small warm satellite.
 function nodeLabelTone(type) {
-  if (type === 'genre') return 'border-purple-400/30 bg-[#0c0f25]/88 text-purple-100'
-  if (type === 'track') return 'border-cyan-400/25 bg-[#0a1020]/84 text-cyan-100'
-  return 'border-white/12 bg-[#0a0f23]/88 text-white'
+  if (type === 'genre') return 'border-amber-200/22 bg-[#120a06]/80 text-amber-50'
+  if (type === 'track') return 'border-white/12 bg-[#0f0a07]/78 text-amber-100/90'
+  return 'border-amber-100/16 bg-[#120b07]/82 text-amber-50'
 }
 
 function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset, sparseMode, registerRef }) {
@@ -600,6 +617,14 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
 
   return (
     <group ref={groupRef} position={[position.x, position.y, position.z]}>
+      {/* Genre regions get a big soft nebula glow so they read as places, not
+          points. Size scales with the genre's weight. Additive, very soft. */}
+      {node.type === 'genre' && (
+        <mesh>
+          <sphereGeometry args={[renderedSize * (4.6 + (node.significance || node.metrics?.significance || 0.4) * 3.4), 20, 20]} />
+          <meshBasicMaterial color={node.color} transparent opacity={0.05} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+      )}
       <mesh ref={haloRef}>
         <sphereGeometry args={[renderedSize * (node.type === 'track' ? 1.4 : 1.8), 16, 16]} />
         {/* Base opacity only — hover/selection raise is eased in the parent useFrame via haloMatRef. */}
@@ -650,16 +675,31 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
       </mesh>
 
       {showLabel && (
-        <Billboard position={[labelOffset?.x || 0, renderedSize + (labelOffset?.y || 0.55), 0]}>
-          <Html distanceFactor={8} center>
+        <Billboard position={[labelOffset?.x || 0, renderedSize + (labelOffset?.y || 0.6), 0]}>
+          {/* distanceFactor scales with depth; genres get a larger factor so
+              they stay legible as big region titles from across the galaxy,
+              artists a touch smaller, tracks smallest. Constant-ish on screen,
+              billboarded, warm + editorial — never tiny grey text. */}
+          <Html distanceFactor={node.type === 'genre' ? 18 : node.type === 'track' ? 8 : 12} center zIndexRange={[40, 0]}>
             <motion.div
               initial={{ opacity: 0, y: 4, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={MOTION_TOKENS.label}
-              className={`pointer-events-none rounded-xl border px-2.5 py-1 text-[11px] shadow-[0_10px_30px_rgba(4,6,20,0.45)] backdrop-blur-sm ${nodeLabelTone(node.type)}`}
+              className={`pointer-events-none whitespace-nowrap rounded-full border shadow-[0_12px_34px_rgba(4,6,20,0.5)] backdrop-blur-md ${nodeLabelTone(node.type)} ${
+                node.type === 'genre'
+                  ? 'px-4 py-1.5'
+                  : node.type === 'track'
+                    ? 'px-2.5 py-1'
+                    : 'px-3 py-1'
+              }`}
             >
-              <p className="font-semibold leading-tight">{node.label}</p>
-              {node.type !== 'genre' && <p className="text-[10px] capitalize text-gray-400">{node.role?.replace(/-/g, ' ') || node.type}</p>}
+              {node.type === 'genre' ? (
+                <p className="font-display text-[15px] font-semibold uppercase leading-none tracking-[0.16em]">{node.label}</p>
+              ) : node.type === 'track' ? (
+                <p className="text-[11px] font-medium leading-tight">{node.label}</p>
+              ) : (
+                <p className="text-[13px] font-semibold leading-tight">{node.label}</p>
+              )}
             </motion.div>
           </Html>
         </Billboard>
@@ -852,18 +892,22 @@ function TasteCore({ core, model, galaxyMode }) {
 
   return (
     <group ref={groupRef} position={[corePosition.x, corePosition.y, corePosition.z]}>
+      {/* Additive halo shells incl. a near-white inner glow (#fff1d6). Reduced
+          ~40% (0.12/0.18/0.24 → 0.07/0.11/0.14) so the core stops hazing white
+          over panels on content routes. */}
       {[1.7, 1.28, 0.94].map((factor, index) => (
         <mesh key={`${factor}`}>
           <sphereGeometry args={[factor, 28, 28]} />
-          <meshBasicMaterial color={index === 0 ? '#f0c089' : index === 1 ? core.color : '#fff1d6'} transparent opacity={index === 0 ? 0.12 : index === 1 ? 0.18 : 0.24} blending={THREE.AdditiveBlending} depthWrite={false} />
+          <meshBasicMaterial color={index === 0 ? '#f0c089' : index === 1 ? core.color : '#fff1d6'} transparent opacity={index === 0 ? 0.07 : index === 1 ? 0.11 : 0.14} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
       ))}
+      {/* core mesh emissive base/hover/select dropped ~35%: 0.9/1.2/1.5 -> 0.58/0.78/0.98 */}
       <mesh>
         <sphereGeometry args={[0.85, 28, 28]} />
         <MeshDistortMaterial
           color={core.color}
           emissive={core.color}
-          emissiveIntensity={selected ? 1.5 : hovered ? 1.2 : 0.9}
+          emissiveIntensity={selected ? 0.98 : hovered ? 0.78 : 0.58}
           roughness={0.14}
           metalness={0.58}
           transparent
@@ -1172,7 +1216,7 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
 }
 
 function SceneContents({
-  model,
+  model: rawModel,
   sparseMode,
   lowPower       = false,
   reducedMotion  = false,
@@ -1183,6 +1227,11 @@ function SceneContents({
   onScanPulse      = null,
   autoRotateSpeed  = 0.18,
 }) {
+  // Structured three-tier layout: genres become separated regions, artists
+  // cluster inside them, tracks satellite their artist. Keeps the model from
+  // piling at the centre when audio features are mid-range. Everything below
+  // (nodes, labels, edges, focus) reads from this laid-out model.
+  const model = useMemo(() => applyTierLayout(rawModel), [rawModel])
   const [cameraDistance, setCameraDistance] = useState(24)
   const cameraDistanceRef = useRef(24)
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
@@ -1339,14 +1388,15 @@ function SceneContents({
           #fff0d0 + #ff8aa8) so the eye has a heart to orbit. Bloom lifts it.
           Opacities are tuned so the additive stack sums well below 1.0: the
           center must stay a warm luminous heart, not a white blob that erases
-          stars and labels in front of it. (Was 0.55/0.30/0.18/0.09/0.04.) */}
+          stars and labels in front of it.
+          (Was 0.55/0.30/0.18/0.09/0.04 → 0.30/0.16/0.10/0.05/0.025 → halved.) */}
       <group position={[0, 0, 0]}>
         {[
-          { r: 1.1,  color: '#fff0d0', opacity: 0.30 },
-          { r: 2.2,  color: '#ffd89b', opacity: 0.16 },
-          { r: 4.0,  color: '#ff8aa8', opacity: 0.10 },
-          { r: 7.0,  color: '#ff7a9d', opacity: 0.05 },
-          { r: 11.0, color: '#5fd8ff', opacity: 0.025 },
+          { r: 1.1,  color: '#fff0d0', opacity: 0.15 },
+          { r: 2.2,  color: '#ffd89b', opacity: 0.08 },
+          { r: 4.0,  color: '#ff8aa8', opacity: 0.05 },
+          { r: 7.0,  color: '#ff7a9d', opacity: 0.025 },
+          { r: 11.0, color: '#5fd8ff', opacity: 0.0125 },
         ].map((layer) => (
           <mesh key={layer.r}>
             <sphereGeometry args={[layer.r, 24, 24]} />
