@@ -99,25 +99,34 @@ const plasmaFragmentShader = `
     // Inner-lit heart: a warm glow that bleeds OUTWARD through the dust, its
     // reach and brightness driven by uCoreGlow (mood/brightness). This is what
     // makes the orb read as lit from within rather than a flat gradient ball.
-    float innerLight = smoothstep(0.62, 0.0, radius);
-    float heart = smoothstep(0.4, 0.98, energy + coreMask * 0.42 + innerLight * (0.2 + uCoreGlow * 0.5));
+    // Wider reach (0.78) so the warm light fills more of the orb.
+    float innerLight = smoothstep(0.78, 0.0, radius);
+    float heart = smoothstep(0.3, 0.96, energy + coreMask * 0.5 + innerLight * (0.3 + uCoreGlow * 0.7));
 
-    // Base haze: shadow → aura through the dust field.
-    vec3 color = mix(uShadowColor, uAuraColor, smoothstep(0.04, 0.86, energy + depthMask * 0.2));
-    // Dust pockets carve soft shadow so it never reads as a solid sphere.
-    color = mix(color, uShadowColor, shadowField * (0.34 + uDegradedFactor * 0.18));
-    // Warm core bleeds through.
-    color = mix(color, uCoreColor, heart * (0.6 + uFocusIntensity * 0.18));
+    // Base haze: bias hard toward the warm aura (not shadow) so the core holds
+    // saturated color instead of washing to grey. Shadow only at the far edge.
+    vec3 color = mix(uShadowColor, uAuraColor, smoothstep(-0.1, 0.7, energy + depthMask * 0.28 + innerLight * 0.4));
+    // Dust pockets carve soft shadow — reduced so it never greys the core out.
+    color = mix(color, uShadowColor, shadowField * (0.24 + uDegradedFactor * 0.18) * (1.0 - innerLight * 0.6));
+    // Warm core bleeds through, stronger.
+    color = mix(color, uCoreColor, heart * (0.78 + uFocusIntensity * 0.16));
     // Inner light glow added on top — strongest at the heart, fading outward.
-    color += uCoreColor * innerLight * (0.18 + uCoreGlow * 0.5) * (0.6 + uPulse * 0.4);
-    color += uAuraColor * innerLight * uCoreGlow * 0.16;
+    color += uCoreColor * innerLight * (0.32 + uCoreGlow * 0.95) * (0.62 + uPulse * 0.4);
+    color += uAuraColor * innerLight * uCoreGlow * 0.3;
     // Soft rim atmosphere (fresnel) — gentle, never a hard ring.
     color = mix(color, uEdgeColor, fresnel * (0.06 + uFocusIntensity * 0.12));
 
-    // Hazier alpha: thicker in the lit interior, thinning to a soft edge so the
-    // orb reads as volumetric dust with no crisp silhouette.
-    float density = mix(0.18, 0.66, coherence);
-    float alpha = density * (0.42 + coreMask * 0.3 + innerLight * 0.22 + depthMask * 0.08) * (1.0 - uDegradedFactor * 0.2);
+    // Saturation lift: pull color away from its own luminance so the warm hue
+    // actually reads, instead of desaturating to grey in the dust.
+    float lum = dot(color, vec3(0.299, 0.587, 0.114));
+    color = mix(vec3(lum), color, 1.32);
+
+    // Alpha: dense and near-opaque through the lit core so it holds saturated
+    // color, thinning to a soft hazy edge. Higher floor + a strong inner-light
+    // term keep the centre a glowing mass, not a translucent grey smudge.
+    float density = mix(0.32, 0.86, coherence);
+    float alpha = density * (0.5 + coreMask * 0.4 + innerLight * 0.5 + depthMask * 0.08) * (1.0 - uDegradedFactor * 0.2);
+    alpha = clamp(alpha, 0.0, 0.96);
     gl_FragColor = vec4(color, alpha);
   }
 `

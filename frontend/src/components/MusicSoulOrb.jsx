@@ -226,7 +226,8 @@ function OrbCore({ presentation, hovered }) {
       plasmaMaterialRef.current.uFocusIntensity = presentation.shader.focusIntensity
       plasmaMaterialRef.current.uDegradedFactor = presentation.shader.degradedFactor
       plasmaMaterialRef.current.uDuality = presentation.shader.duality
-      plasmaMaterialRef.current.uCoreGlow = presentation.shader.coreGlow
+      // Doubled so the core is genuinely bright and bleeds warm color outward.
+      plasmaMaterialRef.current.uCoreGlow = Math.min(1.0, presentation.shader.coreGlow * 2.0)
     }
 
     if (coreMaterialRef.current) {
@@ -242,7 +243,7 @@ function OrbCore({ presentation, hovered }) {
       coreMaterialRef.current.uFocusIntensity = presentation.shader.focusIntensity + 0.12
       coreMaterialRef.current.uDegradedFactor = presentation.shader.degradedFactor
       coreMaterialRef.current.uDuality = presentation.shader.duality * 0.8
-      coreMaterialRef.current.uCoreGlow = Math.min(1, presentation.shader.coreGlow + 0.16)
+      coreMaterialRef.current.uCoreGlow = Math.min(1.0, presentation.shader.coreGlow * 2.0 + 0.12)
     }
   })
 
@@ -278,33 +279,36 @@ function OrbCore({ presentation, hovered }) {
   )
 }
 
-function OrbPresenceRig({ presentation, hovered, lowPower = false }) {
+function OrbPresenceRig({ presentation, hovered, lowPower = false, reducedMotion = false }) {
   const groupRef = useRef()
   const focusBias = presentation.shader.focusIntensity
   const hoverBias = hovered ? 1 : 0
+  // Continuous 3D spin so the orb always reads as a turning sphere, not a flat
+  // smudge. Full turn in ~35s (2π/35 ≈ 0.18 rad/s). Near-frozen for reduced
+  // motion. A fixed X tilt gives the volume depth so it never reads as a disc.
+  const spinSpeed = reducedMotion ? 0.012 : 0.18
 
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.getElapsedTime()
-    const amplitude = MOTION_FLOAT.orb.amplitude + focusBias * 0.03
-    const tilt = MOTION_FLOAT.orb.tilt + hoverBias * 0.01 + focusBias * 0.02
+    const amplitude = (reducedMotion ? 0.3 : 1) * (MOTION_FLOAT.orb.amplitude + focusBias * 0.03)
 
+    // Gentle float (kept subtle under reduced motion).
     groupRef.current.position.y = Math.sin(t * 0.22) * amplitude + hoverBias * 0.015
     groupRef.current.position.x = Math.cos(t * 0.16 + 0.8) * amplitude * 0.42
     groupRef.current.position.z = Math.sin(t * 0.12 + 0.3) * MOTION_FLOAT.orb.depth
-    groupRef.current.rotation.x = Math.sin(t * 0.14 + 0.4) * tilt
-    groupRef.current.rotation.y = Math.cos(t * 0.11 + 0.9) * tilt * 1.18
-    groupRef.current.rotation.z = Math.sin(t * 0.09 + 1.1) * tilt * 0.5
+    // Real continuous rotation — primarily Y, with a steady X tilt + a whisper
+    // of X drift so the sphere's volume is legible. Scalar increments only.
+    groupRef.current.rotation.y = t * spinSpeed
+    groupRef.current.rotation.x = 0.22 + Math.sin(t * 0.08) * 0.05
+    groupRef.current.rotation.z = 0
   })
 
   return (
     <group ref={groupRef}>
       <OrbCore presentation={presentation} hovered={hovered} />
-      {/* Rings demoted to faint dust arcs — atmosphere, not a defined ring.
-          The nebula reads as a cloud, with these as the barest orbital haze. */}
-      <OrbRing radius={1.42} color={presentation.palette.ring} opacity={0.06} behavior={presentation.behavior} axis={[1.05, 0.18, 0.12]} stretch={[1.24, 0.82, 1.08]} />
-      <OrbRing radius={1.62} color={presentation.palette.glow} opacity={0.05} behavior={presentation.behavior} axis={[1.2, 0.56, 0.46]} stretch={[1.38, 0.78, 1.18]} broken rotationOffset={0.9} />
-      <OrbRing radius={1.86} color={presentation.palette.shell} opacity={0.035} behavior={presentation.behavior} axis={[0.94, -0.38, -0.18]} stretch={[1.58, 0.68, 1.32]} />
+      {/* No rings: a nebula has none. The torus rings read as a hard edge-on
+          seam, so they are removed entirely — no line anywhere on the orb. */}
       <OrbParticleHalo
         count={Math.max(6, presentation.behavior.satelliteCount * 4)}
         color={presentation.palette.glow}
@@ -316,7 +320,7 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false }) {
   )
 }
 
-function OrbCanvas({ presentation, hovered, lowPower = false }) {
+function OrbCanvas({ presentation, hovered, lowPower = false, reducedMotion = false }) {
   const { palette, behavior, threads } = presentation
   const bloomIntensity = 0.72 + behavior.glowIntensity * 0.76 + (hovered ? 0.08 : 0)
   const maxDpr = typeof window === 'undefined' ? 1.5 : Math.min(1.5, window.devicePixelRatio || 1.5)
@@ -336,7 +340,7 @@ function OrbCanvas({ presentation, hovered, lowPower = false }) {
         <pointLight position={[-2.8, -2.2, -2]} intensity={0.72 + behavior.glowIntensity * 0.55} color={palette.glow} />
         <pointLight position={[0, 2.5, -3]} intensity={0.34 + presentation.formation.score * 0.28} color={palette.ring} />
 
-        <OrbPresenceRig presentation={presentation} hovered={hovered} lowPower={lowPower} />
+        <OrbPresenceRig presentation={presentation} hovered={hovered} lowPower={lowPower} reducedMotion={reducedMotion} />
 
         {!lowPower && (
           <EffectComposer>
@@ -464,7 +468,7 @@ export default function MusicSoulOrb(props) {
               opacity: 0.62,
             }}
           />
-            <OrbCanvas presentation={presentation} hovered={hovered} lowPower={effectiveLowPower} />
+            <OrbCanvas presentation={presentation} hovered={hovered} lowPower={effectiveLowPower} reducedMotion={adaptive.prefersReducedMotion} />
         </motion.button>
       </motion.div>
 
