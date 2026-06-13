@@ -14,6 +14,9 @@ import { applyTierLayout } from './galaxyTierLayout'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
 const EMPTY_LABEL_LAYOUT = new Map() // stable ref for the no-labels (off-route) state
+// Disables raycasting on a mesh (decorative layers) so only the hit sphere is
+// clickable — makes click-to-focus reliable regardless of overlapping glow.
+const NO_RAYCAST = () => null
 const GalaxyPostEffects   = lazy(() => import('./GalaxyPostEffects'))
 const GalaxyLivingLayer   = lazy(() => import('./GalaxyLivingLayer'))
 const TraversalController = lazy(() => import('./TraversalController'))
@@ -486,10 +489,10 @@ function shouldShowNodeLabel(node, cameraDistance, selected, hovered) {
   // Lesser artists + tracks reveal their label only as the camera approaches.
   if (node.type === 'genre') return true
   if (node.type === 'artist') {
-    if (node.role === 'anchor-star' || node.role === 'bridge-star' || sig > 0.6) return true
-    return cameraDistance < 15
+    if (node.role === 'anchor-star' || node.role === 'bridge-star' || sig > 0.48) return true
+    return cameraDistance < 18
   }
-  if (node.type === 'track') return cameraDistance < 9 && sig > 0.55
+  if (node.type === 'track') return cameraDistance < 11 && sig > 0.5
   return false
 }
 
@@ -581,7 +584,13 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   const selected = focusedObject?.id === objectId && focusedObject?.type === objectType
   const visibility = getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode)
   const renderedSize = clamp(node.size || 0.5, node.type === 'track' ? 0.13 : 0.24, node.type === 'cluster' ? 1.45 : node.type === 'genre' ? 1.34 : 0.92)
-  const hitRadius = Math.max(renderedSize * 2.2, node.type === 'track' ? 0.45 : 0.7)
+  // Generous invisible hit sphere so click-to-focus is reliable even for small
+  // stars: artists/clusters get a wide target, genres wider, tracks a usable
+  // minimum. (Was renderedSize*2.2, min 0.45/0.7 — too small to hit reliably.)
+  const hitRadius = Math.max(
+    renderedSize * 3.4,
+    node.type === 'track' ? 0.7 : node.type === 'genre' ? 2.6 : 1.5,
+  )
   const driftSeed = useMemo(() => stableHash(node.id || node.label || 'node'), [node.id, node.label])
   const basePosition = useMemo(() => new THREE.Vector3(position.x, position.y, position.z), [position.x, position.y, position.z])
 
@@ -621,18 +630,20 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
       {/* Genre regions get a big soft nebula glow so they read as places, not
           points. Size scales with the genre's weight. Additive, very soft. */}
       {node.type === 'genre' && (
-        <mesh>
+        <mesh raycast={NO_RAYCAST}>
           <sphereGeometry args={[renderedSize * (4.6 + (node.significance || node.metrics?.significance || 0.4) * 3.4), 20, 20]} />
           <meshBasicMaterial color={node.color} transparent opacity={0.05} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
       )}
-      <mesh ref={haloRef}>
+      {/* Decorative meshes are NON-raycastable so they never intercept a click;
+          only the generous invisible hit sphere below is the click target. */}
+      <mesh ref={haloRef} raycast={NO_RAYCAST}>
         <sphereGeometry args={[renderedSize * (node.type === 'track' ? 1.4 : 1.8), 16, 16]} />
         {/* Base opacity only — hover/selection raise is eased in the parent useFrame via haloMatRef. */}
         <meshBasicMaterial ref={haloMatRef} color={node.color} transparent opacity={0.03} />
       </mesh>
 
-      <mesh ref={meshRef}>
+      <mesh ref={meshRef} raycast={NO_RAYCAST}>
         <sphereGeometry args={[renderedSize, node.type === 'track' ? 12 : 24, node.type === 'track' ? 12 : 24]} />
         <MeshDistortMaterial
           ref={matRef}
@@ -681,7 +692,7 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
               they stay legible as big region titles from across the galaxy,
               artists a touch smaller, tracks smallest. Constant-ish on screen,
               billboarded, warm + editorial — never tiny grey text. */}
-          <Html distanceFactor={node.type === 'genre' ? 18 : node.type === 'track' ? 8 : 12} center zIndexRange={[40, 0]}>
+          <Html distanceFactor={node.type === 'genre' ? 20 : node.type === 'track' ? 9 : 15} center zIndexRange={[40, 0]}>
             <motion.div
               initial={{ opacity: 0, y: 4, scale: 0.98 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -695,11 +706,11 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
               }`}
             >
               {node.type === 'genre' ? (
-                <p className="font-display text-[15px] font-semibold uppercase leading-none tracking-[0.16em]">{node.label}</p>
+                <p className="font-display text-[17px] font-semibold uppercase leading-none tracking-[0.16em]">{node.label}</p>
               ) : node.type === 'track' ? (
-                <p className="text-[11px] font-medium leading-tight">{node.label}</p>
+                <p className="text-[12px] font-medium leading-tight">{node.label}</p>
               ) : (
-                <p className="text-[13px] font-semibold leading-tight">{node.label}</p>
+                <p className="text-[16px] font-semibold leading-tight">{node.label}</p>
               )}
             </motion.div>
           </Html>

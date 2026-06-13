@@ -31,9 +31,9 @@ function stableHash(value = '') {
   return hash >>> 0
 }
 
-const GOLDEN = Math.PI * (3 - Math.sqrt(5))
-const GENRE_RADIUS = 16      // how far genre regions sit from the core
-const DISC_FLATTEN = 0.55    // squash vertically → reads as a galactic disc
+const GENRE_RADIUS = 19       // base ring radius for genre regions
+const RADIUS_STEP  = 2.4      // cycling radius offset so the ring isn't mechanical
+const Y_STAGGER    = 2.0      // vertical depth stagger between genres
 
 function seededAngle(hash, shift = 0) {
   return (((hash >> shift) % 3600) / 3600) * Math.PI * 2
@@ -47,7 +47,12 @@ export function applyTierLayout(model) {
   const genres = nodes.filter((n) => n.type === 'genre')
   const artists = nodes.filter((n) => n.type === 'artist')
 
-  // ── 1. GENRES — separated regions on a flattened golden-angle sphere ────────
+  // ── 1. GENRES — evenly spread around the galactic disc (XZ ring) ────────────
+  // A ring, NOT a sphere: a sphere poles its first/last node onto the vertical
+  // axis (x=z=0), which projects to dead screen-centre — the exact "piled at
+  // centre" bug. Here every genre gets an even angular slot around the origin
+  // at a radius that never reaches the axis, with a small radius cycle + y
+  // stagger for organic depth. 14 genres → ~26 deg apart → clearly separated.
   const sortedGenres = [...genres].sort((a, b) => (b.significance || b.metrics?.significance || 0) - (a.significance || a.metrics?.significance || 0))
   const G = sortedGenres.length
   const genreCenter = new Map()      // genre node id → position
@@ -55,16 +60,13 @@ export function applyTierLayout(model) {
   const centerByLabel = new Map()    // lowercased genre label → position
 
   sortedGenres.forEach((g, i) => {
-    const sig = g.significance ?? g.metrics?.significance ?? 0.5
-    // Flattened sphere: y in [-1,1], ring radius from y, golden-angle around.
-    const y = G > 1 ? 1 - (i / (G - 1)) * 2 : 0
-    const ring = Math.sqrt(Math.max(0, 1 - y * y))
-    const theta = GOLDEN * i
-    const radius = GENRE_RADIUS * (0.92 + sig * 0.22)
+    const angle = (i / Math.max(G, 1)) * Math.PI * 2 + (i % 2) * 0.34
+    const radius = GENRE_RADIUS + (i % 3) * RADIUS_STEP
+    const y = (((i * 5) % 7) - 3) * Y_STAGGER
     const pos = {
-      x: Number((Math.cos(theta) * ring * radius).toFixed(2)),
-      y: Number((y * radius * DISC_FLATTEN).toFixed(2)),
-      z: Number((Math.sin(theta) * ring * radius).toFixed(2)),
+      x: Number((Math.cos(angle) * radius).toFixed(2)),
+      y: Number(y.toFixed(2)),
+      z: Number((Math.sin(angle) * radius).toFixed(2)),
     }
     genreCenter.set(g.id, pos)
     if (g.clusterId) centerByCluster.set(g.clusterId, pos)
@@ -80,7 +82,8 @@ export function applyTierLayout(model) {
     const hash = stableHash(a.id || a.label || 'artist')
     const sig = a.significance ?? a.metrics?.significance ?? 0.5
     // Anchors hug the genre core; lesser artists spread to the region's edge.
-    const localR = 2.0 + (1 - sig) * 4.2
+    // Kept tighter than the genre spacing so regions stay visually distinct.
+    const localR = 1.6 + (1 - sig) * 2.8
     const ang = seededAngle(hash, 0)
     const angY = seededAngle(hash, 5)
     artistPos.set(a.id, {

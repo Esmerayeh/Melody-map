@@ -39,6 +39,24 @@ test('genre regions are spatially separated, not piled at the centre', () => {
   }
 })
 
+// Regression for the fibonacci-sphere bug: it poled the first/last genre onto
+// the vertical axis (x=z=0), which projects to dead screen-centre. A ring must
+// keep EVERY genre off the axis, even at 14+ genres.
+test('no genre sits on the centre axis (screen-centre pile)', () => {
+  const many = {
+    nodes: Array.from({ length: 14 }, (_, i) => ({
+      id: `genre:g${i}`, type: 'genre', label: `g${i}`, clusterId: `cluster:g${i}`,
+      significance: 1 - i * 0.06, position: { x: 0, y: 0, z: 0 },
+    })),
+    edges: [], metadata: {},
+  }
+  const genres = applyTierLayout(many).nodes.filter((n) => n.type === 'genre')
+  for (const g of genres) {
+    const axisDist = Math.hypot(g.position.x, g.position.z) // horizontal distance from the Y axis
+    assert.ok(axisDist > 8, `${g.label} is on the centre axis (axisDist=${axisDist.toFixed(1)}) — would pile at screen centre`)
+  }
+})
+
 test('artists are placed inside their own genre region', () => {
   const out = applyTierLayout(sampleModel())
   const byId = Object.fromEntries(out.nodes.map((n) => [n.id, n]))
