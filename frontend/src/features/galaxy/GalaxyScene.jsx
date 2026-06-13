@@ -13,6 +13,7 @@ import GalaxyAudioController from './GalaxyAudioController'
 import { applyTierLayout } from './galaxyTierLayout'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
+const EMPTY_LABEL_LAYOUT = new Map() // stable ref for the no-labels (off-route) state
 const GalaxyPostEffects   = lazy(() => import('./GalaxyPostEffects'))
 const GalaxyLivingLayer   = lazy(() => import('./GalaxyLivingLayer'))
 const TraversalController = lazy(() => import('./TraversalController'))
@@ -1226,6 +1227,7 @@ function SceneContents({
   scanPulseCount   = 0,
   onScanPulse      = null,
   autoRotateSpeed  = 0.18,
+  showLabels       = true,
 }) {
   // Structured three-tier layout: genres become separated regions, artists
   // cluster inside them, tracks satellite their artist. Keeps the model from
@@ -1259,9 +1261,15 @@ function SceneContents({
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [clearFocusedObject, setFocusTarget])
+  // Labels render only where the galaxy is the foreground (passed from the
+  // persistent canvas by active route). Off-route → empty layout → no Html
+  // labels mount at all (also a small perf win), while stars/haze/nebulae
+  // keep rendering as a silent background.
   const labelLayout = useMemo(
-    () => buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode),
-    [cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
+    () => (showLabels
+      ? buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode)
+      : EMPTY_LABEL_LAYOUT),
+    [showLabels, cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
   )
 
   // Single animation driver for all GalaxyNode instances.
@@ -1512,6 +1520,7 @@ export default function GalaxyScene({
   scanPulseCount   = 0,
   onScanPulse      = null,
   autoRotateSpeed  = 0.18,
+  showLabels       = true,
 }) {
   if (!webglEnabled) {
     return (
@@ -1555,6 +1564,7 @@ export default function GalaxyScene({
                 scanPulseCount={scanPulseCount}
                 onScanPulse={onScanPulse}
                 autoRotateSpeed={autoRotateSpeed}
+                showLabels={showLabels}
               />
             </Suspense>
           </Canvas>

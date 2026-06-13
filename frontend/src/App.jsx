@@ -64,6 +64,15 @@ function PersistentGalaxy() {
   const persistedProfile = useProfileStore((s) => s.profile)
   const adaptive = useAdaptiveExperience()
 
+  // Galaxy labels (genre/artist/song text) belong to the galaxy home only. The
+  // canvas is persistent behind every route, so without this the labels bleed
+  // onto the dashboard, aesthetic, discover, etc. Show them only where the
+  // galaxy is the foreground surface (/universe, and the public /demo preview);
+  // everywhere else the galaxy stays a silent background — stars, haze, motion,
+  // no text.
+  const location = useLocation()
+  const showLabels = location.pathname.startsWith('/universe') || location.pathname.startsWith('/demo')
+
   const ambientModel = useMemo(() => {
     if (model) return null
     if (!(persistedProfile?.topArtists?.length || persistedProfile?.genres?.length)) return null
@@ -98,6 +107,7 @@ function PersistentGalaxy() {
             onScanPulse={onScanPulse}
             autoRotateSpeed={autoRotateSpeed}
             extraChildren={extraChildren}
+            showLabels={showLabels}
           />
         </Suspense>
       </GalaxySceneBoundary>
