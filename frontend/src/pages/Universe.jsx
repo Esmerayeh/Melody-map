@@ -12,8 +12,8 @@
  *   UniverseNav       — minimal navigation ring at the bottom
  *
  * Route: /universe  (ProtectedRoute in App.jsx)
- * Replaces the isolated Galaxy page when in "universe mode".
- * The /galaxy route still exists as the focused galaxy-only view.
+ * The single galaxy home. The old /galaxy route is retired and redirects here
+ * (preserving ?mode=/?q= deep links); "Galaxy" is now a lens within /universe.
  *
  * Sprint: PRESENCE + TRAVERSAL
  *   - useUniversePresence: sleep/wake/idle/active HUD opacity + drift speed
@@ -26,7 +26,7 @@
  *   - mobile: single bottom sheet for contextual panels
  */
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate }   from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Brain, Compass, Disc3, Heart, Maximize2, Minimize2,
@@ -373,6 +373,20 @@ export default function Universe() {
 
   const [model,          setModel]         = useState(null)
   const [loading,        setLoading]       = useState(true)
+
+  // Deep-link consumption (folded in from the retired /galaxy route): honour
+  // ?mode=universal|genre|artist|song and ?q=<search> so links like
+  // /universe?mode=song&q=… land in the right lens with the search applied.
+  const [searchParams] = useSearchParams()
+  useEffect(() => {
+    const requestedMode = searchParams.get('mode')
+    if (requestedMode && ['universal', 'genre', 'artist', 'song'].includes(requestedMode) && requestedMode !== galaxyMode) {
+      setGalaxyMode(requestedMode)
+    }
+    const requestedQuery = searchParams.get('q')
+    if (requestedQuery && requestedQuery !== searchQuery) setSearchQuery(requestedQuery)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
 
   // ── activePanel — only one contextual panel at a time ────────────────────
   const [activePanel,    setActivePanel]   = useState(PANELS.NONE)

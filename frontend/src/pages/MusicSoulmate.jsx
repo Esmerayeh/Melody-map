@@ -630,7 +630,7 @@ export default function MusicSoulmate() {
                   </div>
                 )}
 
-                <Link to={`/galaxy?mode=artist${comparison.sharedArtists?.[0] ? `&q=${encodeURIComponent(comparison.sharedArtists[0])}` : ''}`} className="noire-action-card block rounded-[28px] p-5">
+                <Link to={`/universe?mode=artist${comparison.sharedArtists?.[0] ? `&q=${encodeURIComponent(comparison.sharedArtists[0])}` : ''}`} className="noire-action-card block rounded-[28px] p-5">
                   <div className="flex items-center gap-2">
                     <Sparkles className="h-4 w-4 text-brand-purple" />
                     <p className="section-label">Shared Field</p>

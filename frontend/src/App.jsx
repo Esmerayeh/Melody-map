@@ -18,7 +18,6 @@ import useAdaptiveExperience from './hooks/useAdaptiveExperience'
 import { buildGalaxyModel, guardGalaxyModel } from './features/galaxy/galaxyBuilder'
 import { PROBE_GATE_MAX_MS, readHadSession, resolveShellEntry } from './app/shellEntry'
 
-const MusicMap       = lazy(() => import('./pages/MusicMap'))
 const Discover       = lazy(() => import('./pages/Discover'))
 const Playlists      = lazy(() => import('./pages/Playlists'))
 const Analytics      = lazy(() => import('./pages/Analytics'))
@@ -381,10 +380,18 @@ function AppShell({ children }) {
   )
 }
 
+// /galaxy is retired — the galaxy now lives only at /universe. Redirect any
+// old /galaxy link (incl. ?mode=/?q= deep links) to /universe, preserving the
+// query so the mode/search deep-link still lands.
+function GalaxyRedirect() {
+  const location = useLocation()
+  return <Navigate to={`/universe${location.search || ''}`} replace />
+}
+
 function resolveActiveMode(pathname) {
   if (pathname === '/') return 'dashboard'
   if (pathname.startsWith('/discover')) return 'discover'
-  if (pathname.startsWith('/galaxy')) return 'galaxy'
+  if (pathname.startsWith('/universe')) return 'galaxy'
   if (pathname.startsWith('/soulmates')) return 'soulmate'
   if (pathname.startsWith('/soulmate')) return 'soulmate'
   if (pathname.startsWith('/aesthetic')) return 'aesthetic'
@@ -420,7 +427,7 @@ function ExperienceBridge() {
     setLoadingState({
       profile: Boolean(loading),
       route: false,
-      scene: location.pathname.startsWith('/galaxy') && Boolean(loading),
+      scene: location.pathname.startsWith('/universe') && Boolean(loading),
     })
   }, [loading, location.pathname, setLoadingState])
 
@@ -489,9 +496,8 @@ function AnimatedRoutes() {
           <Route path="/" element={
             <ProtectedShell><RouteModule shell><PageWrapper><Dashboard /></PageWrapper></RouteModule></ProtectedShell>
           } />
-          <Route path="/galaxy" element={
-            <ProtectedShell><RouteModule shell><PageWrapper><MusicMap /></PageWrapper></RouteModule></ProtectedShell>
-          } />
+          {/* /galaxy retired → folded into /universe (preserves ?mode=/?q=). */}
+          <Route path="/galaxy" element={<GalaxyRedirect />} />
           <Route path="/discover" element={
             <ProtectedShell><RouteModule shell><PageWrapper><Discover /></PageWrapper></RouteModule></ProtectedShell>
           } />

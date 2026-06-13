@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import {
   Search, LogOut, EyeOff, Eye, WifiOff,
-  Globe2, LayoutDashboard, Compass, Disc3, Heart,
+  Globe2, LayoutDashboard, Compass, Heart,
   Sparkles, Wand2, BarChart3, Brain, Activity, User,
 } from 'lucide-react'
 import useStore from '../../store/useStore'
@@ -16,7 +16,6 @@ const DOCK_NAV = [
   { path: '/universe',       end: false, icon: Globe2,          short: 'Universe',  label: 'Universe',       color: '#e0a35c' },
   { path: '/',               end: true,  icon: LayoutDashboard, short: 'Home',      label: 'Dashboard',      color: '#e0a35c' },
   { path: '/discover',       end: false, icon: Compass,         short: 'Discover',  label: 'Discover',       color: '#c9a36a' },
-  { path: '/galaxy',         end: false, icon: Disc3,           short: 'Galaxy',    label: 'Galaxy',         color: '#c97b7b' },
   { path: '/soulmates',      end: false, icon: Heart,           short: 'Soulmates', label: 'Soulmates',      color: '#c97b7b' },
   { path: '/aesthetic',      end: false, icon: Sparkles,        short: 'Aesthetic', label: 'Aesthetic',      color: '#e0a35c' },
   { path: '/auralith',       end: false, icon: Wand2,           short: 'Auralith',  label: 'Auralith',       color: '#d9a0a0' },
@@ -31,7 +30,6 @@ const STRIP_NAV = [
   { path: '/universe',  end: false, label: 'Universe'  },
   { path: '/',          end: true,  label: 'Dashboard' },
   { path: '/discover',  end: false, label: 'Discover'  },
-  { path: '/galaxy',    end: false, label: 'Galaxy'    },
   { path: '/soulmates', end: false, label: 'Soulmates' },
   { path: '/auralith',  end: false, label: 'Auralith'  },
 ]

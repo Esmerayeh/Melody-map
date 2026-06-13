@@ -261,7 +261,7 @@ function IdentityCard({ profile }) {
 
 // ── Feature nav cards ──────────────────────────────────────────────────────────
 const NAV_CARDS = [
-  { to: '/galaxy',    icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#e0a35c' },
+  { to: '/universe',  icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#e0a35c' },
   { to: '/discover',  icon: Radio,    label: 'Sonic Echoes',    desc: 'signals drifting your way', from: '#ec4899', to2: '#f43f5e' },
   { to: '/soulmates', icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#f0c089', to2: '#c97b7b' },
   { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', from: '#f59e0b', to2: '#ef4444' },
@@ -369,7 +369,7 @@ export default function Dashboard() {
                 <HaloButton to="/identity" variant="primary" icon={Sparkles}>
                   Enter the full reading
                 </HaloButton>
-                <HaloButton to="/galaxy" variant="secondary" icon={Disc3}>
+                <HaloButton to="/universe" variant="secondary" icon={Disc3}>
                   Open the galaxy
                 </HaloButton>
               </div>

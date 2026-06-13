@@ -2,7 +2,7 @@
  * SemanticLegend.jsx
  * ------------------
  * A minimal scanner-style overlay that explains what visual properties
- * in the galaxy mean.  Mounted in /universe and /galaxy.
+ * in the galaxy mean.  Mounted in /universe.
  *
  * Design (08-cyber-celestial-art-director):
  *   - thin glass pill, not a tutorial modal

@@ -450,7 +450,7 @@ export default function MusicIdentity() {
 
       <div className="flex flex-wrap gap-3">
         <Link
-          to="/galaxy"
+          to="/universe"
           className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
           style={{ background: 'rgba(224,163,92,0.18)', border: '1px solid rgba(224,163,92,0.32)' }}
         >

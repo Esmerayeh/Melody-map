@@ -605,7 +605,7 @@ export default function Discover() {
 
       <div className="mb-6 grid gap-4 lg:grid-cols-3">
         <Link
-          to="/galaxy?mode=song"
+          to="/universe?mode=song"
           className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
           style={{ background: 'rgba(224,163,92,0.08)', border: '1px solid rgba(224,163,92,0.16)' }}
         >

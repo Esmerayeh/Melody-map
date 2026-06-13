@@ -827,7 +827,7 @@ export default function Reverie() {
                   <p className="mt-2 text-xs text-slate-500">Carry its strongest marker into Discover and see what wanders back.</p>
                 </Link>
                 <Link
-                  to={`/galaxy?mode=genre${aesthetic.tags?.[0] ? `&q=${encodeURIComponent(aesthetic.tags[0])}` : ''}`}
+                  to={`/universe?mode=genre${aesthetic.tags?.[0] ? `&q=${encodeURIComponent(aesthetic.tags[0])}` : ''}`}
                   className="rounded-2xl border border-white/8 bg-white/3 p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
                 >
                   <p className="section-label mb-2">See where it lives</p>

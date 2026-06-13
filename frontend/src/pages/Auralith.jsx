@@ -253,7 +253,7 @@ export default function Auralith() {
           <p className="text-sm font-semibold text-white">See the long arc of your taste</p>
           <p className="mt-1 text-xs text-slate-500">Move from one oracle answer into your broader timeline.</p>
         </Link>
-        <Link to="/galaxy?mode=artist" className="aura-card aura-interactive rounded-[24px] border border-white/8 p-4">
+        <Link to="/universe?mode=artist" className="aura-card aura-interactive rounded-[24px] border border-white/8 p-4">
           <p className="section-label mb-2">Galaxy mode</p>
           <p className="text-sm font-semibold text-white">Carry a star back into language</p>
           <p className="mt-1 text-xs text-slate-500">Touch the field, then return here and ask what it means.</p>
