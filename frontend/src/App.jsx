@@ -20,17 +20,17 @@ import { PROBE_GATE_MAX_MS, readHadSession, resolveShellEntry } from './app/shel
 
 const Discover       = lazy(() => import('./pages/Discover'))
 const Playlists      = lazy(() => import('./pages/Playlists'))
-const Analytics      = lazy(() => import('./pages/Analytics'))
 const Login          = lazy(() => import('./pages/Login'))
 const SpotifySuccess = lazy(() => import('./pages/SpotifySuccess'))
 const LastfmSuccess  = lazy(() => import('./pages/LastfmSuccess'))
 const MusicSoulmate  = lazy(() => import('./pages/MusicSoulmate'))
 const MusicAesthetic = lazy(() => import('./pages/MusicAesthetic'))
-const Dashboard      = lazy(() => import('./pages/Dashboard'))
 const Profile        = lazy(() => import('./pages/Profile'))
 const Auralith       = lazy(() => import('./pages/Auralith'))
 const MusicIdentity  = lazy(() => import('./pages/MusicIdentity'))
-const IdentityDrift  = lazy(() => import('./pages/IdentityDrift'))
+// Unrouted in route-consolidation step 1A (pages kept on disk for component
+// migration): Dashboard (stat tiles + nav cards), Analytics (radar/tempo/
+// diversity charts), IdentityDrift.
 // New routes
 const Demo           = lazy(() => import('./pages/Demo'))
 const Universe       = lazy(() => import('./pages/Universe'))
@@ -406,7 +406,6 @@ function resolveActiveMode(pathname) {
   if (pathname.startsWith('/soulmate')) return 'soulmate'
   if (pathname.startsWith('/aesthetic')) return 'aesthetic'
   if (pathname.startsWith('/auralith')) return 'auralith'
-  if (pathname.startsWith('/analytics')) return 'analytics'
   if (pathname.startsWith('/identity')) return 'identity'
   if (pathname.startsWith('/profile')) return 'profile'
   return 'dashboard'
@@ -503,9 +502,10 @@ function AnimatedRoutes() {
           <Route path="/lastfm-success" element={<RouteModule><LastfmSuccess /></RouteModule>} />
           <Route path="/demo" element={<RouteModule><Demo /></RouteModule>} />
 
-          <Route path="/" element={
-            <ProtectedShell><RouteModule shell><PageWrapper><Dashboard /></PageWrapper></RouteModule></ProtectedShell>
-          } />
+          {/* Home is /universe now. "/" and the old /dashboard redirect there;
+              the Dashboard page is unrouted (its tiles/nav-cards migrate later). */}
+          <Route path="/" element={<Navigate to="/universe" replace />} />
+          <Route path="/dashboard" element={<Navigate to="/universe" replace />} />
           {/* /galaxy retired → folded into /universe (preserves ?mode=/?q=). */}
           <Route path="/galaxy" element={<GalaxyRedirect />} />
           <Route path="/discover" element={
@@ -514,9 +514,8 @@ function AnimatedRoutes() {
           <Route path="/playlists" element={
             <ProtectedShell><RouteModule shell><PageWrapper><Playlists /></PageWrapper></RouteModule></ProtectedShell>
           } />
-          <Route path="/analytics" element={
-            <ProtectedShell><RouteModule shell><PageWrapper><Analytics /></PageWrapper></RouteModule></ProtectedShell>
-          } />
+          {/* /analytics retired → folded into /identity (charts migrate later). */}
+          <Route path="/analytics" element={<Navigate to="/identity" replace />} />
           <Route path="/soulmate" element={
             <ProtectedShell><RouteModule shell><PageWrapper><MusicSoulmate /></PageWrapper></RouteModule></ProtectedShell>
           } />
@@ -533,9 +532,8 @@ function AnimatedRoutes() {
           <Route path="/identity" element={
             <ProtectedShell><RouteModule shell><PageWrapper><MusicIdentity /></PageWrapper></RouteModule></ProtectedShell>
           } />
-          <Route path="/identity-drift" element={
-            <ProtectedShell><RouteModule shell><PageWrapper><IdentityDrift /></PageWrapper></RouteModule></ProtectedShell>
-          } />
+          {/* /identity-drift retired → folded into /identity. */}
+          <Route path="/identity-drift" element={<Navigate to="/identity" replace />} />
           <Route path="/auralith" element={
             <ProtectedShell><RouteModule shell><PageWrapper><Auralith /></PageWrapper></RouteModule></ProtectedShell>
           } />
@@ -549,7 +547,7 @@ function AnimatedRoutes() {
               </RouteCrashBoundary>
             </ProtectedRoute>
           } />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<Navigate to="/universe" replace />} />
         </Routes>
     </RouteCrashBoundary>
   )

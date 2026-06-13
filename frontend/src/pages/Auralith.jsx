@@ -248,7 +248,7 @@ export default function Auralith() {
           <p className="text-sm font-semibold text-white">Drift into Discover first</p>
           <p className="mt-1 text-xs text-slate-500">Let a few new songs land before you ask Auralith what changed.</p>
         </Link>
-        <Link to="/identity-drift" className="aura-card aura-interactive rounded-[24px] border border-white/8 p-4">
+        <Link to="/identity" className="aura-card aura-interactive rounded-[24px] border border-white/8 p-4">
           <p className="section-label mb-2">Identity drift</p>
           <p className="text-sm font-semibold text-white">See the long arc of your taste</p>
           <p className="mt-1 text-xs text-slate-500">Move from one oracle answer into your broader timeline.</p>

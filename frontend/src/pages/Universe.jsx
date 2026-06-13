@@ -29,7 +29,7 @@ import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } fro
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
-  Brain, Compass, Disc3, Heart, Maximize2, Minimize2,
+  Brain, Disc3, Heart, Maximize2, Minimize2,
   Radio, Sparkles, Zap, X,
 } from 'lucide-react'
 import useMusicProfile         from '../hooks/useMusicProfile'
@@ -72,7 +72,6 @@ const SECTORS = [
   { id: 'soulmate',  to: '/soulmate',  label: 'Twin Galaxy',          icon: Heart,    color: '#ffb89a', desc: 'Where your universe meets another.' },
   { id: 'aesthetic', to: '/aesthetic', label: 'Aesthetic Nebula',     icon: Zap,      color: '#ff7a9d', desc: 'The visual atmosphere of your taste.' },
   { id: 'auralith',  to: '/auralith',  label: 'Auralith Observatory', icon: Brain,    color: '#ffd89b', desc: 'Ask the oracle what your galaxy means.' },
-  { id: 'analytics', to: '/analytics', label: 'Scanner Ring',         icon: Compass,  color: '#5cd6c0', desc: 'Holographic audio feature breakdown.' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────

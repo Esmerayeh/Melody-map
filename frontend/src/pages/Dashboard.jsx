@@ -612,7 +612,7 @@ export default function Dashboard() {
                 <AuraCard className="p-5" accent="lavender" interactive>
                 <div className="flex items-center justify-between mb-4">
                   <p className="text-sm font-semibold text-gray-200">The voices you orbit</p>
-                  <HaloButton to="/analytics" variant="secondary" className="px-3 py-2 text-[10px]">Drift deeper</HaloButton>
+                  <HaloButton to="/identity" variant="secondary" className="px-3 py-2 text-[10px]">Drift deeper</HaloButton>
                 </div>
                 <div className="space-y-1">
                   {artists.slice(0, 5).map((a, i) => <ArtistChip key={a.id || a.name} artist={a} rank={i} />)}

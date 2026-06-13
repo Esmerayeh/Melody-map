@@ -464,7 +464,7 @@ export default function MusicIdentity() {
           Compare soulmates
         </Link>
         <Link
-          to="/identity-drift"
+          to="/identity"
           className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
           style={{ background: 'rgba(96,165,250,0.16)', border: '1px solid rgba(96,165,250,0.32)' }}
         >

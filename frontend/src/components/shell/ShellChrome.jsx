@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react'
 import { NavLink, Link, useNavigate } from 'react-router-dom'
 import {
   Search, LogOut, EyeOff, Eye, WifiOff,
-  Globe2, LayoutDashboard, Compass, Heart,
-  Sparkles, Wand2, BarChart3, Brain, Activity, User,
+  Globe2, Compass, Heart,
+  Sparkles, Wand2, Brain, User,
 } from 'lucide-react'
 import useStore from '../../store/useStore'
 import useAuthStore from '../../store/useAuthStore'
@@ -14,21 +14,17 @@ import { authAPI } from '../../services/api'
 // sector (zero purple), reused from the retired sidebar palette.
 const DOCK_NAV = [
   { path: '/universe',       end: false, icon: Globe2,          short: 'Universe',  label: 'Universe',       color: '#e0a35c' },
-  { path: '/',               end: true,  icon: LayoutDashboard, short: 'Home',      label: 'Dashboard',      color: '#e0a35c' },
   { path: '/discover',       end: false, icon: Compass,         short: 'Discover',  label: 'Discover',       color: '#c9a36a' },
   { path: '/soulmates',      end: false, icon: Heart,           short: 'Soulmates', label: 'Soulmates',      color: '#c97b7b' },
   { path: '/aesthetic',      end: false, icon: Sparkles,        short: 'Aesthetic', label: 'Aesthetic',      color: '#e0a35c' },
   { path: '/auralith',       end: false, icon: Wand2,           short: 'Auralith',  label: 'Auralith',       color: '#d9a0a0' },
-  { path: '/analytics',      end: false, icon: BarChart3,       short: 'Analytics', label: 'Analytics',      color: '#b8946a' },
   { path: '/identity',       end: true,  icon: Brain,           short: 'Identity',  label: 'Music identity', color: '#c9a36a' },
-  { path: '/identity-drift', end: false, icon: Activity,        short: 'Drift',     label: 'Identity drift', color: '#d8cdbd' },
   { path: '/profile',        end: false, icon: User,            short: 'Profile',   label: 'Profile',        color: '#e0a35c' },
 ]
 
 // Primary nav for the top glass strip — a curated subset.
 const STRIP_NAV = [
   { path: '/universe',  end: false, label: 'Universe'  },
-  { path: '/',          end: true,  label: 'Dashboard' },
   { path: '/discover',  end: false, label: 'Discover'  },
   { path: '/soulmates', end: false, label: 'Soulmates' },
   { path: '/auralith',  end: false, label: 'Auralith'  },

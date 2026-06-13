@@ -120,7 +120,7 @@ export default function Profile() {
     { to: '/universe', icon: Disc3, label: 'Music Galaxy', desc: 'touch the stars that hold your taste', tone: '#e0a35c' },
     { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', tone: '#FBBF24' },
     { to: '/soulmates', icon: Heart, label: 'Soulmates', desc: 'see where your worlds meet', tone: '#FF5DA2' },
-    { to: '/analytics', icon: BarChart3, label: 'Signal Reading', desc: 'a deeper look at movement and light', tone: '#34D399' },
+    { to: '/identity', icon: BarChart3, label: 'Signal Reading', desc: 'a deeper look at movement and light', tone: '#34D399' },
     { to: '/identity', icon: Brain, label: 'Music Identity', desc: 'enter the full inner reading', tone: '#60A5FA' },
   ]
 
