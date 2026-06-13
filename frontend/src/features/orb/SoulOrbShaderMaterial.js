@@ -29,6 +29,7 @@ const plasmaFragmentShader = `
   uniform float uFocusIntensity;
   uniform float uDegradedFactor;
   uniform float uDuality;
+  uniform float uCoreGlow;
 
   varying vec3 vNormal;
   varying vec3 vWorldPosition;
@@ -81,23 +82,42 @@ const plasmaFragmentShader = `
     flow += vec3(uTime * uNoiseSpeed * 0.12, -uTime * uNoiseSpeed * 0.09, uTime * uNoiseSpeed * 0.06);
     flow.xy += vec2(sin(uTime * 0.11 + vLocalPosition.z * 2.0), cos(uTime * 0.09 + vLocalPosition.x * 2.2)) * (0.1 + uStateMix * 0.07);
 
+    // Layered FBM = drifting dust. Soft, hazy, no hard surface.
     float primary = fbm(flow);
     float secondary = fbm(flow * (1.64 + uDuality * 0.35) + vec3(2.3, 0.8, -1.4));
     float tertiary = fbm(flow * 0.72 - vec3(1.6, 0.9, 2.1));
-    float coherence = smoothstep(0.18 - uDegradedFactor * 0.05, 0.88, mix(primary, secondary, 0.38 + uDuality * 0.12));
-    float shadowField = smoothstep(0.12, 0.8, tertiary);
-    float coreMask = smoothstep(1.0, 0.14, length(vLocalPosition));
+    float dust = mix(primary, secondary, 0.38 + uDuality * 0.12);
+    float coherence = smoothstep(0.12 - uDegradedFactor * 0.05, 0.92, dust);
+    float shadowField = smoothstep(0.1, 0.84, tertiary);
+
+    // Radial falloff toward the surface — interior dense, edge thins to haze.
+    float radius = length(vLocalPosition);
+    float coreMask = smoothstep(1.0, 0.14, radius);
     float pulse = 0.68 + uPulse * 0.28;
     float energy = mix(primary * secondary, coherence, 0.58) * pulse;
-    float heart = smoothstep(0.46, 0.96, energy + coreMask * 0.42);
 
-    vec3 color = mix(uShadowColor, uAuraColor, smoothstep(0.06, 0.82, energy + depthMask * 0.18));
-    color = mix(color, uCoreColor, heart * (0.66 + uFocusIntensity * 0.18));
-    color = mix(color, uShadowColor, shadowField * (0.3 + uDegradedFactor * 0.18));
-    color = mix(color, uEdgeColor, fresnel * (0.08 + uFocusIntensity * 0.14));
-    color += uCoreColor * coreMask * depthMask * (0.14 + uFocusIntensity * 0.22);
+    // Inner-lit heart: a warm glow that bleeds OUTWARD through the dust, its
+    // reach and brightness driven by uCoreGlow (mood/brightness). This is what
+    // makes the orb read as lit from within rather than a flat gradient ball.
+    float innerLight = smoothstep(0.62, 0.0, radius);
+    float heart = smoothstep(0.4, 0.98, energy + coreMask * 0.42 + innerLight * (0.2 + uCoreGlow * 0.5));
 
-    float alpha = mix(0.22, 0.72, coherence) * (0.48 + coreMask * 0.26 + depthMask * 0.08) * (1.0 - uDegradedFactor * 0.2);
+    // Base haze: shadow → aura through the dust field.
+    vec3 color = mix(uShadowColor, uAuraColor, smoothstep(0.04, 0.86, energy + depthMask * 0.2));
+    // Dust pockets carve soft shadow so it never reads as a solid sphere.
+    color = mix(color, uShadowColor, shadowField * (0.34 + uDegradedFactor * 0.18));
+    // Warm core bleeds through.
+    color = mix(color, uCoreColor, heart * (0.6 + uFocusIntensity * 0.18));
+    // Inner light glow added on top — strongest at the heart, fading outward.
+    color += uCoreColor * innerLight * (0.18 + uCoreGlow * 0.5) * (0.6 + uPulse * 0.4);
+    color += uAuraColor * innerLight * uCoreGlow * 0.16;
+    // Soft rim atmosphere (fresnel) — gentle, never a hard ring.
+    color = mix(color, uEdgeColor, fresnel * (0.06 + uFocusIntensity * 0.12));
+
+    // Hazier alpha: thicker in the lit interior, thinning to a soft edge so the
+    // orb reads as volumetric dust with no crisp silhouette.
+    float density = mix(0.18, 0.66, coherence);
+    float alpha = density * (0.42 + coreMask * 0.3 + innerLight * 0.22 + depthMask * 0.08) * (1.0 - uDegradedFactor * 0.2);
     gl_FragColor = vec4(color, alpha);
   }
 `
@@ -144,15 +164,18 @@ export const SoulOrbPlasmaMaterial = shaderMaterial(
     uTime: 0,
     uPulse: 0.5,
     uStateMix: 0.5,
-    uCoreColor: new THREE.Color('#c79bff'),
-    uAuraColor: new THREE.Color('#7750f8'),
-    uEdgeColor: new THREE.Color('#f0dcff'),
-    uShadowColor: new THREE.Color('#171125'),
+    // Warm filmic defaults — NEVER purple. Real signal overrides these every
+    // frame; these only show for the first paint before data resolves.
+    uCoreColor: new THREE.Color('#ffba93'),
+    uAuraColor: new THREE.Color('#ffd0a8'),
+    uEdgeColor: new THREE.Color('#fff0dc'),
+    uShadowColor: new THREE.Color('#1a1008'),
     uNoiseScale: 2.2,
     uNoiseSpeed: 0.32,
     uFocusIntensity: 0.5,
     uDegradedFactor: 0,
     uDuality: 0,
+    uCoreGlow: 0.5,
   },
   plasmaVertexShader,
   plasmaFragmentShader,
@@ -162,9 +185,9 @@ export const SoulOrbShellMaterial = shaderMaterial(
   {
     uTime: 0,
     uPulse: 0.5,
-    uShellColor: new THREE.Color('#8262ff'),
-    uEdgeColor: new THREE.Color('#f7e8ff'),
-    uShadowColor: new THREE.Color('#140f22'),
+    uShellColor: new THREE.Color('#ffc69b'),
+    uEdgeColor: new THREE.Color('#fff3e2'),
+    uShadowColor: new THREE.Color('#160d07'),
     uOpacity: 0.28,
     uFocusIntensity: 0.5,
     uDegradedFactor: 0,

@@ -47,6 +47,74 @@ const mixHex = (colorA, colorB, ratio = 0.5) => {
   })
 }
 
+// ── Data-driven warm color ramp ──────────────────────────────────────────────
+// Hue is driven by the user's REAL valence — never a purple default. The orb
+// lives in the warm filmic palette; cool violet appears ONLY when valence is
+// genuinely at the floor (deep, joyless listening). Mid valence reads as warm
+// peach-rose-gold, NOT lavender. A missing valence falls back to neutral warm.
+//
+// Stops: valence position -> core hue.
+const VALENCE_STOPS = [
+  { at: 0.00, color: '#b59cff' }, // extreme-low only: cool violet
+  { at: 0.18, color: '#ff6f93' }, // deep rose
+  { at: 0.38, color: '#ff8aa8' }, // rose
+  { at: 0.55, color: '#ffb88a' }, // warm rose-gold (mid valence lands here)
+  { at: 0.75, color: '#ffb35a' }, // amber
+  { at: 1.00, color: '#ffd89b' }, // gold (high valence)
+]
+const NEUTRAL_WARM = '#ffc69b' // valence unknown → filmic amber, never purple
+
+function lightenHex(hex, amount = 0.2) {
+  return mixHexLocal(hex, '#ffffff', amount)
+}
+
+// Local mixHex alias kept above the export-time hoist of mixHex's definition.
+function mixHexLocal(colorA, colorB, ratio) {
+  const amount = Math.max(0, Math.min(1, ratio))
+  const a = hexToRgb(colorA)
+  const b = hexToRgb(colorB)
+  return rgbToHex({
+    r: a.r + ((b.r - a.r) * amount),
+    g: a.g + ((b.g - a.g) * amount),
+    b: a.b + ((b.b - a.b) * amount),
+  })
+}
+
+function sampleValenceRamp(valence) {
+  if (valence == null) return NEUTRAL_WARM
+  const v = Math.max(0, Math.min(1, valence))
+  for (let i = 0; i < VALENCE_STOPS.length - 1; i += 1) {
+    const lo = VALENCE_STOPS[i]
+    const hi = VALENCE_STOPS[i + 1]
+    if (v >= lo.at && v <= hi.at) {
+      const t = (v - lo.at) / Math.max(hi.at - lo.at, 1e-6)
+      return mixHexLocal(lo.color, hi.color, t)
+    }
+  }
+  return VALENCE_STOPS[VALENCE_STOPS.length - 1].color
+}
+
+// Build the full warm palette from real signal. Valence drives hue; energy and
+// brightness only shift luminosity, never hue.
+function deriveSignalColors({ valence, energy, brightness }) {
+  const core = sampleValenceRamp(valence)
+  // Glow is a brighter, slightly more saturated sibling of the core; higher
+  // energy lifts it a touch (more inner light), kept calm.
+  const energyLift = energy == null ? 0.12 : 0.08 + energy * 0.16
+  const glow = lightenHex(core, energyLift)
+  const accent = lightenHex(core, 0.34)
+  // Brightness (sonic) raises the whole core's luminosity ceiling.
+  const lum = brightness == null ? 0.5 : brightness
+  const litCore = lightenHex(core, lum * 0.16)
+  return {
+    primary: litCore,
+    secondary: glow,
+    accent,
+    shadow: mixHexLocal(core, '#140a08', 0.74), // warm deep charcoal, not blue-black
+    aura: mixHexLocal(glow, accent, 0.45),
+  }
+}
+
 const TRAIT_BASES = {
   dreamy: {
     core: '#7c6fff',
@@ -279,11 +347,6 @@ export function deriveOrbProfile({
   const formation = deriveConfidenceState(confidence, dataQuality)
 
   const traitBase = TRAIT_BASES[traits.primary?.id] || TRAIT_BASES.cosmic
-  const moodBase = MOOD_FAMILIES[moodFamily] || MOOD_FAMILIES.dreamy
-
-  const primaryColor = mixHex(traitBase.core, moodBase.primary, 0.45)
-  const secondaryColor = mixHex((TRAIT_BASES[traits.secondary?.id] || traitBase).aura, moodBase.secondary, 0.5)
-  const accentColor = mixHex(traitBase.accent, moodBase.accent, 0.55 + listeningStyle.rarity * 0.15)
 
   const energy = clamp(audioFeatures.energy)
   const valence = clamp(audioFeatures.valence)
@@ -316,6 +379,14 @@ export function deriveOrbProfile({
   const glowIntensity = (0.55 + ((valence ?? 0.35) * 0.3) + (brightnessInfluence * 0.15)) * formation.complexity
   const ringWarp = (identityAxes.structure === 'fluid' ? 0.22 : 0.08) + (getTraitScore(personality, 'chaotic') * 0.12)
 
+  // Warm, valence-driven palette (no purple default). Brightness lifts the
+  // inner-core luminosity; energy gives the glow a touch more inner light.
+  const signalColors = deriveSignalColors({
+    valence,
+    energy,
+    brightness: listeningStyle.brightness,
+  })
+
   const evidence = [
     energy != null ? `Energy ${Math.round(energy * 100)}% shapes its pulse` : null,
     valence != null ? `Valence ${Math.round(valence * 100)}% drives the emotional light` : null,
@@ -331,13 +402,7 @@ export function deriveOrbProfile({
     identityAxes,
     formation,
     listeningStyle,
-    colors: {
-      primary: primaryColor,
-      secondary: secondaryColor,
-      accent: accentColor,
-      shadow: mixHex(primaryColor, '#050816', 0.72),
-      aura: mixHex(secondaryColor, accentColor, 0.45),
-    },
+    colors: signalColors,
     behavior: {
       pulseSpeed,
       pulseAmplitude,

@@ -171,6 +171,12 @@ function OrbCore({ presentation, hovered }) {
   const plasmaMaterialRef = useRef()
   const coreMaterialRef = useRef()
   const { palette, behavior } = presentation
+  // Warm white-hot heart: the core hue lifted toward a warm white, NOT pure
+  // cold #fff. Computed once per palette change, never in useFrame.
+  const warmNucleus = useMemo(
+    () => `#${new THREE.Color(palette.core).lerp(new THREE.Color('#fff3e0'), 0.6).getHexString()}`,
+    [palette.core],
+  )
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime()
@@ -220,6 +226,7 @@ function OrbCore({ presentation, hovered }) {
       plasmaMaterialRef.current.uFocusIntensity = presentation.shader.focusIntensity
       plasmaMaterialRef.current.uDegradedFactor = presentation.shader.degradedFactor
       plasmaMaterialRef.current.uDuality = presentation.shader.duality
+      plasmaMaterialRef.current.uCoreGlow = presentation.shader.coreGlow
     }
 
     if (coreMaterialRef.current) {
@@ -235,6 +242,7 @@ function OrbCore({ presentation, hovered }) {
       coreMaterialRef.current.uFocusIntensity = presentation.shader.focusIntensity + 0.12
       coreMaterialRef.current.uDegradedFactor = presentation.shader.degradedFactor
       coreMaterialRef.current.uDuality = presentation.shader.duality * 0.8
+      coreMaterialRef.current.uCoreGlow = Math.min(1, presentation.shader.coreGlow + 0.16)
     }
   })
 
@@ -255,14 +263,16 @@ function OrbCore({ presentation, hovered }) {
         <soulOrbPlasmaMaterial ref={coreMaterialRef} transparent depthWrite={false} />
       </mesh>
 
+      {/* Inner nucleus: a warm lit heart, tinted toward the core color rather
+          than a cold glossy white ball. Dimmer so the dust does the talking. */}
       <mesh ref={nucleusRef}>
         <sphereGeometry args={[0.22, 28, 28]} />
-        <meshBasicMaterial color="#fff4ff" transparent opacity={0.36 + presentation.shader.focusIntensity * 0.14} />
+        <meshBasicMaterial color={warmNucleus} transparent opacity={0.22 + presentation.shader.focusIntensity * 0.12} />
       </mesh>
 
       <mesh scale={[0.48, 0.48, 0.48]}>
         <sphereGeometry args={[1, 20, 20]} />
-        <meshBasicMaterial color={palette.ring} transparent opacity={0.22 + presentation.shader.focusIntensity * 0.1} />
+        <meshBasicMaterial color={palette.aura} transparent opacity={0.12 + presentation.shader.focusIntensity * 0.08} />
       </mesh>
     </group>
   )
@@ -290,9 +300,11 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false }) {
   return (
     <group ref={groupRef}>
       <OrbCore presentation={presentation} hovered={hovered} />
-      <OrbRing radius={1.42} color={presentation.palette.ring} opacity={0.22} behavior={presentation.behavior} axis={[1.05, 0.18, 0.12]} stretch={[1.24, 0.82, 1.08]} />
-      <OrbRing radius={1.62} color={presentation.palette.glow} opacity={0.18} behavior={presentation.behavior} axis={[1.2, 0.56, 0.46]} stretch={[1.38, 0.78, 1.18]} broken rotationOffset={0.9} />
-      <OrbRing radius={1.86} color={presentation.palette.shell} opacity={0.12} behavior={presentation.behavior} axis={[0.94, -0.38, -0.18]} stretch={[1.58, 0.68, 1.32]} />
+      {/* Rings demoted to faint dust arcs — atmosphere, not a defined ring.
+          The nebula reads as a cloud, with these as the barest orbital haze. */}
+      <OrbRing radius={1.42} color={presentation.palette.ring} opacity={0.06} behavior={presentation.behavior} axis={[1.05, 0.18, 0.12]} stretch={[1.24, 0.82, 1.08]} />
+      <OrbRing radius={1.62} color={presentation.palette.glow} opacity={0.05} behavior={presentation.behavior} axis={[1.2, 0.56, 0.46]} stretch={[1.38, 0.78, 1.18]} broken rotationOffset={0.9} />
+      <OrbRing radius={1.86} color={presentation.palette.shell} opacity={0.035} behavior={presentation.behavior} axis={[0.94, -0.38, -0.18]} stretch={[1.58, 0.68, 1.32]} />
       <OrbParticleHalo
         count={Math.max(6, presentation.behavior.satelliteCount * 4)}
         color={presentation.palette.glow}
@@ -404,7 +416,7 @@ export default function MusicSoulOrb(props) {
   const allowHoverFx = !adaptive.isCoarsePointer && !adaptive.prefersReducedMotion
 
   const { signal: polledSignal } = useLiveTasteSignal({ enabled: !liveSignalProp && !effectiveLowPower && showLabels, pollMs: 15000 })
-  const presentation = useSoulOrbController({ ...props, resonance, liveSignal: liveSignalProp || polledSignal })
+  const presentation = useSoulOrbController({ ...props, resonance, liveSignal: liveSignalProp || polledSignal, reducedMotion: adaptive.prefersReducedMotion })
 
   return (
     <motion.div

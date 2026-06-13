@@ -23,6 +23,7 @@ export default function useSoulOrbController({
   resonance,
   liveSignal,
   mode = null,
+  reducedMotion = false,
 }) {
   return useMemo(() => {
     const baseProfile = deriveOrbProfile({
@@ -49,16 +50,19 @@ export default function useSoulOrbController({
     const noveltyScore = Math.max(0, Math.min(1, liveSignal?.noveltyScore || 0))
     const repeatScore = Math.max(0, Math.min(1, liveSignal?.repeatScore || 0))
     const eventCount = liveSignal?.eventCount || 0
+    // Reduced motion → freeze the drift to a near-still, gentle state. Speeds
+    // collapse toward zero; the orb still breathes faintly but never churns.
+    const motionScale = reducedMotion ? 0.1 : 1
     const behavior = {
       ...baseBehavior,
-      pulseSpeed: baseBehavior.pulseSpeed * (1 + sessionIntensity * 0.22),
+      pulseSpeed: baseBehavior.pulseSpeed * (1 + sessionIntensity * 0.22) * motionScale,
       glowIntensity: baseBehavior.glowIntensity * (1 + sessionIntensity * 0.18),
-      rotationSpeed: baseBehavior.rotationSpeed * (1 + noveltyScore * 0.2),
+      rotationSpeed: baseBehavior.rotationSpeed * (1 + noveltyScore * 0.2) * motionScale,
       particleOpacity: Math.min(0.98, baseBehavior.particleOpacity + sessionIntensity * 0.12),
       duality: Math.min(1, baseBehavior.duality + noveltyScore * 0.08),
       coherence: Math.min(1, baseBehavior.coherence + repeatScore * 0.05),
       focusIntensity: Math.min(1, baseBehavior.focusIntensity + sessionIntensity * 0.08),
-      noiseSpeed: baseBehavior.noiseSpeed * (1 + sessionIntensity * 0.16),
+      noiseSpeed: baseBehavior.noiseSpeed * (1 + sessionIntensity * 0.16) * (reducedMotion ? 0.18 : 1),
       satelliteCount: Math.max(baseBehavior.satelliteCount, baseBehavior.satelliteCount + Math.round(eventCount / 6)),
     }
     const caption = buildSoulOrbCaption(blendedProfile, resonance, variantName)
@@ -80,6 +84,9 @@ export default function useSoulOrbController({
         fresnelIntensity: behavior.fresnelIntensity,
         auraScale: behavior.auraScale,
         duality: behavior.duality,
+        // Inner-light strength: mood/brightness → how far the warm heart glow
+        // bleeds out through the dust. Clamped to a calm ceiling.
+        coreGlow: Math.max(0.25, Math.min(1, behavior.coreBrightness)),
       },
       threads: {
         visible: variant.threadOpacity > 0,
