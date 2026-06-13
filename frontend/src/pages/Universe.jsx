@@ -38,6 +38,7 @@ import useAdaptiveExperience   from '../hooks/useAdaptiveExperience'
 import useUniversePresence     from '../hooks/useUniversePresence'
 import useGalaxyInteractionStore from '../features/galaxy/useGalaxyInteractionStore'
 import { useGalaxyStageConfig } from '../features/galaxy/useGalaxyStage'
+import GalaxyTraversalHUD from '../features/galaxy/GalaxyTraversalHUD'
 import { buildGalaxyModel, buildGalaxyModeModel } from '../features/galaxy/galaxyBuilder'
 import useGalaxyArtifact        from '../features/galaxy/useGalaxyArtifact'
 import { resolveInteractionEntity, slugifyInteraction } from '../features/galaxy/interactionModel'
@@ -679,6 +680,11 @@ export default function Universe() {
         <div className="absolute inset-0 flex items-center justify-center">
           <NebulaLoader label="Tuning the universe" detail="Laying out your listening cosmos." />
         </div>
+      )}
+
+      {/* Fly-through lifeline: recenter + drift + controls hint. */}
+      {!isLoading && (
+        <GalaxyTraversalHUD reducedMotion={adaptive.reducedMotion} coarsePointer={adaptive.touchDevice} />
       )}
 
       {/* Genesis Sequence — cinematic formation on first open */}

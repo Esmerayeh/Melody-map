@@ -3,29 +3,55 @@
  * ------------------
  * R3F hook — MUST be used inside a Canvas / R3F context.
  *
- * Controls:
- *   W/A/S/D     fly in camera-local space
- *   Shift       speed boost (3×)
- *   Space       scan pulse (calls onScanPulse)
- *   R           return to Soul Orb core (0, 0, 0)
- *   F           focus on current focusTarget
- *   T           toggle cinematic tour orbit
+ * First-person drift through the galaxy, anchored by click-to-focus so the
+ * user can never get lost.
  *
- * Design rules:
- *   - No React state in the frame loop — all refs
- *   - Smooth lerp everywhere — no hard snaps, no nausea
- *   - Disabled when reducedMotion = true (WASD still works, no camera drift)
- *   - Clean mode switch: WASD flight disables OrbitControls autoRotate temporarily
+ * Controls:
+ *   Drag           steer the view (OrbitControls rotate, damped)
+ *   Scroll         dolly forward / back (OrbitControls zoom)
+ *   W / S          fly forward / back along view direction
+ *   A / D          strafe left / right
+ *   Shift          gentle speed boost
+ *   R              recenter to the overview framing
+ *   F              focus the current focusTarget
+ *   Space          scan pulse
+ *   window event 'galaxy:recenter'  → same as R (dispatched by the HUD button)
+ *
+ * Design rules (per the r3f + universe skills):
+ *   - NO per-frame allocations: all vectors are reused refs, lerped in place.
+ *   - No React state in the frame loop.
+ *   - Everything eased — accelerate/decelerate, never instant. Dreamy, calm.
+ *   - Speed is clamped to a calm ceiling (drifting through fog, not racing).
+ *   - Position is SOFT-bounded to a sphere: fly to the edge and you are gently
+ *     eased back, never hard-stopped, never lost in empty black.
+ *   - reducedMotion: free-flight drift disabled; click-to-focus still glides,
+ *     gently and briefly. Vestibular safety.
  */
 import { useEffect, useRef } from 'react'
 import { useFrame, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
 
-const FLY_SPEED   = 0.14    // units per frame at 60fps
-const BOOST_MULT  = 3.2
-const FLY_LERP    = 0.14
-const RETURN_LERP = 0.055   // slow, cinematic return
-const TOUR_SPEED  = 0.10    // rad/s cinematic orbit
+const FLY_SPEED   = 0.14    // base units/frame at 60fps — calm
+const BOOST_MULT  = 2.4
+const FLY_LERP    = 0.12    // velocity easing (accel/decel)
+const MAX_STEP    = 0.42    // hard speed ceiling per frame (calm drift)
+const RETURN_LERP = 0.05    // slow, cinematic recenter/focus glide
+const OVERVIEW    = { x: 0, y: 4, z: 22 }
+
+// Bounded volume: the galaxy lives within ~30 units; soft-pull begins at
+// SOFT_START and fully engages by MAX_RADIUS so the user is eased back rather
+// than flying off into the void.
+const SOFT_START  = 40
+const MAX_RADIUS  = 54
+
+/**
+ * Pure, testable: how strongly to ease the camera back toward the bounded
+ * shell. 0 while inside SOFT_START, ramps to 1 by MAX_RADIUS.
+ */
+export function softBoundEase(distance, softStart = SOFT_START, maxRadius = MAX_RADIUS) {
+  if (!(distance > softStart)) return 0
+  return Math.min(1, (distance - softStart) / Math.max(maxRadius - softStart, 1e-3))
+}
 
 export function useTraversalCamera({
   controlsRef,
@@ -38,145 +64,113 @@ export function useTraversalCamera({
 
   const keysRef       = useRef(new Set())
   const flyVelRef     = useRef(new THREE.Vector3())
+  const dirRef        = useRef(new THREE.Vector3())   // scratch — reused
+  const scratchRef    = useRef(new THREE.Vector3())   // scratch — reused
   const lerpTargetRef = useRef(new THREE.Vector3())
-  const returningRef  = useRef(false)
-  const lerpTRef      = useRef(0)         // lerp progress 0–1
   const lerpFromRef   = useRef(new THREE.Vector3())
-  const tourRef       = useRef(false)
-  const tourAngleRef  = useRef(0)
+  const returningRef  = useRef(false)
+  const lerpTRef      = useRef(0)
   const prevFocusRef  = useRef(null)
 
-  // ── Keyboard listeners ────────────────────────────────────────────────────
+  const beginGlide = (toX, toY, toZ, targetX, targetY, targetZ) => {
+    lerpFromRef.current.copy(camera.position)
+    lerpTargetRef.current.set(toX, toY, toZ)
+    lerpTRef.current = 0
+    returningRef.current = true
+    if (controlsRef?.current) controlsRef.current.target.set(targetX, targetY, targetZ)
+  }
+
+  const recenter = () => beginGlide(OVERVIEW.x, OVERVIEW.y, OVERVIEW.z, 0, 0, 0)
+
+  // ── Keyboard + recenter event ──────────────────────────────────────────────
   useEffect(() => {
     if (!enabled) return undefined
 
     const onDown = (e) => {
-      // Ignore if user is typing in an input
       if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return
       keysRef.current.add(e.code)
 
-      if (e.code === 'KeyR') {
-        // Return to core
-        lerpFromRef.current.copy(camera.position)
-        lerpTargetRef.current.set(0, 4, 22)
-        lerpTRef.current   = 0
-        returningRef.current = true
-        tourRef.current = false
-        if (controlsRef?.current) controlsRef.current.target.set(0, 0, 0)
-      }
-
+      if (e.code === 'KeyR') recenter()
       if (e.code === 'KeyF' && focusTarget) {
-        lerpFromRef.current.copy(camera.position)
-        lerpTargetRef.current.set(
-          focusTarget.x + 8,
-          focusTarget.y + 4,
-          focusTarget.z + 10,
-        )
-        lerpTRef.current    = 0
-        returningRef.current = true
-        tourRef.current = false
-        if (controlsRef?.current) {
-          controlsRef.current.target.set(focusTarget.x, focusTarget.y, focusTarget.z)
-        }
+        beginGlide(focusTarget.x + 8, focusTarget.y + 4, focusTarget.z + 10, focusTarget.x, focusTarget.y, focusTarget.z)
       }
-
-      if (e.code === 'KeyT') tourRef.current = !tourRef.current
-
-      if (e.code === 'Space') {
-        e.preventDefault()
-        onScanPulse?.()
-      }
+      if (e.code === 'Space') { e.preventDefault(); onScanPulse?.() }
     }
-
     const onUp = (e) => keysRef.current.delete(e.code)
+    const onRecenter = () => recenter()
 
     window.addEventListener('keydown', onDown)
     window.addEventListener('keyup', onUp)
+    window.addEventListener('galaxy:recenter', onRecenter)
     return () => {
       window.removeEventListener('keydown', onDown)
       window.removeEventListener('keyup', onUp)
+      window.removeEventListener('galaxy:recenter', onRecenter)
+      keysRef.current.clear()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled, focusTarget, camera, controlsRef, onScanPulse])
 
-  // ── focusTarget change → smooth glide ────────────────────────────────────
+  // ── focusTarget change → smooth glide (click-to-focus, works mid-flight) ────
   useEffect(() => {
     if (!enabled || !focusTarget) return
     const key = `${focusTarget.x},${focusTarget.y},${focusTarget.z}`
     if (key === prevFocusRef.current) return
     prevFocusRef.current = key
-    // Trigger F-key behaviour automatically when a star is selected
-    lerpFromRef.current.copy(camera.position)
-    lerpTargetRef.current.set(
-      focusTarget.x + 8,
-      focusTarget.y + 4,
-      focusTarget.z + 10,
-    )
-    lerpTRef.current    = 0
-    returningRef.current = true
-    if (controlsRef?.current) {
-      controlsRef.current.target.set(focusTarget.x, focusTarget.y, focusTarget.z)
-    }
-  }, [enabled, focusTarget, camera, controlsRef])
+    beginGlide(focusTarget.x + 8, focusTarget.y + 4, focusTarget.z + 10, focusTarget.x, focusTarget.y, focusTarget.z)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enabled, focusTarget])
 
-  // ── Frame loop ────────────────────────────────────────────────────────────
+  // ── Frame loop — NO allocations ─────────────────────────────────────────────
   useFrame((_, delta) => {
     if (!enabled) return
+    const keys  = keysRef.current
+    const step  = Math.min(delta * 60, 3)
+    const boost = keys.has('ShiftLeft') || keys.has('ShiftRight')
+    const speed = FLY_SPEED * (boost ? BOOST_MULT : 1) * step
 
-    const keys   = keysRef.current
-    const boost  = keys.has('ShiftLeft') || keys.has('ShiftRight')
-    const speed  = FLY_SPEED * (boost ? BOOST_MULT : 1) * Math.min(delta * 60, 3)
-
-    // WASD fly — camera-local movement
     const flying = keys.has('KeyW') || keys.has('KeyS') || keys.has('KeyA') || keys.has('KeyD')
     if (flying && !reducedMotion) {
-      const dir = new THREE.Vector3()
+      const dir = dirRef.current.set(0, 0, 0)
       if (keys.has('KeyW')) dir.z -= 1
       if (keys.has('KeyS')) dir.z += 1
       if (keys.has('KeyA')) dir.x -= 1
       if (keys.has('KeyD')) dir.x += 1
-      dir.normalize().applyQuaternion(camera.quaternion)
-      flyVelRef.current.lerp(dir.multiplyScalar(speed), FLY_LERP)
-      camera.position.add(flyVelRef.current)
-      if (controlsRef?.current) {
-        controlsRef.current.target.addScaledVector(flyVelRef.current, 1)
+      if (dir.lengthSq() > 0) {
+        dir.normalize().applyQuaternion(camera.quaternion).multiplyScalar(speed)
+        flyVelRef.current.lerp(dir, FLY_LERP)
       }
+      // Clamp to a calm ceiling.
+      if (flyVelRef.current.length() > MAX_STEP) flyVelRef.current.setLength(MAX_STEP)
+      camera.position.add(flyVelRef.current)
+      if (controlsRef?.current) controlsRef.current.target.addScaledVector(flyVelRef.current, 1)
       returningRef.current = false
     } else {
-      // Decay fly velocity
-      flyVelRef.current.multiplyScalar(0.88)
+      flyVelRef.current.multiplyScalar(0.88) // decay to a stop
     }
 
-    // Smooth lerp return / focus
+    // Soft bounds — ease back toward the shell instead of hard-stopping.
+    const dist = camera.position.length()
+    const ease = softBoundEase(dist)
+    if (ease > 0) {
+      const pull = scratchRef.current.copy(camera.position).setLength(SOFT_START)
+      camera.position.lerp(pull, ease * 0.06)
+      if (controlsRef?.current) controlsRef.current.target.multiplyScalar(1 - ease * 0.02)
+      flyVelRef.current.multiplyScalar(1 - ease * 0.4)
+    }
+
+    // Recenter / focus glide.
     if (returningRef.current) {
-      lerpTRef.current = Math.min(lerpTRef.current + delta * RETURN_LERP * 3.5, 1)
+      lerpTRef.current = Math.min(lerpTRef.current + delta * RETURN_LERP * (reducedMotion ? 6 : 3.5), 1)
       const t = easeOutCubic(lerpTRef.current)
       camera.position.lerpVectors(lerpFromRef.current, lerpTargetRef.current, t)
       if (lerpTRef.current >= 1) returningRef.current = false
-    }
-
-    // Cinematic tour — slow orbit around origin
-    if (tourRef.current && !reducedMotion) {
-      tourAngleRef.current += delta * TOUR_SPEED
-      const radius = clamp(camera.position.length(), 16, 42)
-      const y      = camera.position.y
-      camera.position.set(
-        Math.sin(tourAngleRef.current) * radius,
-        y,
-        Math.cos(tourAngleRef.current) * radius,
-      )
-      camera.lookAt(0, 0, 0)
-      if (controlsRef?.current) controlsRef.current.target.set(0, 0, 0)
     }
 
     if (controlsRef?.current) controlsRef.current.update()
   })
 }
 
-// ── Utilities ─────────────────────────────────────────────────────────────
 function easeOutCubic(t) {
   return 1 - (1 - t) ** 3
-}
-
-function clamp(v, min, max) {
-  return Math.max(min, Math.min(max, v))
 }

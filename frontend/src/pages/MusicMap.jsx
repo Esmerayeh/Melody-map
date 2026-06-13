@@ -14,6 +14,7 @@ import GalaxyControls from '../features/galaxy/GalaxyControls'
 import GalaxyInspector from '../features/galaxy/GalaxyInspector'
 import GalaxyLegend from '../features/galaxy/GalaxyLegend'
 import { useGalaxyStageConfig } from '../features/galaxy/useGalaxyStage'
+import GalaxyTraversalHUD from '../features/galaxy/GalaxyTraversalHUD'
 import SoulResonancePanel from '../components/SoulResonancePanel'
 import ProfileBootPanel from '../components/ProfileBootPanel'
 import { useRouteReadiness } from '../hooks/useRouteReadiness'
@@ -121,6 +122,9 @@ export default function MusicMap() {
   const [loading, setLoading] = useState(true)
   const [isDemo, setIsDemo] = useState(true)
   const [isCoarsePointer, setIsCoarsePointer] = useState(false)
+  // Scan pulse (Space key) for the fly-through; bump a counter the scene watches.
+  const [scanPulseCount, setScanPulseCount] = useState(0)
+  const handleScanPulse = useCallback(() => setScanPulseCount((n) => n + 1), [])
   // Hard cap on any boot/loading panel: after ~1.2s the route renders the scene
   // with whatever model exists (demo if nothing else), so the galaxy can never
   // sit behind a loader waiting on the network.
@@ -488,7 +492,14 @@ export default function MusicMap() {
     lowPower: adaptive.lowPowerMode,
     reducedMotion: adaptive.prefersReducedMotion,
     webglEnabled: adaptive.webglSupported,
-  }, [activeModel, sparseMode, adaptive.lowPowerMode, adaptive.prefersReducedMotion, adaptive.webglSupported])
+    // First-person fly-through: drag to look, W/S/A/D to fly, scroll to dolly,
+    // click-to-focus to anchor. Disabled on coarse pointers (touch keeps drag +
+    // pinch + tap-to-focus). Gentle auto-drift, off under reduced motion.
+    traversalEnabled: !adaptive.isCoarsePointer,
+    scanPulseCount,
+    onScanPulse: handleScanPulse,
+    autoRotateSpeed: adaptive.prefersReducedMotion ? 0 : 0.12,
+  }, [activeModel, sparseMode, adaptive.lowPowerMode, adaptive.prefersReducedMotion, adaptive.webglSupported, adaptive.isCoarsePointer, scanPulseCount, handleScanPulse])
 
   // This early return must stay BELOW every hook above (Rules of Hooks): it
   // renders conditionally, and a conditional return before hooks made the hook
@@ -529,6 +540,9 @@ export default function MusicMap() {
         onSelectCluster={handleSelectCluster}
         onSelectRegion={handleSelectRegion}
       />
+      {!(loading || galaxyLoading) && (
+        <GalaxyTraversalHUD reducedMotion={adaptive.prefersReducedMotion} coarsePointer={isCoarsePointer} />
+      )}
     </div>
   )
 
