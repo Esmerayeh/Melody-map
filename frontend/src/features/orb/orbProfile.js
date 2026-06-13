@@ -115,6 +115,18 @@ function deriveSignalColors({ valence, energy, brightness }) {
   }
 }
 
+// Public helper for the 2D share cards: the SAME warm valence-driven palette
+// the WebGL orb uses, so a card and the live orb always agree. Neutral filmic
+// amber when valence is missing — never purple.
+export function deriveWarmOrbColors({ audioFeatures = {}, analyticsMetrics = {} } = {}) {
+  const valence = clamp(audioFeatures.valence)
+  const energy = clamp(audioFeatures.energy)
+  const brightness = analyticsMetrics?.sonicBrightness != null
+    ? Math.max(0, Math.min(1, Number(analyticsMetrics.sonicBrightness) / 100))
+    : null
+  return deriveSignalColors({ valence, energy, brightness })
+}
+
 const TRAIT_BASES = {
   dreamy: {
     core: '#7c6fff',

@@ -11,13 +11,19 @@ export default forwardRef(function SoulmateShareCard({ match = {}, userAName = '
   const atmosphere = match.sharedAtmosphereIdentity || {}
   const duo = match.duoIdentity || {}
   const orb = match.combinedSoulOrb || {}
-  const colors = orb.colors || atmosphere.palette || ['#b59cff', '#f1aadb', '#9fdcff']
+  // Warm filmic fallback — never purple — when the match has no orb palette.
+  const colors = orb.colors || atmosphere.palette || ['#ffba95', '#ffc9a8', '#ffd8b0']
   const mood = atmosphere.name || match.sharedAtmosphere?.[0] || match.moodAlignment || 'soft resonance'
   const line = duo.oneLine || match.compatibilityNarrative || match.archetypeSummary || 'Two listening worlds crossing through shared atmosphere and beautiful contrast.'
 
   return (
     <div ref={ref} className="share-card share-card-square relative overflow-hidden rounded-[32px] border border-white/12 p-6 text-white">
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_28%_42%,rgba(181,156,255,0.36),transparent_28%),radial-gradient(circle_at_72%_42%,rgba(241,170,203,0.3),transparent_28%),radial-gradient(circle_at_50%_72%,rgba(159,220,255,0.14),transparent_30%),linear-gradient(160deg,#060713,#150b24_54%,#04050d)]" />
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `radial-gradient(circle at 28% 42%, ${colors[0]}3d, transparent 28%), radial-gradient(circle at 72% 42%, ${colors[1] || colors[0]}33, transparent 28%), radial-gradient(circle at 50% 72%, ${colors[2] || colors[0]}1f, transparent 30%), linear-gradient(160deg, #0b0806, #160d09 54%, #060403)`,
+        }}
+      />
       <div className="relative z-10 flex min-h-[600px] flex-col justify-between gap-7">
         <div>
           <p className="text-sm tracking-[0.18em] text-white/62">Melody Map Soulmates</p>
@@ -25,7 +31,7 @@ export default forwardRef(function SoulmateShareCard({ match = {}, userAName = '
         </div>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-4">
           <div className="text-center">
-            <div className="mx-auto h-24 w-24 rounded-full border border-white/18 shadow-[0_0_44px_rgba(181,156,255,0.35)]" style={{ background: `radial-gradient(circle at 40% 38%, #fff, ${colors[0]} 22%, #30205d 66%)` }} />
+            <div className="mx-auto h-24 w-24 rounded-full border border-white/18" style={{ background: `radial-gradient(circle at 40% 38%, #fff8f0, ${colors[0]} 22%, #241509 66%)`, boxShadow: `0 0 44px ${colors[0]}44` }} />
             <p className="mt-3 text-sm font-semibold">{userAName}</p>
           </div>
           <div className="text-center">
@@ -33,7 +39,7 @@ export default forwardRef(function SoulmateShareCard({ match = {}, userAName = '
             <p className="mt-1 text-xs text-white/58">{match.relationshipArchetype || match.compatibilityTier || 'shared orbit'}</p>
           </div>
           <div className="text-center">
-            <div className="mx-auto h-24 w-24 rounded-full border border-white/18 shadow-[0_0_44px_rgba(241,170,203,0.35)]" style={{ background: `radial-gradient(circle at 40% 38%, #fff, ${colors[1] || colors[0]} 22%, #432044 66%)` }} />
+            <div className="mx-auto h-24 w-24 rounded-full border border-white/18" style={{ background: `radial-gradient(circle at 40% 38%, #fff8f0, ${colors[1] || colors[0]} 22%, #241509 66%)`, boxShadow: `0 0 44px ${(colors[1] || colors[0])}44` }} />
             <p className="mt-3 text-sm font-semibold">{userBName}</p>
           </div>
         </div>
