@@ -950,15 +950,21 @@ function TasteCore({ core, model, galaxyMode }) {
       {[1.7, 1.28, 0.94].map((factor, index) => (
         <mesh key={`${factor}`}>
           <sphereGeometry args={[factor, 28, 28]} />
-          <meshBasicMaterial color={index === 0 ? '#f0c089' : index === 1 ? core.color : '#fff1d6'} transparent opacity={index === 0 ? 0.07 : index === 1 ? 0.11 : 0.14} blending={THREE.AdditiveBlending} depthWrite={false} />
+          {/* Middle halo shell warmed off the purple data fallback (#8b5cf6)
+              to gold #ffd89b — sits between the amber outer (#f0c089) and the
+              near-white inner (#fff1d6) for a peach-gold gradient, no purple. */}
+          <meshBasicMaterial color={index === 0 ? '#f0c089' : index === 1 ? '#ffd89b' : '#fff1d6'} transparent opacity={index === 0 ? 0.07 : index === 1 ? 0.11 : 0.14} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
       ))}
       {/* core mesh emissive base/hover/select dropped ~35%: 0.9/1.2/1.5 -> 0.58/0.78/0.98 */}
       <mesh>
         <sphereGeometry args={[0.85, 28, 28]} />
+        {/* Core sphere forced to the app's warm valence tone (#ffba95, the same
+            peach the Soul Orb uses) instead of the purple data fallback
+            (#8b5cf6). Colour/emissive only — size, glow, intensity unchanged. */}
         <MeshDistortMaterial
-          color={core.color}
-          emissive={core.color}
+          color="#ffba95"
+          emissive="#ffba95"
           emissiveIntensity={selected ? 0.98 : hovered ? 0.78 : 0.58}
           roughness={0.14}
           metalness={0.58}
