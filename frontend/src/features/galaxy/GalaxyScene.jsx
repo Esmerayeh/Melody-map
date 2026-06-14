@@ -310,8 +310,8 @@ function GalaxyNebulae({ sparseGraphics = false, reducedMotion = false }) {
   return <>{groups.map((g, i) => <primitive key={i} object={g} />)}</>
 }
 
-function CameraTracker({ onDistance, distanceRef }) {
-  const last = useRef({ t: 0, d: 0 })
+function CameraTracker({ onDistance, onPosition, distanceRef }) {
+  const last = useRef({ t: 0, d: 0, p: new THREE.Vector3() })
   useFrame(({ camera, clock }) => {
     const d = camera.position.length()
     // Always keep the ref hot for frame-loop consumers (no React re-render).
@@ -319,10 +319,15 @@ function CameraTracker({ onDistance, distanceRef }) {
     // Throttle the React state update that drives label visibility to <=4/sec
     // and only on a meaningful change, so the scene graph does NOT re-render
     // every frame (previously ~60 re-renders/sec of the whole SceneContents).
+    // Label LOD also keys off camera POSITION (per-node distance gating), so
+    // fire when the camera has translated enough even if its distance from
+    // centre is unchanged (e.g. flying across the cloud at a fixed radius).
     const now = clock.getElapsedTime()
-    if (now - last.current.t > 0.25 && Math.abs(d - last.current.d) > 0.4) {
-      last.current = { t: now, d }
+    const moved = camera.position.distanceTo(last.current.p)
+    if (now - last.current.t > 0.25 && (Math.abs(d - last.current.d) > 0.4 || moved > 1.2)) {
+      last.current = { t: now, d, p: camera.position.clone() }
       onDistance(d)
+      if (onPosition) onPosition({ x: camera.position.x, y: camera.position.y, z: camera.position.z })
     }
   })
   return null
@@ -482,17 +487,31 @@ function getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode) {
   return { visible: true, opacity: node.type === 'track' ? 0.5 : 0.95 }
 }
 
-function shouldShowNodeLabel(node, cameraDistance, selected, hovered) {
+// Label level-of-detail bands. cameraDistance is distance from the galaxy
+// CENTRE; camDist is distance from the camera to THIS node. The two modes:
+//   overview  (camera outside, looking at the whole galaxy) — wide genre
+//             spread, structure-first, the look the user liked.
+//   immersive (camera flown INTO the cloud) — without per-node gating the far
+//             side of the ring projects all its labels onto screen-centre and
+//             piles into mush. So in immersive mode EVERY label, genres
+//             included, drops once it is more than N units from the camera.
+const IMMERSIVE_ENTER       = 20   // cameraDistance below this = flying through
+const IMMERSIVE_GENRE_MAX   = 30   // a genre region labels only while this near
+const IMMERSIVE_ARTIST_MAX  = 19
+const IMMERSIVE_TRACK_MAX    = 10
+
+function shouldShowNodeLabel(node, cameraDistance, selected, hovered, immersive, camDist) {
   if (selected || hovered) return true
   const sig = node.metrics?.significance ?? node.significance ?? 0
-  // Genres = always-on region titles. Top artists = always-on named stars.
-  // Lesser artists + tracks reveal their label only as the camera approaches.
-  if (node.type === 'genre') return true
+  // Genres = region titles. Always on in overview; in immersive mode only the
+  // nearby regions, so the far arc of the ring stops stacking onto centre.
+  if (node.type === 'genre') return immersive ? camDist < IMMERSIVE_GENRE_MAX : true
   if (node.type === 'artist') {
-    if (node.role === 'anchor-star' || node.role === 'bridge-star' || sig > 0.48) return true
-    return cameraDistance < 18
+    const alwaysOn = node.role === 'anchor-star' || node.role === 'bridge-star' || sig > 0.48
+    if (immersive) return camDist < IMMERSIVE_ARTIST_MAX && (alwaysOn || camDist < IMMERSIVE_ARTIST_MAX * 0.7)
+    return alwaysOn || cameraDistance < 18
   }
-  if (node.type === 'track') return cameraDistance < 11 && sig > 0.5
+  if (node.type === 'track') return cameraDistance < 11 && sig > 0.5 && (!immersive || camDist < IMMERSIVE_TRACK_MAX)
   return false
 }
 
@@ -504,25 +523,40 @@ function labelPriority(node) {
   return 1
 }
 
-function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode) {
+function nodeCamDistance(node, cameraPos) {
+  if (!cameraPos) return 0
+  const p = node.position || { x: 0, y: 0, z: 0 }
+  const dx = p.x - cameraPos.x
+  const dy = p.y - cameraPos.y
+  const dz = p.z - cameraPos.z
+  return Math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
+}
+
+function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode, cameraPos) {
+  const immersive = cameraDistance < IMMERSIVE_ENTER
   const candidates = nodes
     .filter((node) => NODE_TYPES_WITH_LABELS.has(node.type))
     .filter((node) => getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode).visible)
-    .filter((node) => {
+    .map((node) => ({ node, camDist: nodeCamDistance(node, cameraPos) }))
+    .filter(({ node, camDist }) => {
       const objectType = node.type === 'cluster' ? 'cluster' : node.type
       const objectId = node.type === 'cluster' ? node.clusterId : node.id
       const selected = focusedObject?.id === objectId && focusedObject?.type === objectType
       const hovered = hoveredObject?.id === objectId && hoveredObject?.type === objectType
-      return shouldShowNodeLabel(node, cameraDistance, selected, hovered)
+      return shouldShowNodeLabel(node, cameraDistance, selected, hovered, immersive, camDist)
     })
-    .sort((left, right) => labelPriority(right) - labelPriority(left))
+    // Nearer labels win collisions in immersive mode (distance penalty), so the
+    // star you are flying toward keeps its name and the ones behind it yield.
+    .sort((left, right) =>
+      (labelPriority(right.node) - (immersive ? right.camDist * 0.12 : 0)) -
+      (labelPriority(left.node) - (immersive ? left.camDist * 0.12 : 0)))
 
-  // Collision spacing in world units. Genres are exempt (they are the
-  // structure and are already well-separated by the tier layout); artists and
-  // tracks declutter against everything already accepted, so the higher-
-  // priority node in a cluster keeps its label and the rest wait for approach.
-  const threshold = cameraDistance < 10 ? 2.0 : cameraDistance < 16 ? 2.8 : 3.6
-  const maxLabels = sparseMode ? 12 : 30
+  // Collision spacing in world units. In OVERVIEW genres are exempt (they are
+  // the structure, already well-separated, and read as a wide editorial
+  // spread). In IMMERSIVE mode genres collide too and the label budget is
+  // small — that is what stops the centre pile when you fly through the cloud.
+  const threshold = cameraDistance < 10 ? 2.2 : cameraDistance < 16 ? 2.8 : 3.6
+  const maxLabels = immersive ? (sparseMode ? 7 : 11) : (sparseMode ? 12 : 30)
   const accepted = []
   const layout = new Map()
 
@@ -535,12 +569,14 @@ function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, sh
     })
   }
 
-  candidates.forEach((node) => {
-    if (node.type === 'genre') { place(node); return } // never suppressed
+  candidates.forEach(({ node }) => {
+    if (node.type === 'genre' && !immersive) { place(node); return } // overview: never suppressed
     if (accepted.length >= maxLabels) return
     const position = node.position || { x: 0, y: 0, z: 0 }
     const collides = accepted.some((acceptedNode) => {
-      if (acceptedNode.type === 'genre') return false // labels float above regions; don't block on them
+      // In overview, labels float above genre regions and don't block on them;
+      // in immersive everything competes for screen space, genres included.
+      if (acceptedNode.type === 'genre' && !immersive) return false
       const other = acceptedNode.position || { x: 0, y: 0, z: 0 }
       const dx = position.x - other.x
       const dy = position.y - other.y
@@ -1246,6 +1282,7 @@ function SceneContents({
   // (nodes, labels, edges, focus) reads from this laid-out model.
   const model = useMemo(() => applyTierLayout(rawModel), [rawModel])
   const [cameraDistance, setCameraDistance] = useState(24)
+  const [cameraPos, setCameraPos] = useState(null)
   const cameraDistanceRef = useRef(24)
   const galaxyMode = useGalaxyInteractionStore((state) => state.galaxyMode)
   const viewMode = useGalaxyInteractionStore((state) => state.constellationMode ? 'constellation' : state.viewMode)
@@ -1278,9 +1315,9 @@ function SceneContents({
   // keep rendering as a silent background.
   const labelLayout = useMemo(
     () => (showLabels
-      ? buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode)
+      ? buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode, cameraPos)
       : EMPTY_LABEL_LAYOUT),
-    [showLabels, cameraDistance, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
+    [showLabels, cameraDistance, cameraPos, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
   )
 
   // Single animation driver for all GalaxyNode instances.
@@ -1443,7 +1480,7 @@ function SceneContents({
         />
       ))}
 
-      <CameraTracker onDistance={setCameraDistance} distanceRef={cameraDistanceRef} />
+      <CameraTracker onDistance={setCameraDistance} onPosition={setCameraPos} distanceRef={cameraDistanceRef} />
       <FocusController
         focusTarget={focusTarget}
         controlsRef={controlsRef}
