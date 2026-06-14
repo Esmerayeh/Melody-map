@@ -35,8 +35,8 @@ test('pull is monotonic increasing across the band', () => {
 })
 
 test('default soft band engages before the absolute edge', () => {
-  // With defaults (SOFT_START 160 .. MAX_RADIUS 200, sized to the SPREAD_SCALE
-  // galaxy), a camera at 180 units is being eased back but not maxed.
-  const v = softBoundEase(180)
+  // With defaults (SOFT_START 260 .. MAX_RADIUS 330, sized to the SPREAD_SCALE
+  // galaxy), a camera at 295 units is being eased back but not maxed.
+  const v = softBoundEase(295)
   assert.ok(v > 0 && v < 1)
 })

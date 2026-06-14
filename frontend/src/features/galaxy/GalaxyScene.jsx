@@ -10,7 +10,7 @@ import { slugifyInteraction } from './interactionModel.js'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
 import GalaxySceneBoundary from './GalaxySceneBoundary'
 import GalaxyAudioController from './GalaxyAudioController'
-import { applyTierLayout } from './galaxyTierLayout'
+import { applyTierLayout, SPREAD_SCALE } from './galaxyTierLayout'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
 const EMPTY_LABEL_LAYOUT = new Map() // stable ref for the no-labels (off-route) state
@@ -38,7 +38,7 @@ const GLOW_LAG_LAMBDA  = 80    // glow follows scale activation with ~40ms lag
 // A gentle dolly/look-at EASE toward the selected star (not a free orbit). Once
 // the ease completes, OrbitControls takes over again (orbiting the new target).
 const FOCUS_OFFSET     = new THREE.Vector3(10, 5.5, 12.5) // camera offset from the focused point
-const RESTING_POS      = new THREE.Vector3(0, 0, 65)      // home framing (matches default camera; scaled to the SPREAD_SCALE galaxy)
+const RESTING_POS      = new THREE.Vector3(0, 0, 105)     // home framing (matches default camera; scaled to the SPREAD_SCALE galaxy)
 const RESTING_TARGET   = new THREE.Vector3(0, 0, 0)
 const FOCUS_DURATION   = 0.8                              // seconds for the focus ease
 const easeOutCubic     = (x) => 1 - Math.pow(1 - x, 3)
@@ -788,7 +788,10 @@ function RegionParticles({ region, selected, hovered }) {
   })
 
   return (
-    <points ref={pointsRef} geometry={geometry}>
+    // Point spread is built at base scale (uses region.coverage), so scale the
+    // whole cloud by SPREAD_SCALE to keep the particles covering the now-spread
+    // stars — same dot size, wider spread.
+    <points ref={pointsRef} geometry={geometry} scale={SPREAD_SCALE}>
       <pointsMaterial
         size={selected ? 0.14 : hovered ? 0.11 : 0.09}
         color={region.color}
@@ -817,7 +820,13 @@ function RegionNebula({ region, model, galaxyMode, viewMode }) {
     .slice(0, 3)
   const profileTier = model?.metadata?.profileTier || 'partial'
   const tierScale = profileTier === 'rich' ? 1 : profileTier === 'medium' ? 0.85 : 0.7
-  const baseScale = clamp((4.4 + (region.coverage || 0) * 8.5) * tierScale, 3.6, 8.2)
+  // The haze blob's radius must scale with the galaxy: its center (region
+  // centroid) is already multiplied by SPREAD_SCALE in the tier layout, so the
+  // radius has to scale by the same factor or the blob sits offset from — and
+  // too small for — its spread-out stars. baseScale is clamped at base size,
+  // THEN multiplied by SPREAD_SCALE so each haze wraps its genre exactly as it
+  // did before the scale pass, just larger.
+  const baseScale = clamp((4.4 + (region.coverage || 0) * 8.5) * tierScale, 3.6, 8.2) * SPREAD_SCALE
   const visible = galaxyMode === 'universal' || galaxyMode === 'genre'
   const centroid = region?.centroid || { x: 0, y: 0, z: 0 }
   const centroidValid = Number.isFinite(centroid.x) && Number.isFinite(centroid.y) && Number.isFinite(centroid.z)
@@ -1434,7 +1443,7 @@ function SceneContents({
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 0, 65]} fov={54} far={2000} />
+      <PerspectiveCamera makeDefault position={[0, 0, 105]} fov={54} far={2000} />
       {/* Exponential fog (reference: FogExp2 0x02030a, 0.0018) for depth falloff. */}
       <fogExp2 attach="fog" args={['#02030a', 0.0018]} />
       {/* Warm deep-space gradient sky behind everything. */}
@@ -1507,7 +1516,7 @@ function SceneContents({
         autoRotate={!traversalEnabled || autoRotateSpeed > 0}
         autoRotateSpeed={autoRotateSpeed}
         minDistance={8}
-        maxDistance={150}
+        maxDistance={240}
       />
 
       {/* Traversal + scan pulse — mounted only in /universe */}

@@ -43,7 +43,10 @@ const Y_STAGGER    = 2.0      // vertical depth stagger between genres
 // between regions. Node sizes, labels, bloom and the centred core are NOT
 // scaled. Camera far-bounds in GalaxyScene/useTraversalCamera are sized to
 // match this; if you raise it, raise those too. (1.0 = original packed size.)
-export const SPREAD_SCALE = 2.5
+// At 4.0 the outer galaxy radius is ~112 units. The region nebula haze scales
+// by this same constant in GalaxyScene (RegionNebula baseScale + RegionParticles)
+// so each blob stays wrapped on its genre's stars.
+export const SPREAD_SCALE = 4.0
 
 const scaleSpread = (p) => (p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)
   ? {
