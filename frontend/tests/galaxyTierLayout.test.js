@@ -7,7 +7,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 
-import { applyTierLayout } from '../src/features/galaxy/galaxyTierLayout.js'
+import { applyTierLayout, SPREAD_SCALE } from '../src/features/galaxy/galaxyTierLayout.js'
 
 const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y, a.z - b.z)
 
@@ -69,14 +69,15 @@ test('artists are placed inside their own genre region', () => {
       .map((n) => [n.id, dist(a.position, n.position)])
       .sort((x, y) => x[1] - y[1])[0][0]
     assert.equal(nearest, gId, `${aId} should sit nearest ${gId}`)
-    assert.ok(dist(a.position, g.position) < 8, `${aId} too far from its genre`)
+    // Upper-bound proximity scales with the master spread knob.
+    assert.ok(dist(a.position, g.position) < 8 * SPREAD_SCALE, `${aId} too far from its genre`)
   }
 })
 
 test('tracks satellite their parent artist', () => {
   const out = applyTierLayout(sampleModel())
   const byId = Object.fromEntries(out.nodes.map((n) => [n.id, n]))
-  assert.ok(dist(byId['track:tender'].position, byId['artist:blur'].position) < 2.5)
+  assert.ok(dist(byId['track:tender'].position, byId['artist:blur'].position) < 2.5 * SPREAD_SCALE)
 })
 
 test('layout is idempotent (already-laid-out models pass through)', () => {

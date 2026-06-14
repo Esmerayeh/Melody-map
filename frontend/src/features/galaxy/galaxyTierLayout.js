@@ -35,6 +35,25 @@ const GENRE_RADIUS = 19       // base ring radius for genre regions
 const RADIUS_STEP  = 2.4      // cycling radius offset so the ring isn't mechanical
 const Y_STAGGER    = 2.0      // vertical depth stagger between genres
 
+// ── Master spread knob ───────────────────────────────────────────────────────
+// Single tunable that scales the WHOLE laid-out galaxy uniformly from the
+// origin — every node position, plus region/cluster centroids, multiply by
+// this. It is a pure similarity scale: the SHAPE (ring, clustering, satellites)
+// is identical, just larger, so the galaxy reads as vast with empty space
+// between regions. Node sizes, labels, bloom and the centred core are NOT
+// scaled. Camera far-bounds in GalaxyScene/useTraversalCamera are sized to
+// match this; if you raise it, raise those too. (1.0 = original packed size.)
+export const SPREAD_SCALE = 2.5
+
+const scaleSpread = (p) => (p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)
+  ? {
+    ...p,
+    x: Number((p.x * SPREAD_SCALE).toFixed(2)),
+    y: Number((p.y * SPREAD_SCALE).toFixed(2)),
+    z: Number((p.z * SPREAD_SCALE).toFixed(2)),
+  }
+  : p)
+
 function seededAngle(hash, shift = 0) {
   return (((hash >> shift) % 3600) / 3600) * Math.PI * 2
 }
@@ -94,31 +113,45 @@ export function applyTierLayout(model) {
   })
 
   // ── 3. TRACKS — satellites near their parent artist (or genre) ──────────────
+  // Positions are built at base (1.0×) scale, then every body is multiplied by
+  // SPREAD_SCALE so the entire structure inflates uniformly (shape identical).
   const newNodes = nodes.map((node) => {
+    let position = node.position
     if (node.type === 'genre') {
-      return { ...node, position: genreCenter.get(node.id) || node.position }
-    }
-    if (node.type === 'artist') {
-      return { ...node, position: artistPos.get(node.id) || node.position }
-    }
-    if (node.type === 'track') {
+      position = genreCenter.get(node.id) || node.position
+    } else if (node.type === 'artist') {
+      position = artistPos.get(node.id) || node.position
+    } else if (node.type === 'track') {
       const direct = node.parentArtistId && artistPos.get(node.parentArtistId)
       const viaGenre = node.parentGenreId && genreCenter.get(node.parentGenreId)
       const base = direct || viaGenre || { x: 0, y: 0, z: 0 }
       const hash = stableHash(node.id || node.label || 'track')
       const r = 0.7 + (hash % 5) * 0.16
       const ang = seededAngle(hash, 0)
-      return {
-        ...node,
-        position: {
-          x: Number((base.x + Math.cos(ang) * r).toFixed(2)),
-          y: Number((base.y + ((hash % 3) - 1) * 0.42).toFixed(2)),
-          z: Number((base.z + Math.sin(ang) * r).toFixed(2)),
-        },
+      position = {
+        x: Number((base.x + Math.cos(ang) * r).toFixed(2)),
+        y: Number((base.y + ((hash % 3) - 1) * 0.42).toFixed(2)),
+        z: Number((base.z + Math.sin(ang) * r).toFixed(2)),
       }
     }
-    return node
+    return position ? { ...node, position: scaleSpread(position) } : node
   })
 
-  return { ...model, nodes: newNodes, metadata: { ...(model.metadata || {}), tierLayout: true } }
+  // Region/cluster centroids come from the builder (not this pass), so scale
+  // them too — otherwise the nebula haze and focus targets detach from the
+  // now-spread stars. The core (metadata.core) is near-origin and stays put.
+  const newRegions = Array.isArray(model.regions)
+    ? model.regions.map((r) => (r?.centroid ? { ...r, centroid: scaleSpread(r.centroid) } : r))
+    : model.regions
+  const newClusters = Array.isArray(model.clusters)
+    ? model.clusters.map((c) => (c?.centroid ? { ...c, centroid: scaleSpread(c.centroid) } : c))
+    : model.clusters
+
+  return {
+    ...model,
+    nodes: newNodes,
+    regions: newRegions,
+    clusters: newClusters,
+    metadata: { ...(model.metadata || {}), tierLayout: true },
+  }
 }

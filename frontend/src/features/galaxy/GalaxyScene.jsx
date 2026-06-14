@@ -38,7 +38,7 @@ const GLOW_LAG_LAMBDA  = 80    // glow follows scale activation with ~40ms lag
 // A gentle dolly/look-at EASE toward the selected star (not a free orbit). Once
 // the ease completes, OrbitControls takes over again (orbiting the new target).
 const FOCUS_OFFSET     = new THREE.Vector3(10, 5.5, 12.5) // camera offset from the focused point
-const RESTING_POS      = new THREE.Vector3(0, 0, 26)      // home framing (matches default camera)
+const RESTING_POS      = new THREE.Vector3(0, 0, 65)      // home framing (matches default camera; scaled to the SPREAD_SCALE galaxy)
 const RESTING_TARGET   = new THREE.Vector3(0, 0, 0)
 const FOCUS_DURATION   = 0.8                              // seconds for the focus ease
 const easeOutCubic     = (x) => 1 - Math.pow(1 - x, 3)
@@ -1434,7 +1434,7 @@ function SceneContents({
 
   return (
     <>
-      <PerspectiveCamera makeDefault position={[0, 0, 26]} fov={54} far={2000} />
+      <PerspectiveCamera makeDefault position={[0, 0, 65]} fov={54} far={2000} />
       {/* Exponential fog (reference: FogExp2 0x02030a, 0.0018) for depth falloff. */}
       <fogExp2 attach="fog" args={['#02030a', 0.0018]} />
       {/* Warm deep-space gradient sky behind everything. */}
@@ -1507,7 +1507,7 @@ function SceneContents({
         autoRotate={!traversalEnabled || autoRotateSpeed > 0}
         autoRotateSpeed={autoRotateSpeed}
         minDistance={8}
-        maxDistance={42}
+        maxDistance={150}
       />
 
       {/* Traversal + scan pulse — mounted only in /universe */}

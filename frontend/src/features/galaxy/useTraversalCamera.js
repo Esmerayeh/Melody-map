@@ -36,13 +36,15 @@ const BOOST_MULT  = 2.4
 const FLY_LERP    = 0.12    // velocity easing (accel/decel)
 const MAX_STEP    = 0.42    // hard speed ceiling per frame (calm drift)
 const RETURN_LERP = 0.05    // slow, cinematic recenter/focus glide
-const OVERVIEW    = { x: 0, y: 4, z: 22 }
+const OVERVIEW    = { x: 0, y: 10, z: 55 }   // recenter framing, scaled to the SPREAD_SCALE galaxy
 
-// Bounded volume: the galaxy lives within ~30 units; soft-pull begins at
-// SOFT_START and fully engages by MAX_RADIUS so the user is eased back rather
-// than flying off into the void.
-const SOFT_START  = 40
-const MAX_RADIUS  = 54
+// Bounded volume: with SPREAD_SCALE=2.5 the galaxy lives within ~70 units, so
+// the soft-pull must begin well OUTSIDE that — otherwise flying outward stops
+// before you can pull back to see the whole thing. Soft-pull begins at
+// SOFT_START (past the galaxy, past OrbitControls maxDistance 150) and fully
+// engages by MAX_RADIUS, easing the user back rather than flinging into void.
+const SOFT_START  = 160
+const MAX_RADIUS  = 200
 
 /**
  * Pure, testable: how strongly to ease the camera back toward the bounded
