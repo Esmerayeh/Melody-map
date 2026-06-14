@@ -1499,10 +1499,13 @@ function SceneContents({
         enabled={!traversalEnabled}
       />
       <SelectionRing model={model} reducedMotion={reducedMotion} />
+      {/* During traversal the wheel is owned by useTraversalCamera (dolly along
+          view dir, shared WASD easing). Off traversal, OrbitControls keeps its
+          built-in zoom. */}
       <OrbitControls
         ref={controlsRef}
         enablePan
-        enableZoom
+        enableZoom={!traversalEnabled}
         enableRotate
         autoRotate={!traversalEnabled || autoRotateSpeed > 0}
         autoRotateSpeed={autoRotateSpeed}
@@ -1544,10 +1547,19 @@ function SceneContents({
 
       <mesh
         position={[0, 0, -60]}
-        onClick={() => {
+        onClick={(event) => {
           clearFocusedObject()
           clearHoveredObject()
           setFocusTarget(null) // ease the camera back to the resting framing
+          // Empty-space click only reaches this background plane when no node
+          // hit-sphere intercepted (those stopPropagation). In traversal, glide
+          // a comfortable hop toward the clicked direction so mouse-only users
+          // can travel; the controller reuses the focus-glide easing.
+          if (traversalEnabled && event?.point) {
+            window.dispatchEvent(new CustomEvent('galaxy:glideToward', {
+              detail: { x: event.point.x, y: event.point.y, z: event.point.z },
+            }))
+          }
         }}
       >
         <planeGeometry args={[400, 400, 1, 1]} />
