@@ -487,32 +487,37 @@ function getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode) {
   return { visible: true, opacity: node.type === 'track' ? 0.5 : 0.95 }
 }
 
-// Label level-of-detail bands. cameraDistance is distance from the galaxy
-// CENTRE; camDist is distance from the camera to THIS node. The two modes:
-//   overview  (camera outside, looking at the whole galaxy) — wide genre
-//             spread, structure-first, the look the user liked.
-//   immersive (camera flown INTO the cloud) — without per-node gating the far
-//             side of the ring projects all its labels onto screen-centre and
-//             piles into mush. So in immersive mode EVERY label, genres
-//             included, drops once it is more than N units from the camera.
-const IMMERSIVE_ENTER       = 20   // cameraDistance below this = flying through
-const IMMERSIVE_GENRE_MAX   = 30   // a genre region labels only while this near
-const IMMERSIVE_ARTIST_MAX  = 19
-const IMMERSIVE_TRACK_MAX    = 10
+// Label visibility by tier. camDist is the distance from the camera to THIS
+// node, so reveals are driven by how close you fly to a star — not by a global
+// zoom level. Three fixed behaviours:
+//   genre  — always visible (region anchors; you must always know where you are)
+//   artist — hidden until hovered/selected OR the camera comes within reveal
+//            range; only a few qualify at once
+//   song   — never labelled; songs are texture/dust only
+const ARTIST_REVEAL_DIST = 10  // an artist names itself only this near the camera
 
-function shouldShowNodeLabel(node, cameraDistance, selected, hovered, immersive, camDist) {
-  if (selected || hovered) return true
-  const sig = node.metrics?.significance ?? node.significance ?? 0
-  // Genres = region titles. Always on in overview; in immersive mode only the
-  // nearby regions, so the far arc of the ring stops stacking onto centre.
-  if (node.type === 'genre') return immersive ? camDist < IMMERSIVE_GENRE_MAX : true
-  if (node.type === 'artist') {
-    const alwaysOn = node.role === 'anchor-star' || node.role === 'bridge-star' || sig > 0.48
-    if (immersive) return camDist < IMMERSIVE_ARTIST_MAX && (alwaysOn || camDist < IMMERSIVE_ARTIST_MAX * 0.7)
-    return alwaysOn || cameraDistance < 18
-  }
-  if (node.type === 'track') return cameraDistance < 11 && sig > 0.5 && (!immersive || camDist < IMMERSIVE_TRACK_MAX)
+function shouldShowNodeLabel(node, revealed, camDist) {
+  if (node.type === 'track') return false   // songs are dust — never a text label
+  if (revealed) return true                 // hover/selection always names it
+  if (node.type === 'genre') return true    // region anchors — always visible
+  if (node.type === 'artist') return camDist < ARTIST_REVEAL_DIST
   return false
+}
+
+// Label opacity ramps with camera proximity so text feels emitted by the haze:
+// brighter as you approach, dimmer far away. Genres never fully vanish (they
+// are anchors); artists ramp from 0 at the reveal edge so their unmount past
+// the edge is invisible (already transparent) — a soft fade, never a pop.
+function genreLabelOpacity(camDist) {
+  if (!Number.isFinite(camDist)) return 0.46
+  const t = clamp((40 - camDist) / 30, 0, 1)   // far → 0, near → 1 over 10..40u
+  return 0.46 + t * 0.42                        // 0.46 (far) .. 0.88 (near)
+}
+function artistLabelOpacity(camDist, revealed) {
+  if (revealed) return 0.92
+  if (!Number.isFinite(camDist)) return 0
+  const t = clamp((ARTIST_REVEAL_DIST - camDist) / ARTIST_REVEAL_DIST, 0, 1)
+  return t * 0.9
 }
 
 function labelPriority(node) {
@@ -524,7 +529,9 @@ function labelPriority(node) {
 }
 
 function nodeCamDistance(node, cameraPos) {
-  if (!cameraPos) return 0
+  // No camera fix yet → treat as infinitely far so proximity-gated artist
+  // labels stay hidden (and genres fall back to their dim base opacity).
+  if (!cameraPos) return Infinity
   const p = node.position || { x: 0, y: 0, z: 0 }
   const dx = p.x - cameraPos.x
   const dy = p.y - cameraPos.y
@@ -532,51 +539,52 @@ function nodeCamDistance(node, cameraPos) {
   return Math.sqrt((dx * dx) + (dy * dy) + (dz * dz))
 }
 
-function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode, cameraPos) {
-  const immersive = cameraDistance < IMMERSIVE_ENTER
+function buildVisibleLabelLayout(nodes, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode, cameraPos) {
   const candidates = nodes
     .filter((node) => NODE_TYPES_WITH_LABELS.has(node.type))
     .filter((node) => getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode).visible)
-    .map((node) => ({ node, camDist: nodeCamDistance(node, cameraPos) }))
-    .filter(({ node, camDist }) => {
+    .map((node) => {
       const objectType = node.type === 'cluster' ? 'cluster' : node.type
       const objectId = node.type === 'cluster' ? node.clusterId : node.id
-      const selected = focusedObject?.id === objectId && focusedObject?.type === objectType
-      const hovered = hoveredObject?.id === objectId && hoveredObject?.type === objectType
-      return shouldShowNodeLabel(node, cameraDistance, selected, hovered, immersive, camDist)
+      const revealed = (focusedObject?.id === objectId && focusedObject?.type === objectType)
+        || (hoveredObject?.id === objectId && hoveredObject?.type === objectType)
+      return { node, camDist: nodeCamDistance(node, cameraPos), revealed }
     })
-    // Nearer labels win collisions in immersive mode (distance penalty), so the
-    // star you are flying toward keeps its name and the ones behind it yield.
+    .filter(({ node, camDist, revealed }) => shouldShowNodeLabel(node, revealed, camDist))
+    // Nearer artists win collisions (distance penalty), so the star you fly
+    // toward keeps its name while the ones behind it yield.
     .sort((left, right) =>
-      (labelPriority(right.node) - (immersive ? right.camDist * 0.12 : 0)) -
-      (labelPriority(left.node) - (immersive ? left.camDist * 0.12 : 0)))
+      (labelPriority(right.node) - right.camDist * 0.1) -
+      (labelPriority(left.node) - left.camDist * 0.1))
 
-  // Collision spacing in world units. In OVERVIEW genres are exempt (they are
-  // the structure, already well-separated, and read as a wide editorial
-  // spread). In IMMERSIVE mode genres collide too and the label budget is
-  // small — that is what stops the centre pile when you fly through the cloud.
-  const threshold = cameraDistance < 10 ? 2.2 : cameraDistance < 16 ? 2.8 : 3.6
-  const maxLabels = immersive ? (sparseMode ? 7 : 11) : (sparseMode ? 12 : 30)
+  // Genres are always placed (region anchors, collision-exempt). Only artists
+  // compete for space: a tight collision radius + a small budget keep at most a
+  // few names visible near the camera at once. Songs never reach here.
+  const threshold = 2.8
+  const maxArtistLabels = sparseMode ? 4 : 7
+  let artistCount = 0
   const accepted = []
   const layout = new Map()
 
-  const place = (node) => {
+  const place = (node, camDist, revealed) => {
     accepted.push(node)
     const hash = stableHash(node.id || node.label || 'label')
+    const opacity = node.type === 'genre'
+      ? genreLabelOpacity(camDist)
+      : artistLabelOpacity(camDist, revealed)
     layout.set(node.id, {
-      y: (node.type === 'genre' ? 0.7 : node.type === 'track' ? 0.32 : 0.5) + ((hash % 3) - 1) * 0.1,
+      y: (node.type === 'genre' ? 0.7 : 0.5) + ((hash % 3) - 1) * 0.1,
       x: (((hash >> 3) % 3) - 1) * 0.14,
+      opacity,
     })
   }
 
-  candidates.forEach(({ node }) => {
-    if (node.type === 'genre' && !immersive) { place(node); return } // overview: never suppressed
-    if (accepted.length >= maxLabels) return
+  candidates.forEach(({ node, camDist, revealed }) => {
+    if (node.type === 'genre') { place(node, camDist, revealed); return } // anchors: always
+    if (artistCount >= maxArtistLabels) return
     const position = node.position || { x: 0, y: 0, z: 0 }
     const collides = accepted.some((acceptedNode) => {
-      // In overview, labels float above genre regions and don't block on them;
-      // in immersive everything competes for screen space, genres included.
-      if (acceptedNode.type === 'genre' && !immersive) return false
+      if (acceptedNode.type === 'genre') return false // names float free of region anchors
       const other = acceptedNode.position || { x: 0, y: 0, z: 0 }
       const dx = position.x - other.x
       const dy = position.y - other.y
@@ -584,18 +592,11 @@ function buildVisibleLabelLayout(nodes, cameraDistance, galaxyMode, viewMode, sh
       return Math.sqrt((dx * dx) + (dy * dy) + (dz * dz)) < threshold
     })
     if (collides) return
-    place(node)
+    place(node, camDist, revealed)
+    artistCount += 1
   })
 
   return layout
-}
-
-// Warm filmic label tones (zero purple). Genre reads as a big editorial region
-// title; artist as a named warm star; track as a small warm satellite.
-function nodeLabelTone(type) {
-  if (type === 'genre') return 'border-amber-200/22 bg-[#120a06]/80 text-amber-50'
-  if (type === 'track') return 'border-white/12 bg-[#0f0a07]/78 text-amber-100/90'
-  return 'border-amber-100/16 bg-[#120b07]/82 text-amber-50'
 }
 
 function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset, sparseMode, registerRef }) {
@@ -722,31 +723,34 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
         <meshBasicMaterial transparent opacity={0} depthWrite={false} />
       </mesh>
 
-      {showLabel && (
+      {showLabel && node.type !== 'track' && (
         <Billboard position={[labelOffset?.x || 0, renderedSize + (labelOffset?.y || 0.6), 0]}>
-          {/* distanceFactor scales with depth; genres get a larger factor so
-              they stay legible as big region titles from across the galaxy,
-              artists a touch smaller, tracks smallest. Constant-ish on screen,
-              billboarded, warm + editorial — never tiny grey text. */}
-          <Html distanceFactor={node.type === 'genre' ? 20 : node.type === 'track' ? 9 : 15} center zIndexRange={[40, 0]}>
+          {/* No box, no pill — the text reads by its own weight and a soft
+              text-shadow (warm glow for "emitted by the haze" + a dark halo for
+              legibility over the bright bloom). Opacity is driven by camera
+              proximity from the layout, and framer tweens it smoothly as you
+              move, so labels brighten/dim and fade in/out without a pop. */}
+          <Html distanceFactor={node.type === 'genre' ? 20 : 15} center zIndexRange={[40, 0]}>
             <motion.div
-              initial={{ opacity: 0, y: 4, scale: 0.98 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              transition={MOTION_TOKENS.label}
-              className={`pointer-events-none whitespace-nowrap rounded-full border shadow-[0_12px_34px_rgba(4,6,20,0.5)] backdrop-blur-md ${nodeLabelTone(node.type)} ${
-                node.type === 'genre'
-                  ? 'px-4 py-1.5'
-                  : node.type === 'track'
-                    ? 'px-2.5 py-1'
-                    : 'px-3 py-1'
-              }`}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: labelOffset?.opacity ?? (node.type === 'genre' ? 0.6 : 0.85) }}
+              transition={{ duration: 0.6, ease: 'easeOut' }}
+              className="pointer-events-none select-none whitespace-nowrap"
             >
               {node.type === 'genre' ? (
-                <p className="font-display text-[17px] font-semibold uppercase leading-none tracking-[0.16em]">{node.label}</p>
-              ) : node.type === 'track' ? (
-                <p className="text-[12px] font-medium leading-tight">{node.label}</p>
+                <span
+                  className="font-display lowercase text-[20px] font-normal leading-none text-[#f4dcb4]"
+                  style={{ textShadow: '0 0 22px rgba(244,196,120,0.30), 0 0 5px rgba(0,0,0,0.68), 0 1px 2px rgba(0,0,0,0.55)' }}
+                >
+                  {node.label}
+                </span>
               ) : (
-                <p className="text-[16px] font-semibold leading-tight">{node.label}</p>
+                <span
+                  className="text-[13px] font-medium leading-tight text-[#ecd9c0]"
+                  style={{ textShadow: '0 0 14px rgba(240,210,150,0.22), 0 0 4px rgba(0,0,0,0.72), 0 1px 2px rgba(0,0,0,0.55)' }}
+                >
+                  {node.label}
+                </span>
               )}
             </motion.div>
           </Html>
@@ -1315,9 +1319,9 @@ function SceneContents({
   // keep rendering as a silent background.
   const labelLayout = useMemo(
     () => (showLabels
-      ? buildVisibleLabelLayout(model?.nodes || [], cameraDistance, galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode, cameraPos)
+      ? buildVisibleLabelLayout(model?.nodes || [], galaxyMode, viewMode, showTracks, focusedObject, hoveredObject, sparseMode, cameraPos)
       : EMPTY_LABEL_LAYOUT),
-    [showLabels, cameraDistance, cameraPos, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
+    [showLabels, cameraPos, focusedObject, galaxyMode, hoveredObject, model?.nodes, showTracks, viewMode, sparseMode],
   )
 
   // Single animation driver for all GalaxyNode instances.
