@@ -107,8 +107,8 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity, premiu
         type="button"
         onClick={() => setExpanded((v) => !v)}
         className={premium
-          ? 'rounded-full p-1 transition'
-          : 'rounded-full border border-white/12 bg-[#0a0c1e]/80 p-1 backdrop-blur transition hover:border-white/24'}
+          ? 'pointer-events-auto rounded-full p-1 transition'
+          : 'pointer-events-auto rounded-full border border-white/12 bg-[#0a0c1e]/80 p-1 backdrop-blur transition hover:border-white/24'}
         aria-label={expanded ? 'Collapse Soul Orb' : 'Expand Soul Orb'}
         style={{
           boxShadow: !premium && liveIntensity > 0.3 ? `0 0 ${Math.round(liveIntensity * 24)}px rgba(159,220,255,0.18)` : undefined,
@@ -155,7 +155,7 @@ function SectorPortal({ sector, onClose, premium = false }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.92, y: -8 }}
       transition={MOTION_TOKENS.focusSettle}
-      className={`absolute bottom-24 left-1/2 z-30 -translate-x-1/2 ${premium ? 'w-[min(92vw,420px)]' : 'w-[min(90vw,380px)]'}`}
+      className={`pointer-events-auto absolute bottom-24 left-1/2 z-30 -translate-x-1/2 ${premium ? 'w-[min(92vw,420px)]' : 'w-[min(90vw,380px)]'}`}
     >
       {premium ? (
         /* PREMIUM: no card, no nested boxes — content floats on the galaxy. One
@@ -232,7 +232,7 @@ function SectorRing({ sectors, onSelect, activeSectorId, isMobile, premium = fal
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ ...MOTION_TOKENS.panel, delay: 0.4 }}
-      className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
+      className="pointer-events-auto absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
     >
       <div
         className={`flex items-center rounded-full ${premium ? 'gap-3.5 px-2 py-1' : 'gap-2 border border-white/10 bg-[#070814]/82 px-3 py-2 backdrop-blur-xl'} ${isMobile ? 'overflow-x-auto max-w-[90vw]' : ''}`}
@@ -291,7 +291,7 @@ function UniverseTopBar({ title, subtitle, cinemaMode, onToggleCinema, onOpenPas
             : 'mt-0.5 text-[10px] text-gray-500'}>{subtitle}</p>
         )}
       </div>
-      <div className={`flex items-center ${premium ? 'gap-3' : 'gap-2'}`}>
+      <div className={`pointer-events-auto flex items-center ${premium ? 'gap-3' : 'gap-2'}`}>
         <button
           type="button"
           onClick={onOpenPassport}
@@ -764,8 +764,12 @@ export default function Universe() {
           className="absolute inset-0 pointer-events-none"
           style={{ zIndex: 0 }}
         >
-          {/* pointer-events back on for children that need it */}
-          <div className="absolute inset-0 pointer-events-auto">
+          {/* This layer MUST stay pointer-events-none so clicks fall through the
+              empty gaps to the galaxy canvas (z-0) and stars are selectable.
+              Each interactive panel/leaf re-enables pointer-events-auto on
+              itself. A full-screen pointer-events-auto here silently kills
+              click-to-focus on every star — that was the bug. */}
+          <div className="absolute inset-0 pointer-events-none">
 
             <UniverseTopBar
               title={title}
@@ -777,14 +781,14 @@ export default function Universe() {
             />
 
             {/* Signal feed — top right under orb */}
-            <div className="absolute right-4 top-[8.5rem] z-20 sm:top-[9.5rem]">
+            <div className="pointer-events-auto absolute right-4 top-[8.5rem] z-20 sm:top-[9.5rem]">
               <AnimatePresence>
                 <UniverseEventFeed />
               </AnimatePresence>
             </div>
 
             {/* Controls — top left under title */}
-            <div className="absolute left-4 top-[4.5rem] z-20">
+            <div className="pointer-events-auto absolute left-4 top-[4.5rem] z-20">
               <Suspense fallback={null}>
                 <GalaxyControls {...controlProps} />
               </Suspense>
@@ -828,7 +832,7 @@ export default function Universe() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -16 }}
                   transition={MOTION_TOKENS.focusSettle}
-                  className="absolute bottom-20 left-4 z-20 w-[min(90vw,340px)] space-y-2"
+                  className="pointer-events-auto absolute bottom-20 left-4 z-20 w-[min(90vw,340px)] space-y-2"
                 >
                   {inspectorContent}
                 </motion.div>
@@ -849,7 +853,7 @@ export default function Universe() {
 
             {/* Memory Belt button + panel */}
             {ghostNodes.length > 0 && (
-              <div className="absolute left-4 top-[4.5rem] z-20 mt-14 w-[min(90vw,280px)]">
+              <div className="pointer-events-auto absolute left-4 top-[4.5rem] z-20 mt-14 w-[min(90vw,280px)]">
                 <button
                   type="button"
                   onClick={openMemoryBelt}
@@ -873,7 +877,7 @@ export default function Universe() {
             {/* Semantic Legend */}
             {!presence.hudDimmed && (
               <SemanticLegend
-                className="absolute bottom-20 right-4 z-20"
+                className="pointer-events-auto absolute bottom-20 right-4 z-20"
                 semanticCoverage={activeModel?.metadata?.semanticCoverage ?? null}
               />
             )}
@@ -899,7 +903,7 @@ export default function Universe() {
             <button
               type="button"
               onClick={() => setPremium((v) => !v)}
-              className="absolute bottom-4 left-4 z-30 rounded-full border border-amber-200/20 bg-[#0c0907]/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-amber-100/55 backdrop-blur transition hover:text-amber-100/90 min-h-[44px]"
+              className="pointer-events-auto absolute bottom-4 left-4 z-30 rounded-full border border-amber-200/20 bg-[#0c0907]/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-amber-100/55 backdrop-blur transition hover:text-amber-100/90 min-h-[44px]"
               title="Toggle premium chrome"
             >
               {premium ? 'Premium: ON' : 'Premium: OFF'}
