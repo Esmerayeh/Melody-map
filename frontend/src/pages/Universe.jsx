@@ -90,7 +90,7 @@ const PANELS = {
 // HUD components
 // ─────────────────────────────────────────────────────────────────────────────
 
-function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity }) {
+function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity, premium = false }) {
   const [expanded, setExpanded] = useState(false)
 
   // Pulse size reacts to live session intensity (0–1)
@@ -101,15 +101,17 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity }) {
       initial={{ opacity: 0, x: 32 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ ...MOTION_TOKENS.panel, delay: 0.5 }}
-      className="absolute right-4 top-16 z-20 flex flex-col items-end gap-3 sm:top-20"
+      className={`absolute right-4 z-20 flex flex-col items-end ${premium ? 'top-24 gap-4 sm:top-28' : 'top-16 gap-3 sm:top-20'}`}
     >
       <button
         type="button"
         onClick={() => setExpanded((v) => !v)}
-        className="rounded-full border border-white/12 bg-[#0a0c1e]/80 p-1 backdrop-blur transition hover:border-white/24"
+        className={premium
+          ? 'rounded-full p-1 transition'
+          : 'rounded-full border border-white/12 bg-[#0a0c1e]/80 p-1 backdrop-blur transition hover:border-white/24'}
         aria-label={expanded ? 'Collapse Soul Orb' : 'Expand Soul Orb'}
         style={{
-          boxShadow: liveIntensity > 0.3 ? `0 0 ${Math.round(liveIntensity * 24)}px rgba(159,220,255,0.18)` : undefined,
+          boxShadow: !premium && liveIntensity > 0.3 ? `0 0 ${Math.round(liveIntensity * 24)}px rgba(159,220,255,0.18)` : undefined,
         }}
       >
         <DeferredSoulOrb
@@ -133,7 +135,9 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity }) {
         <motion.p
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
-          className="max-w-[180px] text-right text-[10px] leading-relaxed text-gray-500"
+          className={premium
+            ? 'max-w-[200px] text-right text-[11px] leading-relaxed text-amber-100/35'
+            : 'max-w-[180px] text-right text-[10px] leading-relaxed text-gray-500'}
         >
           {resonance?.explanation || 'Your soul orb holds the shape of what returns most often.'}
         </motion.p>
@@ -142,7 +146,7 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity }) {
   )
 }
 
-function SectorPortal({ sector, onClose }) {
+function SectorPortal({ sector, onClose, premium = false }) {
   const navigate = useNavigate()
   return (
     <motion.div
@@ -151,54 +155,78 @@ function SectorPortal({ sector, onClose }) {
       animate={{ opacity: 1, scale: 1, y: 0 }}
       exit={{ opacity: 0, scale: 0.92, y: -8 }}
       transition={MOTION_TOKENS.focusSettle}
-      className="absolute bottom-24 left-1/2 z-30 -translate-x-1/2 w-[min(90vw,380px)]"
+      className={`absolute bottom-24 left-1/2 z-30 -translate-x-1/2 ${premium ? 'w-[min(92vw,420px)]' : 'w-[min(90vw,380px)]'}`}
     >
-      <div
-        className="relative overflow-hidden rounded-[24px] border p-5 backdrop-blur-xl"
-        style={{
-          borderColor: `${sector.color}30`,
-          background:  `linear-gradient(135deg, rgba(10,11,26,0.92), rgba(10,11,26,0.88))`,
-          boxShadow:   `0 0 60px ${sector.color}14`,
-        }}
-      >
-        <div className="pointer-events-none absolute inset-0 opacity-20"
-          style={{ background: `radial-gradient(circle at 20% 20%, ${sector.color}28, transparent 55%)` }} />
-
-        <div className="relative z-10 flex items-start justify-between gap-3">
-          <div>
-            <div className="mb-2 flex items-center gap-2">
-              <div className="rounded-xl p-2" style={{ background: `${sector.color}18` }}>
-                <sector.icon className="h-4 w-4" style={{ color: sector.color }} />
-              </div>
-              <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Sector portal</p>
-            </div>
-            <h3 className="text-lg font-black text-white">{sector.label}</h3>
-            <p className="mt-1 text-sm text-gray-400">{sector.desc}</p>
-          </div>
+      {premium ? (
+        /* PREMIUM: no card, no nested boxes — content floats on the galaxy. One
+           confident serif heading; everything else small + dim; generous space. */
+        <div className="relative px-6 py-2">
           <button
             type="button"
             onClick={onClose}
-            className="shrink-0 rounded-full border border-white/10 p-1.5 text-gray-500 transition-colors hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="absolute right-2 top-0 flex h-9 w-9 items-center justify-center rounded-full text-amber-100/40 transition-colors hover:text-amber-100/90 min-h-[44px] min-w-[44px]"
           >
-            <X className="h-3.5 w-3.5" />
+            <X className="h-4 w-4" />
+          </button>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-100/30">Sector</p>
+          <h3 className="font-display mt-3 text-3xl font-medium leading-tight text-amber-50/95">{sector.label}</h3>
+          <p className="mt-3 max-w-[300px] text-[12px] leading-relaxed text-amber-100/40">{sector.desc}</p>
+          <button
+            type="button"
+            onClick={() => navigate(sector.to)}
+            className="mt-7 inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.18em] text-amber-100/80 transition-colors hover:text-amber-50 min-h-[44px]"
+          >
+            Enter {sector.label} →
           </button>
         </div>
-
-        <button
-          type="button"
-          onClick={() => navigate(sector.to)}
-          className="relative z-10 mt-4 flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 min-h-[44px]"
-          style={{ background: `linear-gradient(135deg, ${sector.color}44, ${sector.color}22)`, border: `1px solid ${sector.color}40` }}
+      ) : (
+        <div
+          className="relative overflow-hidden rounded-[24px] border p-5 backdrop-blur-xl"
+          style={{
+            borderColor: `${sector.color}30`,
+            background:  `linear-gradient(135deg, rgba(10,11,26,0.92), rgba(10,11,26,0.88))`,
+            boxShadow:   `0 0 60px ${sector.color}14`,
+          }}
         >
-          Enter {sector.label}
-        </button>
-      </div>
+          <div className="pointer-events-none absolute inset-0 opacity-20"
+            style={{ background: `radial-gradient(circle at 20% 20%, ${sector.color}28, transparent 55%)` }} />
+
+          <div className="relative z-10 flex items-start justify-between gap-3">
+            <div>
+              <div className="mb-2 flex items-center gap-2">
+                <div className="rounded-xl p-2" style={{ background: `${sector.color}18` }}>
+                  <sector.icon className="h-4 w-4" style={{ color: sector.color }} />
+                </div>
+                <p className="text-xs uppercase tracking-[0.2em] text-gray-500">Sector portal</p>
+              </div>
+              <h3 className="text-lg font-black text-white">{sector.label}</h3>
+              <p className="mt-1 text-sm text-gray-400">{sector.desc}</p>
+            </div>
+            <button
+              type="button"
+              onClick={onClose}
+              className="shrink-0 rounded-full border border-white/10 p-1.5 text-gray-500 transition-colors hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => navigate(sector.to)}
+            className="relative z-10 mt-4 flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-sm font-semibold text-white transition-all hover:opacity-90 min-h-[44px]"
+            style={{ background: `linear-gradient(135deg, ${sector.color}44, ${sector.color}22)`, border: `1px solid ${sector.color}40` }}
+          >
+            Enter {sector.label}
+          </button>
+        </div>
+      )}
     </motion.div>
   )
 }
 
 /** Desktop: icon ring at bottom. Mobile: scrollable carousel. */
-function SectorRing({ sectors, onSelect, activeSectorId, isMobile }) {
+function SectorRing({ sectors, onSelect, activeSectorId, isMobile, premium = false }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 16 }}
@@ -207,7 +235,7 @@ function SectorRing({ sectors, onSelect, activeSectorId, isMobile }) {
       className="absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
     >
       <div
-        className={`flex items-center gap-2 rounded-full border border-white/10 bg-[#070814]/82 px-3 py-2 backdrop-blur-xl ${isMobile ? 'overflow-x-auto max-w-[90vw]' : ''}`}
+        className={`flex items-center rounded-full ${premium ? 'gap-3.5 px-2 py-1' : 'gap-2 border border-white/10 bg-[#070814]/82 px-3 py-2 backdrop-blur-xl'} ${isMobile ? 'overflow-x-auto max-w-[90vw]' : ''}`}
         style={isMobile ? { WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' } : undefined}
       >
         {sectors.map((sector) => (
@@ -240,24 +268,36 @@ function SectorRing({ sectors, onSelect, activeSectorId, isMobile }) {
   )
 }
 
-function UniverseTopBar({ title, subtitle, cinemaMode, onToggleCinema, onOpenPassport }) {
+function UniverseTopBar({ title, subtitle, cinemaMode, onToggleCinema, onOpenPassport, premium = false }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: -12 }}
       animate={{ opacity: 1, y: 0 }}
       transition={MOTION_TOKENS.panel}
-      className="absolute left-4 right-4 top-4 z-20 flex items-center justify-between"
+      className={`absolute left-4 right-4 top-4 z-20 flex justify-between ${premium ? 'items-start' : 'items-center'}`}
     >
       <div>
-        <p className="text-[10px] uppercase tracking-[0.24em] text-gray-600">Melody Map / Universe</p>
-        <p className="text-sm font-semibold text-white">{title}</p>
-        {subtitle && <p className="mt-0.5 text-[10px] text-gray-500">{subtitle}</p>}
+        <p className={premium
+          ? 'text-[10px] uppercase tracking-[0.28em] text-amber-100/35'
+          : 'text-[10px] uppercase tracking-[0.24em] text-gray-600'}>Universe</p>
+        {premium ? (
+          <h1 className="font-display mt-1.5 text-3xl font-medium leading-[1.05] text-amber-50/95 sm:text-4xl">{title}</h1>
+        ) : (
+          <p className="text-sm font-semibold text-white">{title}</p>
+        )}
+        {subtitle && (
+          <p className={premium
+            ? 'mt-2 max-w-md text-[11px] leading-relaxed text-amber-100/35'
+            : 'mt-0.5 text-[10px] text-gray-500'}>{subtitle}</p>
+        )}
       </div>
-      <div className="flex items-center gap-2">
+      <div className={`flex items-center ${premium ? 'gap-3' : 'gap-2'}`}>
         <button
           type="button"
           onClick={onOpenPassport}
-          className="flex h-9 items-center gap-1.5 rounded-full border border-[#e0a35c]/24 bg-[#e0a35c]/10 px-3 text-[11px] text-[#e0a35c]/80 backdrop-blur transition hover:bg-[#e0a35c]/18 min-h-[44px]"
+          className={premium
+            ? 'flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] tracking-[0.08em] text-amber-100/55 transition hover:text-amber-100/90 min-h-[44px]'
+            : 'flex h-9 items-center gap-1.5 rounded-full border border-[#e0a35c]/24 bg-[#e0a35c]/10 px-3 text-[11px] text-[#e0a35c]/80 backdrop-blur transition hover:bg-[#e0a35c]/18 min-h-[44px]'}
           title="Export Universe Passport"
         >
           Passport
@@ -265,7 +305,9 @@ function UniverseTopBar({ title, subtitle, cinemaMode, onToggleCinema, onOpenPas
         <button
           type="button"
           onClick={onToggleCinema}
-          className="flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0a0c1e]/80 text-gray-400 transition hover:text-white backdrop-blur min-h-[44px] min-w-[44px]"
+          className={premium
+            ? 'flex h-9 w-9 items-center justify-center rounded-full text-amber-100/45 transition hover:text-amber-100/90 min-h-[44px] min-w-[44px]'
+            : 'flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0a0c1e]/80 text-gray-400 transition hover:text-white backdrop-blur min-h-[44px] min-w-[44px]'}
           title={cinemaMode ? 'Exit cinema' : 'Cinema mode'}
         >
           {cinemaMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
@@ -377,6 +419,10 @@ export default function Universe() {
   // ?mode=universal|genre|artist|song and ?q=<search> so links like
   // /universe?mode=song&q=… land in the right lens with the search applied.
   const [searchParams] = useSearchParams()
+  // Premium chrome toggle (reversible judgment): start from ?premium=1, flip
+  // live with the on-screen button. Old chrome is the default (premium=false);
+  // nothing is deleted — both looks exist until the user decides.
+  const [premium, setPremium] = useState(() => searchParams.get('premium') === '1')
   useEffect(() => {
     const requestedMode = searchParams.get('mode')
     if (requestedMode && ['universal', 'genre', 'artist', 'song'].includes(requestedMode) && requestedMode !== galaxyMode) {
@@ -727,6 +773,7 @@ export default function Universe() {
               cinemaMode={cinemaMode}
               onToggleCinema={() => setCinemaMode(!cinemaMode)}
               onOpenPassport={openPassport}
+              premium={premium}
             />
 
             {/* Signal feed — top right under orb */}
@@ -749,6 +796,7 @@ export default function Universe() {
               resonance={resonance}
               sparseGraphics={adaptive.sparseGraphics}
               liveIntensity={liveIntensity}
+              premium={premium}
             />
 
             {/* Legend */}
@@ -794,6 +842,7 @@ export default function Universe() {
                   key={activeSector.id}
                   sector={activeSector}
                   onClose={closeAllPanels}
+                  premium={premium}
                 />
               )}
             </AnimatePresence>
@@ -842,7 +891,19 @@ export default function Universe() {
               activeSectorId={activeSector?.id}
               isMobile={adaptive.isSmallViewport}
               onSelect={(s) => openSector(activeSector?.id === s.id ? null : s)}
+              premium={premium}
             />
+
+            {/* Reversible premium-chrome toggle — flip OLD vs NEW chrome live to
+                judge. Bottom-left, out of the way. */}
+            <button
+              type="button"
+              onClick={() => setPremium((v) => !v)}
+              className="absolute bottom-4 left-4 z-30 rounded-full border border-amber-200/20 bg-[#0c0907]/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-amber-100/55 backdrop-blur transition hover:text-amber-100/90 min-h-[44px]"
+              title="Toggle premium chrome"
+            >
+              {premium ? 'Premium: ON' : 'Premium: OFF'}
+            </button>
           </div>
         </motion.div>
       )}
