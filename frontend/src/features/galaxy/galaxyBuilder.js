@@ -400,6 +400,7 @@ function buildTrackSatellites(tracks = [], artistNodes = [], genreNodes = []) {
         ? `${track.title} appears as a satellite because it sharpens the world around ${primaryArtist.label}.`
         : `${track.title} sits on the edge because it lacks a strong artist anchor in the visible map.`,
       spotifyUrl: track.spotify_url || null,
+      previewUrl: track.preview_url || null, // 30s clip for in-galaxy playback (null-safe)
       connections: [],
       detailLevel: metrics.significance > 0.68 ? 'mid' : 'micro',
       role: 'satellite',

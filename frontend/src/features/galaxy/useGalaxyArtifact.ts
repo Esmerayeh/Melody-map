@@ -3,8 +3,15 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { buildGalaxyArtifact, enqueueGalaxyBuild } from './galaxyApi'
 import { queryKeys } from '../../lib/queryKeys'
 
+// Bump BUILD_LOGIC_VERSION whenever the request payload or build semantics change
+// (e.g. the rank-based popularity fallback). It's part of the idempotency seed, so
+// bumping it busts the server-cached artifact once and forces a fresh rebuild —
+// otherwise an unchanged profile keeps serving the stale pre-change build.
+const BUILD_LOGIC_VERSION = 'v2-rank-popularity'
+
 function buildIdempotencyKey(profile: any) {
   const seed = [
+    BUILD_LOGIC_VERSION,
     profile?.generatedAt || profile?.syncedAt || 'unknown',
     profile?.timeRange || 'medium_term',
     profile?.topArtists?.length || 0,
@@ -22,10 +29,17 @@ function mapRequestProfile(profile: any) {
       genre: typeof genre === 'string' ? genre : genre.genre,
       count: typeof genre === 'string' ? 1 : genre.count || 1,
     })),
-    topArtists: (profile?.topArtists || []).map((artist: any) => ({
+    topArtists: (profile?.topArtists || []).map((artist: any, index: number, list: any[]) => ({
       id: artist.id || null,
       name: artist.name,
-      popularity: artist.popularity ?? 50,
+      // Spotify deprecated `popularity` on /me/top/artists (it returns null now),
+      // which left Centrality/significance/star-size/anchor-roles flat at the 50
+      // default. Fall back to RANK — position in your top list (#1 = most
+      // central, fading down). Real data we already have, not an invented value.
+      // Genuine popularity is still used if Spotify ever returns it again.
+      popularity: typeof artist.popularity === 'number'
+        ? artist.popularity
+        : Math.round((1 - index / Math.max(list.length, 1)) * 100),
       genres: artist.genres || [],
       image: artist.image || null,
       audio_features: artist.audioFeatures || profile?.audioFeatures || {},
@@ -77,6 +91,18 @@ function normalizeArtifact(artifact: any) {
     regionLabel: node.region_label || null,
     role: node.type === 'cluster' ? 'cluster-core' : node.type === 'track' ? 'satellite' : 'star',
     detailLevel: node.type === 'track' ? 'micro' : node.type === 'artist' ? 'mid' : 'macro',
+    // Schema bridge — the GalaxyInspector reads client-model keys, but the server
+    // artifact names things differently. Map ONLY where the concept is identical:
+    //   • centrality ← significance: the client model defines them as the SAME
+    //     value (galaxyScoring.js: `centrality = significance`), so this is a
+    //     rename, not an invention.
+    // We deliberately do NOT fabricate `confidence` (server has no per-node
+    // confidence; the artifact's top-level confidence is galaxy-wide) or
+    // `bridgeScore` (server computes no bridge metric). Leaving them undefined so
+    // the panel can hide those rows instead of showing a fake 0%.
+    metrics: node.metrics
+      ? { ...node.metrics, centrality: node.metrics.centrality ?? node.metrics.significance }
+      : node.metrics,
   }))
 
   const clusters = (artifact?.clusters || []).map((cluster: any) => ({

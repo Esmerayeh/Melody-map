@@ -10,7 +10,7 @@
  *   - Emitted events auto-appear; user can dismiss individually
  *   - Not a notification centre — no sounds, no alerts, no badges on nav
  */
-import { useState } from 'react'
+import { forwardRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { ChevronDown, Radio, X } from 'lucide-react'
 import { MOTION_TOKENS } from '../motion/motionTokens'
@@ -29,12 +29,13 @@ const EVENT_COLORS = {
 
 const ROW_OPACITIES = [1, 0.76, 0.52, 0.36]
 
-function EventRow({ event, onDismiss, age }) {
+const EventRow = forwardRef(function EventRow({ event, onDismiss, age }, ref) {
   const color   = EVENT_COLORS[event.type] || '#9fdcff'
   const opacity = ROW_OPACITIES[age] ?? 0.36
 
   return (
     <motion.div
+      ref={ref}
       layout
       initial={{ opacity: 0, x: 10, height: 0 }}
       animate={{ opacity, x: 0, height: 'auto' }}
@@ -62,7 +63,7 @@ function EventRow({ event, onDismiss, age }) {
       </button>
     </motion.div>
   )
-}
+})
 
 export default function UniverseEventFeed({ className = '' }) {
   const events  = useUniverseEvents((s) => s.events)

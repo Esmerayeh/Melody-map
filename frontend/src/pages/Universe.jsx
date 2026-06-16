@@ -103,9 +103,14 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity, premiu
       transition={{ ...MOTION_TOKENS.panel, delay: 0.5 }}
       className={`absolute right-4 z-20 flex flex-col items-end ${premium ? 'top-24 gap-4 sm:top-28' : 'top-16 gap-3 sm:top-20'}`}
     >
-      <button
-        type="button"
+      {/* role=button (not <button>) on purpose: MusicSoulOrb renders its own
+          <button> inside, and a button nested in a button is invalid DOM. This
+          keeps the click-to-expand + keyboard a11y without the nesting. */}
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setExpanded((v) => !v) } }}
         className={premium
           ? 'pointer-events-auto rounded-full p-1 transition'
           : 'pointer-events-auto rounded-full border border-white/12 bg-[#0a0c1e]/80 p-1 backdrop-blur transition hover:border-white/24'}
@@ -130,7 +135,7 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity, premiu
           showLabels={expanded}
           lowPower={sparseGraphics}
         />
-      </button>
+      </div>
       {expanded && (
         <motion.p
           initial={{ opacity: 0, y: 4 }}
@@ -729,8 +734,15 @@ export default function Universe() {
     </div>
   )
 
+  // pointer-events-none on the root below is LOAD-BEARING: this root sits at z-10
+  // directly over the persistent galaxy <Canvas> (z-0, a sibling in App.jsx).
+  // Without it, this full-screen div swallows every drag and click before they
+  // reach the stars — keyboard (WASD) still works, the mouse does not. Each
+  // interactive child (HUD panels, Recenter/Drift buttons, Soul Orb dock)
+  // re-enables pointer-events-auto on itself, so the mouse falls through the gaps
+  // to the canvas and click-to-focus / drag-to-look work.
   return (
-    <div className={`relative ${cinemaMode ? 'fixed inset-0 z-50' : 'z-10 h-[100dvh] overflow-hidden'}`}>
+    <div className={`relative pointer-events-none ${cinemaMode ? 'fixed inset-0 z-50' : 'z-10 h-[100dvh] overflow-hidden'}`}>
 
       {/* The galaxy renders from the ONE persistent <Canvas> in the app shell
           (published via useGalaxyStageConfig above). While the model resolves,

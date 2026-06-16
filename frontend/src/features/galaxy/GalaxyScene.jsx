@@ -10,7 +10,14 @@ import { slugifyInteraction } from './interactionModel.js'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
 import GalaxySceneBoundary from './GalaxySceneBoundary'
 import GalaxyAudioController from './GalaxyAudioController'
-import { applyTierLayout, SPREAD_SCALE } from './galaxyTierLayout'
+import {
+  applyTierLayout,
+  SPREAD_SCALE,
+  ARM_COUNT,
+  ARM_INNER_RADIUS,
+  ARM_OUTER_RADIUS,
+  armCenterline,
+} from './galaxyTierLayout'
 
 const NODE_TYPES_WITH_LABELS = new Set(['genre', 'artist', 'track'])
 const EMPTY_LABEL_LAYOUT = new Map() // stable ref for the no-labels (off-route) state
@@ -121,30 +128,96 @@ function colorForPos(x, y, z) {
   return _tmpColor.copy(base).lerp(NEBULA_COLORS[best], Math.min(0.7, bestW * 0.9))
 }
 
-const GALAXY_RADIUS = 95, DISK_THICKNESS = 9, ARMS = 4, ARM_PITCH = 0.045
+// ── Procedural spiral disk (decorative ~14k stars) ───────────────────────────
+// Reshaped from the old 4-wound-arms + bright-core-PILE into a grand-design
+// spiral that OVERLAYS the data-node arms. The arms share ARM_COUNT / winding /
+// inner+outer radius with galaxyTierLayout (imported via armCenterline), lifted
+// into world space by SPREAD_SCALE so a decorative arm sits on its data arm.
+// Three populations, no central size-boost (the luminous heart is TasteCore +
+// the additive core shells — this disk only thickens the very centre subtly):
+//   • arm spine  — log-spiral centerline + perpendicular Gaussian (visible arms)
+//   • inter-arm  — faint sparse dust scattered between arms (fuzzy edges/realism)
+//   • bulge      — small, dim, soft glow at the centre (NOT a star pile)
+// ╭───────────────────────────  SPIRAL TUNING  ───────────────────────────╮
+// Iterate by EYE, ONE knob per pass (so if a look gets worse you know exactly
+// which change did it).
+//
+// SHARED with the data-node arms — do NOT redefine these here. Edit them in
+// galaxyTierLayout.js (single source of truth, imported above) so the
+// decorative arms and the data arms can never drift apart. Current values:
+//   ARM_COUNT        = 2    arms       · raise → more arms       · lower → fewer
+//   ARM_WIND_TURNS   = 0.7  tightness  · raise → tighter coil    · lower → looser / more open sweep
+//   ARM_INNER_RADIUS = 4    arm start  · raise → wider open core · lower → arms start nearer centre
+//   ARM_OUTER_RADIUS = 27   arm length · raise → arms reach rim  · lower → shorter / stubbier arms
+//
+// LOCAL to this decorative disk — edit these three RIGHT HERE:
+const ARM_GAUSS_WIDTH = 6.0    // scatter / arm thickness   · raise → fuzzier, fatter arms · lower → tighter, crisper ribbons
+const DISK_ARM_FRAC   = 0.76   // arm vs inter-arm balance  · raise → denser arms          · lower → more inter-arm dust
+const DUST_LANE       = 0.35   // dark inner-edge dust lane · raise → deeper lane           · lower → symmetric (0 = off)
+// ╰────────────────────────────────────────────────────────────────────────╯
+
+// Secondary disk shape — NOT part of the eye-tuning loop; left as-is.
+const DISK_THICKNESS  = 7      // vertical disc thickness; thins toward rim → 3D disc, not flat
+const DISK_BULGE_FRAC = 0.04   // small dim central bulge (remainder ≈0.20 = inter-arm field)
+const ARM_T_POWER     = 0.85   // <1 loosens the inward pile so arms fill out to the rim
+const BULGE_RADIUS    = 12     // world radius of the soft central bulge
+const KNOT_CHANCE     = 0.05   // a few brighter star-forming knots along the arms (never at centre)
+
+const R_INNER = ARM_INNER_RADIUS * SPREAD_SCALE   // ≈16 world units (arms begin)
+const R_OUTER = ARM_OUTER_RADIUS * SPREAD_SCALE   // ≈108 world units (arms end)
+
+// Cheap ~N(0,1): sum of 3 uniforms (mean 1.5, std 0.5) re-centred and scaled.
+function gauss1() { return ((Math.random() + Math.random() + Math.random()) - 1.5) * 2 }
 
 function buildGalaxyDiskGeometry(count) {
   const pos = new Float32Array(count * 3), col = new Float32Array(count * 3)
   const sz = new Float32Array(count), ph = new Float32Array(count)
+  const bulgeCut = 1 - DISK_BULGE_FRAC
   for (let i = 0; i < count; i++) {
-    let r, theta, y; const roll = Math.random()
-    if (roll < 0.70) {
-      const arm = Math.floor(Math.random() * ARMS)
-      r = Math.pow(Math.random(), 0.62) * GALAXY_RADIUS
-      theta = (arm / ARMS) * Math.PI * 2 + r * ARM_PITCH + (Math.random() - 0.5) * 0.55
-      const tk = DISK_THICKNESS * Math.max(0.25, 1 - r / GALAXY_RADIUS * 0.6)
-      y = (Math.random() - 0.5) * tk * 2
-    } else if (roll < 0.93) {
-      r = Math.pow(Math.random(), 1.3) * GALAXY_RADIUS * 1.15
-      theta = Math.random() * Math.PI * 2; y = (Math.random() - 0.5) * GALAXY_RADIUS * 0.5
+    const roll = Math.random()
+    let x, y, z, size, dim = 1
+    if (roll < DISK_ARM_FRAC) {
+      // Arm star: pick a spot on the log-spiral centerline, then offset
+      // perpendicular to the arm by a Gaussian whose width is the arm thickness.
+      const arm = Math.floor(Math.random() * ARM_COUNT)
+      let t = Math.pow(Math.random(), ARM_T_POWER)
+      t = clamp(t + (Math.random() - 0.5) * 0.03, 0, 1)               // mild along-arm jitter
+      const c0 = armCenterline(arm, t)
+      const c1 = armCenterline(arm, Math.min(1, t + 0.002))           // tangent (finite difference)
+      let tx = c1.x - c0.x, tz = c1.z - c0.z
+      const tl = Math.hypot(tx, tz) || 1; tx /= tl; tz /= tl
+      const px = -tz, pz = tx                                          // perpendicular, in disk plane
+      const r = c0.radius * SPREAD_SCALE
+      const width = ARM_GAUSS_WIDTH * (0.55 + 0.9 * t)                 // arms flare a little outward
+      const off = gauss1() * width + DUST_LANE * width                // +bias → darker inner/leading edge
+      x = c0.x * SPREAD_SCALE + px * off + tx * gauss1() * width * 0.3
+      z = c0.z * SPREAD_SCALE + pz * off + tz * gauss1() * width * 0.3
+      const tk = DISK_THICKNESS * Math.max(0.25, 1 - (r / R_OUTER) * 0.6)
+      y = gauss1() * tk * 0.5
+      size = Math.random() < KNOT_CHANCE ? 1.4 + Math.random() * 0.9   // star-forming knot sparkle
+                                         : 0.55 + Math.random() * 0.85
+    } else if (roll < bulgeCut) {
+      // Inter-arm field: faint sparse dust filling the gaps between arms so the
+      // disk reads as a galaxy (fuzzy edges) rather than two clean ribbons.
+      const ir = R_INNER * 0.5 + Math.pow(Math.random(), 0.8) * (R_OUTER - R_INNER * 0.5)
+      const th = Math.random() * Math.PI * 2
+      x = Math.cos(th) * ir; z = Math.sin(th) * ir
+      const tk = DISK_THICKNESS * Math.max(0.25, 1 - (ir / R_OUTER) * 0.6)
+      y = gauss1() * tk * 0.5
+      dim = 0.55; size = 0.4 + Math.random() * 0.55
     } else {
-      r = Math.pow(Math.random(), 0.7) * 13; theta = Math.random() * Math.PI * 2; y = (Math.random() - 0.5) * 5
+      // Central bulge: small, DIM, soft — a subtle thickening under the bright
+      // TasteCore, slightly rounder in Y. No size boost, no bright cluster.
+      const br = Math.pow(Math.random(), 0.7) * BULGE_RADIUS
+      const th = Math.random() * Math.PI * 2
+      x = Math.cos(th) * br; z = Math.sin(th) * br
+      y = gauss1() * DISK_THICKNESS * 0.55
+      dim = 0.5; size = 0.4 + Math.random() * 0.5
     }
-    const x = Math.cos(theta) * r + (Math.random() - 0.5) * 2.5
-    const z = Math.sin(theta) * r + (Math.random() - 0.5) * 2.5
     pos[i * 3] = x; pos[i * 3 + 1] = y; pos[i * 3 + 2] = z
-    const c = colorForPos(x, y, z); col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b
-    sz[i] = roll >= 0.93 ? (2.0 + Math.random() * 1.8) : (0.55 + Math.random() * 1.3)  // core boost
+    const c = colorForPos(x, y, z)
+    col[i * 3] = c.r * dim; col[i * 3 + 1] = c.g * dim; col[i * 3 + 2] = c.b * dim
+    sz[i] = size
     ph[i] = Math.random()
   }
   const g = new THREE.BufferGeometry()
@@ -180,27 +253,47 @@ function makeStarMaterial() {
       uTime: { value: 0 },
       uPixelRatio: { value: Math.min(typeof window !== 'undefined' ? window.devicePixelRatio : 1, 2) },
       uMap: { value: getDiscTex() },
+      // Backdrop tint that very distant stars bleed toward (matches the sky
+      // shell's mid colour) so there's a sense of air between near and far.
+      uHaze: { value: new THREE.Color(0x130a1e) },
     },
     vertexShader: `
       attribute float aSize; attribute float aPhase; attribute vec3 aColor;
-      varying vec3 vColor; varying float vTwinkle;
+      varying vec3 vColor; varying float vTwinkle; varying float vBright; varying float vHaze;
       uniform float uTime; uniform float uPixelRatio;
       void main() {
         vColor = aColor;
         vec4 mv = modelViewMatrix * vec4(position, 1.0);
         gl_Position = projectionMatrix * mv;
         float dist = -mv.z;
-        gl_PointSize = aSize * uPixelRatio * (180.0 / max(dist, 1.0));
+        // Cap point size so flying point-blank through the field (WASD) can't
+        // spawn screen-filling additive blobs — uncapped, a near bright core hits
+        // ~1368px (≈1.9M fragments) and the summed overdraw tanks the framerate
+        // every frame WHILE MOVING. The 150px cap only clips stars within a few
+        // units of the camera; the resting framing never reaches it (nearest
+        // normal points are ~70px), so the depth "near = bigger" look is unchanged.
+        gl_PointSize = min(aSize * uPixelRatio * (180.0 / max(dist, 1.0)), 150.0 * uPixelRatio);
+        // ── Distance depth cues (GPU-side, per-star, reuses dist) ──────────────
+        // Near stars render brighter, far ones dimmer → a luminance gradient on
+        // top of the size attenuation above. The very distant field also bleeds
+        // toward the backdrop haze so far layers feel like air, not a flat wall
+        // of equal points. depthN: 0 near (<=25u) → 1 far (>=340u).
+        float depthN = smoothstep(25.0, 340.0, dist);
+        vBright = mix(1.30, 0.50, depthN);               // near = +30%, far = -50%
+        vHaze   = smoothstep(150.0, 360.0, dist) * 0.40; // soft atmospheric falloff, far only
         vTwinkle = 0.65 + 0.35 * sin(uTime * 0.9 + aPhase * 6.28);
       }`,
     fragmentShader: `
-      varying vec3 vColor; varying float vTwinkle; uniform sampler2D uMap;
+      varying vec3 vColor; varying float vTwinkle; varying float vBright; varying float vHaze;
+      uniform sampler2D uMap; uniform vec3 uHaze;
       void main() {
         vec4 tex = texture2D(uMap, gl_PointCoord);
         if (tex.a < 0.01) discard;
         vec2 d = gl_PointCoord - 0.5;
         float core = smoothstep(0.18, 0.0, length(d));
-        gl_FragColor = vec4(vColor * (1.0 + core * 0.8) * vTwinkle, tex.a);
+        vec3 col = mix(vColor, uHaze, vHaze);            // distant stars recede into haze
+        col *= (1.0 + core * 0.8) * vTwinkle * vBright;  // near brighter, far dimmer
+        gl_FragColor = vec4(col, tex.a);
       }`,
     blending: THREE.AdditiveBlending,
     transparent: true,
@@ -226,8 +319,11 @@ function ParallaxStarfield({ density, sparseMode, lowPower = false, reducedMotio
     const dt = Math.min(delta, 0.05)
     diskPoints.material.uniforms.uTime.value += dt
     deepPoints.material.uniforms.uTime.value += dt
-    // Gentle ambient rotation of the galaxy disk; deep field stays static.
-    if (!reducedMotion) diskPoints.rotation.y += 0.00025
+    // Disk rotation is LOCKED (no ambient spin). The decorative arms are wound to
+    // overlay the data-node arms (same ARM_COUNT/winding/scale), and the data
+    // nodes don't spin — so any drift would slide the two layers apart over
+    // minutes and break the grand-design read. Life comes from twinkle (uTime),
+    // the living layer, nebula drift and node float instead. (deep field static.)
   })
 
   return (
@@ -284,10 +380,14 @@ function GalaxyNebulae({ sparseGraphics = false, reducedMotion = false }) {
           map: puff,
           color: baseColor.clone().lerp(new THREE.Color(0xffffff), Math.random() * 0.25),
           transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-          opacity: 0.14 + Math.random() * 0.2, rotation: Math.random() * Math.PI * 2,
+          // Trimmed ~30% fainter + smaller than before so the reshaped spiral
+          // arms aren't washed out by ambient haze (was 0.14+0.2 opacity, 14+30
+          // size). Smaller/fainter, not gone — and the data-attached RegionNebula
+          // haze is untouched, so genre centroids stay wrapped.
+          opacity: 0.10 + Math.random() * 0.14, rotation: Math.random() * Math.PI * 2,
         })
         const sp = new THREE.Sprite(mat)
-        const s = 14 + Math.random() * 30
+        const s = 11 + Math.random() * 22
         sp.scale.set(s, s * (0.7 + Math.random() * 0.5), 1)
         sp.position.set(px, py, pz)
         group.add(sp)
@@ -624,10 +724,15 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   // Generous invisible hit sphere so click-to-focus is reliable even for small
   // stars: artists/clusters get a wide target, genres wider, tracks a usable
   // minimum. (Was renderedSize*2.2, min 0.45/0.7 — too small to hit reliably.)
+  // Scaled by SPREAD_SCALE: node POSITIONS are multiplied by SPREAD_SCALE in the
+  // tier layout (galaxy spread 4× apart + camera pulled 4× back), but these radii
+  // are local world units that don't inherit that scale — so without this they
+  // shrink to ~1/4 their old screen size and clicks miss the now-tiny targets.
+  // Multiplying here restores the exact pre-spread (relative) click geometry.
   const hitRadius = Math.max(
     renderedSize * 3.4,
     node.type === 'track' ? 0.7 : node.type === 'genre' ? 2.6 : 1.5,
-  )
+  ) * SPREAD_SCALE
   const driftSeed = useMemo(() => stableHash(node.id || node.label || 'node'), [node.id, node.label])
   const basePosition = useMemo(() => new THREE.Vector3(position.x, position.y, position.z), [position.x, position.y, position.z])
 
@@ -826,7 +931,10 @@ function RegionNebula({ region, model, galaxyMode, viewMode }) {
   // too small for — its spread-out stars. baseScale is clamped at base size,
   // THEN multiplied by SPREAD_SCALE so each haze wraps its genre exactly as it
   // did before the scale pass, just larger.
-  const baseScale = clamp((4.4 + (region.coverage || 0) * 8.5) * tierScale, 3.6, 8.2) * SPREAD_SCALE
+  // Smaller than before (was 4.4+cov*8.5, clamp 3.6..8.2) so the haze stops
+  // filling the whole screen — additive overdraw at that size tanked the
+  // framerate AND washed the image out. Still wraps each genre, just tighter.
+  const baseScale = clamp((3.2 + (region.coverage || 0) * 5.5) * tierScale, 2.6, 5.6) * SPREAD_SCALE
   const visible = galaxyMode === 'universal' || galaxyMode === 'genre'
   const centroid = region?.centroid || { x: 0, y: 0, z: 0 }
   const centroidValid = Number.isFinite(centroid.x) && Number.isFinite(centroid.y) && Number.isFinite(centroid.z)
@@ -850,14 +958,15 @@ function RegionNebula({ region, model, galaxyMode, viewMode }) {
   return (
     <group ref={groupRef} position={[centroid.x, centroid.y, centroid.z - 1.2]}>
       <RegionParticles region={region} selected={selected} hovered={hovered} />
-      {[1, 0.74, 0.48].map((factor, index) => (
+      {[1, 0.6].map((factor, index) => (
         <mesh key={`${region.id}-${factor}`} scale={[baseScale * factor, baseScale * factor * (0.66 + index * 0.08), baseScale * factor]}>
-          <sphereGeometry args={[1, 26, 26]} />
-          {/* Additive, layered → soft volumetric haze instead of a flat disc. */}
+          <sphereGeometry args={[1, 20, 20]} />
+          {/* Additive, layered → soft volumetric haze. Cut from 3 shells to 2 to
+              roughly halve the big-sphere overdraw (the main framerate cost). */}
           <meshBasicMaterial
             color={region.color}
             transparent
-            opacity={(selected ? 0.12 : hovered ? 0.09 : 0.06) - index * 0.012}
+            opacity={(selected ? 0.13 : hovered ? 0.1 : 0.07) - index * 0.018}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />

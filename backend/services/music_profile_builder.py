@@ -883,6 +883,10 @@ def _normalize_track(item: dict) -> dict:
         'popularity': item.get('popularity'),
         'release_date': item.get('album', {}).get('release_date', ''),
         'spotify_url': item.get('external_urls', {}).get('spotify'),
+        # 30s preview clip for in-galaxy playback ("the open" / Path A). May be
+        # null — Spotify omits it for some apps, so the frontend must degrade
+        # gracefully (no preview → no play control).
+        'preview_url': item.get('preview_url'),
     }
 
 
