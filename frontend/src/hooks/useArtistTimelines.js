@@ -117,8 +117,14 @@ export default function useArtistTimelines({ profile = null, isDemo = false, ena
     const shortKeys = new Set(shortList.map((a) => a.key))
     const longKeys  = new Set(longList.map((a) => a.key))
 
-    // ghost = long_term only (not in short_term)
-    longList.forEach((a) => {
+    // ghost = a TOP-TIER long-term artist that's dropped out of short_term — a
+    // real "former orbit" (you played them a lot, not lately). Cap to the top
+    // GHOST_FROM_TOP: short_term is a shallow window (e.g. 14 vs 50 long-term),
+    // so without the cap your whole long tail gets branded "former orbit" (~39
+    // of 50) just for sitting outside your recent handful. Deep catalog that was
+    // never top-tier isn't a dropped orbit — it stays a plain star.
+    const GHOST_FROM_TOP = 25
+    longList.slice(0, GHOST_FROM_TOP).forEach((a) => {
       if (!shortKeys.has(a.key)) ghost.add(a.key)
     })
 

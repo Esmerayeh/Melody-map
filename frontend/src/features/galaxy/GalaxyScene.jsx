@@ -1062,32 +1062,35 @@ function TasteCore({ core, model, galaxyMode }) {
 
   return (
     <group ref={groupRef} position={[corePosition.x, corePosition.y, corePosition.z]}>
-      {/* Additive halo shells incl. a near-white inner glow (#fff1d6). Reduced
-          ~40% (0.12/0.18/0.24 → 0.07/0.11/0.14) so the core stops hazing white
-          over panels on content routes. */}
-      {[1.7, 1.28, 0.94].map((factor, index) => (
+      {/* Additive halo shells — amber → gold → near-white. Brightened back up
+          (from 0.07/0.11/0.14) so on /universe the core reads as a luminous heart,
+          not a flat disc. Kept warm + moderate so it glows without the big white
+          wash that previously hazed content-route panels. */}
+      {[1.85, 1.4, 1.02].map((factor, index) => (
         <mesh key={`${factor}`}>
           <sphereGeometry args={[factor, 28, 28]} />
-          {/* Middle halo shell warmed off the purple data fallback (#8b5cf6)
-              to gold #ffd89b — sits between the amber outer (#f0c089) and the
-              near-white inner (#fff1d6) for a peach-gold gradient, no purple. */}
-          <meshBasicMaterial color={index === 0 ? '#f0c089' : index === 1 ? '#ffd89b' : '#fff1d6'} transparent opacity={index === 0 ? 0.07 : index === 1 ? 0.11 : 0.14} blending={THREE.AdditiveBlending} depthWrite={false} />
+          <meshBasicMaterial color={index === 0 ? '#f0c089' : index === 1 ? '#ffd89b' : '#fff1d6'} transparent opacity={index === 0 ? 0.12 : index === 1 ? 0.2 : 0.3} blending={THREE.AdditiveBlending} depthWrite={false} />
         </mesh>
       ))}
-      {/* core mesh emissive base/hover/select dropped ~35%: 0.9/1.2/1.5 -> 0.58/0.78/0.98 */}
+      {/* White-hot inner heart — small + additive, so the core reads as a glowing
+          star with a bright centre instead of one flat skin-toned circle. */}
+      <mesh>
+        <sphereGeometry args={[0.52, 24, 24]} />
+        <meshBasicMaterial color="#fff6ea" transparent opacity={0.6} blending={THREE.AdditiveBlending} depthWrite={false} />
+      </mesh>
+      {/* Core sphere — emissive-dominant (low metalness, higher emissive) so it
+          reads as LIGHT, not a glossy flesh-toned ball. Warm valence peach
+          (#ffba95) kept as the identity colour. */}
       <mesh>
         <sphereGeometry args={[0.85, 28, 28]} />
-        {/* Core sphere forced to the app's warm valence tone (#ffba95, the same
-            peach the Soul Orb uses) instead of the purple data fallback
-            (#8b5cf6). Colour/emissive only — size, glow, intensity unchanged. */}
         <MeshDistortMaterial
           color="#ffba95"
-          emissive="#ffba95"
-          emissiveIntensity={selected ? 0.98 : hovered ? 0.78 : 0.58}
-          roughness={0.14}
-          metalness={0.58}
+          emissive="#ffcaa0"
+          emissiveIntensity={selected ? 1.5 : hovered ? 1.2 : 0.95}
+          roughness={0.32}
+          metalness={0.1}
           transparent
-          opacity={0.94}
+          opacity={0.95}
           distort={0.18}
           speed={0.8}
         />
