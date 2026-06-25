@@ -209,7 +209,7 @@ function buildGenreAnchors(genres = [], profileFeatures = {}, artists = []) {
     })
   })
 
-  return genres.slice(0, 14).map((genre, index) => {
+  return genres.slice(0, 50).map((genre, index) => {
     const weight    = clamp((genre.count ?? 1) / topGenreCount)
     const genreKey  = genre.genre.toLowerCase()
     const memberFeatures = genreFeatureMap.get(genreKey) || []
@@ -247,6 +247,7 @@ function buildGenreAnchors(genres = [], profileFeatures = {}, artists = []) {
     return {
       id: `genre:${slugify(genre.genre)}`,
       type: 'genre',
+      rank: index,
       label: genre.genre,
       image: null,
       genres: [genre.genre],
@@ -368,7 +369,7 @@ function buildArtistStars(artists = [], genreNodes = [], profileFeatures = {}) {
 function buildTrackSatellites(tracks = [], artistNodes = [], genreNodes = []) {
   const artistMap = new Map(artistNodes.map((node) => [node.label.toLowerCase(), node]))
   const genreMap = Object.fromEntries(genreNodes.map((node) => [node.label.toLowerCase(), node]))
-  return tracks.slice(0, 36).map((track, index) => {
+  return tracks.slice(0, 50).map((track, index) => {
     const primaryArtist = artistMap.get((track.artist || '').toLowerCase()) || null
     const artistGenres = primaryArtist?.genres || []
     const genreAnchor = artistGenres.map((genre) => genreMap[genre.toLowerCase()]).filter(Boolean)[0] || null
@@ -378,6 +379,7 @@ function buildTrackSatellites(tracks = [], artistNodes = [], genreNodes = []) {
     return {
       id: `track:${track.id || slugify(`${track.title}-${track.artist}`) || index}`,
       type: 'track',
+      rank: index,
       label: track.title || 'Unknown Track',
       image: track.album_art || null,
       genres: artistGenres,
@@ -613,7 +615,7 @@ export function buildGalaxyModel(profile = null) {
 
   const artists = (profile.topArtists || []).slice(0, 50)
   const tracks = (profile.topTracks || []).slice(0, 50)
-  const genres = (profile.genres || []).slice(0, 14)
+  const genres = (profile.genres || []).slice(0, 50)
   if (!artists.length && profile.galaxyNodes?.length) {
     return buildLegacyGalaxyModel(profile.galaxyNodes, 'profile-galaxyNodes')
   }
@@ -634,9 +636,12 @@ export function buildGalaxyModel(profile = null) {
         ? 'medium'
         : 'partial'
 
-  const sparseMode = profileTier === 'partial'
-    || profileTier === 'limited'
-    || (profile.confidence?.galaxy ?? 0) < 0.45
+  // Sparse mode is driven by actual data VOLUME (artist count), NOT by
+  // confidence.galaxy — that confidence is dragged down by Spotify's deprecated
+  // audio-features/popularity (now null), which falsely forced rich profiles into
+  // sparse mode (dropping ALL tracks → empty Song mode, and filtering regions →
+  // "0 nebulae"). With ≥12 artists we now build the full galaxy.
+  const sparseMode = profileTier === 'partial' || profileTier === 'limited'
 
   const genreNodes = sparseMode ? genreNodesBase.slice(0, 6) : genreNodesBase
   const artistNodes = sparseMode ? artistNodesBase.slice(0, 18) : artistNodesBase
@@ -831,7 +836,7 @@ export function buildGalaxyModeModel(model, galaxyMode = 'universal') {
     nodes = allNodes
       .filter((node) => node.type === 'track')
       .sort((left, right) => ((right.metrics?.significance || 0) + (right.metrics?.discoveryScore || 0)) - ((left.metrics?.significance || 0) + (left.metrics?.discoveryScore || 0)))
-      .slice(0, 28)
+      .slice(0, 50)
     nodes.forEach((node) => keepIds.add(node.id))
     edges = buildSongSimilarityEdges(nodes)
     regions = []

@@ -39,7 +39,7 @@ function OracleResult({ result }) {
   if (!result) return null
   return (
     <AuraCard className="p-5" accent="cyan">
-      <p className="section-label mb-2 text-cyan-200">Retrieved memory</p>
+      <p className="section-label mb-2 text-[#e4d3de]">Retrieved memory</p>
       <p className="text-lg font-semibold text-white">{result.answer}</p>
       <p className="mt-3 text-sm text-slate-400">{result.explanation}</p>
       <div className="mt-5 rounded-[22px] border border-white/8 bg-black/20 p-4">
@@ -168,7 +168,7 @@ export default function Auralith() {
         <AtmosphereBackground variant="oracle" intensity="rich" anchored />
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
           <div className="max-w-3xl">
-            <p className="premium-kicker mb-3 text-amber-300">Music Memory Oracle</p>
+            <p className="premium-kicker mb-3 text-[#de83b4]">Music Memory Oracle</p>
             <h1 className="premium-hero-title max-w-4xl">
               Auralith reads the meaning inside your listening history.
             </h1>
@@ -198,8 +198,8 @@ export default function Auralith() {
       <section className="grid gap-4 lg:grid-cols-[1.05fr_0.95fr]">
         <AuraCard className="p-6" accent="cyan">
           <div className="flex items-center gap-3">
-            <div className="rounded-2xl border border-cyan-400/20 bg-cyan-400/10 p-3">
-              <Brain className="h-5 w-5 text-cyan-100" />
+            <div className="rounded-2xl border border-[#ac6294]/20 bg-[#ac6294]/10 p-3">
+              <Brain className="h-5 w-5 text-[#e4d3de]" />
             </div>
             <div>
               <p className="section-label">Ask the oracle</p>
@@ -224,7 +224,7 @@ export default function Auralith() {
               </button>
             ))}
           </div>
-          <HaloButton type="button" onClick={runOracle} variant="cyan" icon={loadingOracle ? Loader2 : Sparkles} className="mt-5 w-full justify-center px-5 py-3 text-sm normal-case tracking-[0.08em] sm:w-auto">
+          <HaloButton type="button" onClick={runOracle} variant="cyan" icon={loadingOracle ? Loader2 : Sparkles} className="mt-5 w-full justify-center px-5 py-3 text-sm normal-case tracking-[0.08em]">
             Ask Auralith
           </HaloButton>
         </AuraCard>
@@ -234,7 +234,7 @@ export default function Auralith() {
             {loadingOracle ? (
               <NebulaLoader label="Searching your listening memories" detail="The oracle is surfacing fragments, emotional patterns, and the strongest nearby echoes." />
             ) : error && !moduleResult ? (
-              <AuraCard className="p-6 text-sm text-rose-300" accent="rose">{error}</AuraCard>
+              <AuraCard className="p-6 text-sm text-[#d15296]" accent="rose">{error}</AuraCard>
             ) : (
               <OracleResult result={oracleResult} />
             )}
@@ -297,7 +297,7 @@ export default function Auralith() {
           <AuraCard className="p-6" accent="lavender">
             <div className="flex items-center gap-3">
               <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3">
-                <Radio className="h-5 w-5 text-amber-200" />
+                <Radio className="h-5 w-5 text-[#f4e6ee]" />
               </div>
               <div>
                 <p className="section-label">Current module</p>
@@ -317,13 +317,13 @@ export default function Auralith() {
 
           {moduleResult ? (
             <AuraCard className="p-6" accent="rose">
-              <p className="section-label mb-2 text-amber-300">{moduleResult.mood || moduleResult.core_feeling || 'Auralith output'}</p>
+              <p className="section-label mb-2 text-[#de83b4]">{moduleResult.mood || moduleResult.core_feeling || 'Auralith output'}</p>
               <h2 className="text-3xl font-black text-white">{moduleResult.playlist_title || moduleResult.taste_profile || moduleResult.core_feeling || moduleResult.interpretation || 'Auralith answer'}</h2>
               <p className="mt-3 text-sm text-slate-400">{moduleResult.vibe_summary || moduleResult.emotional_signature || moduleResult.why_it_works || moduleResult.overall_assessment || moduleResult.narrative}</p>
               {moduleResult.agent_trace?.steps?.length ? (
                 <div className="mt-5 flex flex-wrap gap-2">
                   {moduleResult.agent_trace.steps.map((step) => (
-                    <span key={step.id} className="rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs text-cyan-100">
+                    <span key={step.id} className="rounded-full border border-[#ac6294]/20 bg-[#ac6294]/10 px-3 py-1 text-xs text-[#e4d3de]">
                       {step.label}
                     </span>
                   ))}

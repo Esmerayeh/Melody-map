@@ -275,7 +275,7 @@ function ShellCrashFallback({ error, componentStack }) {
           Your session is fine — one surface crashed while drawing. The exact fault is below and in the console as [ROUTE_CRASH].
         </p>
         {error ? (
-          <p className="mt-3 rounded-xl bg-black/30 px-3 py-2 text-xs text-amber-200/90 break-words">{String(error?.message || error)}</p>
+          <p className="mt-3 rounded-xl bg-black/30 px-3 py-2 text-xs text-[#f4e6ee]/90 break-words">{String(error?.message || error)}</p>
         ) : null}
         {stackPreview ? (
           <p className="mt-2 rounded-xl bg-black/30 px-3 py-2 text-[10px] leading-relaxed text-gray-400 break-words">{stackPreview}</p>
@@ -584,12 +584,12 @@ export default function App() {
           toastOptions={{
             style: {
               background: 'linear-gradient(160deg, rgba(20,14,30,0.92), rgba(8,5,18,0.96))',
-              color: '#f6f1e8',
+              color: '#ebccdc',
               border: '1px solid rgba(255,220,200,0.16)',
               backdropFilter: 'blur(24px)',
               boxShadow: '0 16px 38px rgba(0,0,0,0.4)',
             },
-            success: { iconTheme: { primary: '#e0a35c', secondary: '#fff' } },
+            success: { iconTheme: { primary: '#c1337f', secondary: '#fff' } },
           }}
         />
       </Router>

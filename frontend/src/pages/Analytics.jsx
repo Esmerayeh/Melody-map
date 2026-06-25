@@ -22,10 +22,10 @@ const pct = (value) => {
   return normalized == null ? null : Math.round(normalized * 100)
 }
 const fmt = (v) => (v != null ? Number(v).toFixed(0) : '—')
-const GENRE_COLORS = ['#e0a35c','#B994FF','#9DB7FF','#EAE6FF','#F0C8FF','#7A6BD8','#D6D0F0','#C7BEFF']
+const GENRE_COLORS = ['#c1337f','#B994FF','#9DB7FF','#EAE6FF','#F0C8FF','#7A6BD8','#D6D0F0','#C7BEFF']
 const STAT_CARDS = [
-  { key: 'energy',       label: 'Intensity',       icon: Zap,      color: '#f472b6', desc: 'heat and forward pull' },
-  { key: 'valence',      label: 'Light',   icon: Heart,    color: '#f0c089', desc: 'brightness inside the feeling' },
+  { key: 'energy',       label: 'Intensity',       icon: Zap,      color: '#d15296', desc: 'heat and forward pull' },
+  { key: 'valence',      label: 'Light',   icon: Heart,    color: '#e1a7c6', desc: 'brightness inside the feeling' },
   { key: 'danceability', label: 'Movement', icon: Activity, color: '#9DB7FF', desc: 'how much the body wants in' },
   { key: 'acousticness', label: 'Texture', icon: Music2,   color: '#60a5fa', desc: 'wood, wire, or circuitry' },
 ]
@@ -77,7 +77,7 @@ function AudioRadar({ af }) {
       <RadarChart data={available} margin={{ top: 10, right: 20, bottom: 10, left: 20 }}>
         <PolarGrid stroke="rgba(255,255,255,0.08)" />
         <PolarAngleAxis dataKey="feature" tick={{ fill: '#94a3b8', fontSize: 11 }} />
-        <Radar dataKey="value" stroke="#f0c089" fill="#f0c089" fillOpacity={0.18} strokeWidth={2} dot={{ fill: '#f0c089', r: 3 }} />
+        <Radar dataKey="value" stroke="#e1a7c6" fill="#e1a7c6" fillOpacity={0.18} strokeWidth={2} dot={{ fill: '#e1a7c6', r: 3 }} />
       </RadarChart>
     </ResponsiveContainer>
   )
@@ -103,8 +103,8 @@ function GenrePills({ genres }) {
 function TempoBar({ tempo }) {
   const zones = [
     { label: 'Slow',   range: [0,   80],  color: '#60a5fa' },
-    { label: 'Mid',    range: [80,  120], color: '#f0c089' },
-    { label: 'Upbeat', range: [120, 160], color: '#f472b6' },
+    { label: 'Mid',    range: [80,  120], color: '#e1a7c6' },
+    { label: 'Upbeat', range: [120, 160], color: '#d15296' },
     { label: 'Fast',   range: [160, 300], color: '#fb923c' },
   ]
   if (tempo == null) {
@@ -286,7 +286,7 @@ export default function Analytics() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
             className="noire-info-card p-5 rounded-[28px]">
             <div className="flex items-center gap-2 mb-4">
-              <BarChart2 className="w-4 h-4 text-amber-400" />
+              <BarChart2 className="w-4 h-4 text-[#de83b4]" />
               <p className="text-sm font-semibold text-white">Sonic shape</p>
             </div>
             <AudioRadar af={af} />
@@ -301,7 +301,7 @@ export default function Analytics() {
           <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
             className="noire-orb-panel p-5 rounded-[32px] flex flex-col items-center justify-center">
             <div className="flex items-center gap-2 mb-4 self-start">
-              <Disc3 className="w-4 h-4 text-pink-400" />
+              <Disc3 className="w-4 h-4 text-[#d15296]" />
               <p className="text-sm font-semibold text-white">The listening entity</p>
             </div>
             <DeferredSoulOrb
@@ -334,7 +334,7 @@ export default function Analytics() {
         <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.45 }}
           className="noire-info-card p-5 rounded-[28px]">
           <div className="flex items-center gap-2 mb-4">
-            <Music2 className="w-4 h-4 text-blue-400" />
+            <Music2 className="w-4 h-4 text-[#ac6294]" />
             <p className="text-sm font-semibold text-white">Atmospheric spread</p>
           </div>
           <DiversityPie genres={safeProfile.genres} />
@@ -343,7 +343,7 @@ export default function Analytics() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5 }}
         className="noire-info-card p-5 rounded-[28px]">
         <div className="flex items-center gap-2 mb-4">
-          <Mic2 className="w-4 h-4 text-amber-400" />
+          <Mic2 className="w-4 h-4 text-[#de83b4]" />
           <p className="text-sm font-semibold text-white">The loudest pull</p>
         </div>
         <ArtistFrequency topArtists={safeProfile.topArtists} />
@@ -351,7 +351,7 @@ export default function Analytics() {
       <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.55 }}
         className="noire-info-card p-5 rounded-[28px]">
         <div className="flex items-center gap-2 mb-4">
-          <Zap className="w-4 h-4 text-rose-400" />
+          <Zap className="w-4 h-4 text-[#d15296]" />
           <p className="text-sm font-semibold text-white">The atmospheres you return to</p>
         </div>
         <GenrePills genres={safeProfile.genres} />

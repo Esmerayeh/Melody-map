@@ -20,7 +20,7 @@
  * Demo mode: uses demoPlanet.js seeded ghost artist (Porcelain Distance).
  * Auth mode + no diff data: "Memory Belt forming" state.
  */
-import { useMemo, useRef }        from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { useFrame }               from '@react-three/fiber'
 import * as THREE                 from 'three'
 import { AnimatePresence, motion} from 'framer-motion'
@@ -57,6 +57,9 @@ export function GhostConstellationLines({ ghostNodes, reducedMotion = false }) {
     geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3))
     return geo
   }, [ghostNodes])
+
+  // Rebuilt when ghostNodes change — dispose the previous buffer (and on unmount).
+  useEffect(() => () => geometry?.dispose(), [geometry])
 
   useFrame(({ clock }) => {
     if (reducedMotion || !matRef.current) return

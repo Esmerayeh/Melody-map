@@ -3,16 +3,67 @@ import { extend } from '@react-three/fiber'
 import { shaderMaterial } from '@react-three/drei'
 
 const plasmaVertexShader = `
+  uniform float uTime;
+  uniform float uFormation;   // 0 = exploded dust cloud, 1 = condensed sphere
+
   varying vec3 vNormal;
   varying vec3 vWorldPosition;
   varying vec3 vLocalPosition;
+  varying vec2 vScreenUV;      // screen-aligned coord (kept for reference)
+  varying vec3 vLocalNormal;   // object-space normal → halftone wraps the SURFACE (3D)
+
+  // Compact value noise (vertex-side) — only used to scatter vertices during the
+  // forming process, so it is kept cheap (no FBM here).
+  float vHash(vec3 p) {
+    p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
+    p *= 17.0;
+    return fract(p.x * p.y * p.z * (p.x + p.y + p.z));
+  }
+  float vNoise(vec3 p) {
+    vec3 i = floor(p);
+    vec3 f = fract(p);
+    f = f * f * (3.0 - 2.0 * f);
+    return mix(
+      mix(mix(vHash(i + vec3(0,0,0)), vHash(i + vec3(1,0,0)), f.x),
+          mix(vHash(i + vec3(0,1,0)), vHash(i + vec3(1,1,0)), f.x), f.y),
+      mix(mix(vHash(i + vec3(0,0,1)), vHash(i + vec3(1,0,1)), f.x),
+          mix(vHash(i + vec3(0,1,1)), vHash(i + vec3(1,1,1)), f.x), f.y),
+      f.z);
+  }
 
   void main() {
     vNormal = normalize(normalMatrix * normal);
-    vec4 worldPosition = modelMatrix * vec4(position, 1.0);
-    vWorldPosition = worldPosition.xyz;
     vLocalPosition = position;
-    gl_Position = projectionMatrix * viewMatrix * worldPosition;
+    vLocalNormal = normalize(normal);
+
+    // ── Forming displacement ────────────────────────────────────────────────
+    // At uFormation=0 the surface is blown out into a turbulent dust cloud
+    // (vertices pushed along their normal + jittered by noise); it settles back
+    // onto the smooth sphere as uFormation→1. This is the 3D "assembly" — the
+    // orb literally coalesces out of scattered matter into a formed entity.
+    // Eased so most of the visible travel happens in the back half of the form.
+    float scatter = 1.0 - clamp(uFormation, 0.0, 1.0);
+    scatter = scatter * scatter;                       // ease — slow, dramatic settle
+    float n = vNoise(position * 3.0 + uTime * 0.25);
+    vec3 jitter = vec3(
+      vNoise(position * 1.7 + 11.0) - 0.5,
+      vNoise(position * 1.9 + 23.0) - 0.5,
+      vNoise(position * 2.1 + 31.0) - 0.5
+    );
+    // Swirl the cloud as it condenses (rotate the jitter about Y by formation) so
+    // the dust spirals in rather than just puffing straight out → reads as forming.
+    float sw = scatter * 3.0;
+    float cs = cos(sw), sn = sin(sw);
+    jitter.xz = mat2(cs, -sn, sn, cs) * jitter.xz;
+    vec3 displaced = position
+      + normal * (n - 0.25) * scatter * 1.25
+      + jitter * scatter * 0.95;
+
+    vec4 worldPosition = modelMatrix * vec4(displaced, 1.0);
+    vWorldPosition = worldPosition.xyz;
+    vec4 clip = projectionMatrix * viewMatrix * worldPosition;
+    vScreenUV = clip.xy / clip.w;   // NDC −1..1 (canvas is square → no aspect fix)
+    gl_Position = clip;
   }
 `
 
@@ -30,10 +81,15 @@ const plasmaFragmentShader = `
   uniform float uDegradedFactor;
   uniform float uDuality;
   uniform float uCoreGlow;
+  uniform float uFormation;     // 0..1 forming progress (dust → orb)
+  uniform float uHalftone;      // 0..1 strength of the printed dot-screen
+  uniform float uHalftoneScale; // dot grid density across the orb
 
   varying vec3 vNormal;
   varying vec3 vWorldPosition;
   varying vec3 vLocalPosition;
+  varying vec2 vScreenUV;
+  varying vec3 vLocalNormal;
 
   float hash(vec3 p) {
     p = fract(p * 0.3183099 + vec3(0.71, 0.113, 0.419));
@@ -110,23 +166,56 @@ const plasmaFragmentShader = `
     color = mix(color, uShadowColor, shadowField * (0.24 + uDegradedFactor * 0.18) * (1.0 - innerLight * 0.6));
     // Warm core bleeds through, stronger.
     color = mix(color, uCoreColor, heart * (0.78 + uFocusIntensity * 0.16));
-    // Inner light glow added on top — strongest at the heart, fading outward.
-    color += uCoreColor * innerLight * (0.32 + uCoreGlow * 0.95) * (0.62 + uPulse * 0.4);
-    color += uAuraColor * innerLight * uCoreGlow * 0.3;
+    // Inner light glow — kept MODEST so the orb reads as lit glass, not a glowing
+    // bulb that blooms into a blob (the old high values + bloom were the blowout).
+    color += uCoreColor * innerLight * (0.12 + uCoreGlow * 0.30) * (0.6 + uPulse * 0.25);
+    color += uAuraColor * innerLight * uCoreGlow * 0.12;
     // Soft rim atmosphere (fresnel) — gentle, never a hard ring.
     color = mix(color, uEdgeColor, fresnel * (0.06 + uFocusIntensity * 0.12));
 
-    // Saturation lift: pull color away from its own luminance so the warm hue
-    // actually reads, instead of desaturating to grey in the dust.
+    // Saturation + contrast lift: pull colour off its luminance so the hue reads
+    // as bold suspended pigment (reference), not faint grey haze.
     float lum = dot(color, vec3(0.299, 0.587, 0.114));
-    color = mix(vec3(lum), color, 1.32);
+    color = mix(vec3(lum), color, 1.5);
+    // Bolder swirl structure for the alpha/dot density (sharper than the colour
+    // coherence so the dotted bands read as distinct swirls, like the reference).
+    float swirl = smoothstep(0.3, 0.82, dust);
 
-    // Alpha: dense and near-opaque through the lit core so it holds saturated
-    // color, thinning to a soft hazy edge. Higher floor + a strong inner-light
-    // term keep the centre a glowing mass, not a translucent grey smudge.
-    float density = mix(0.32, 0.86, coherence);
-    float alpha = density * (0.5 + coreMask * 0.4 + innerLight * 0.5 + depthMask * 0.08) * (1.0 - uDegradedFactor * 0.2);
-    alpha = clamp(alpha, 0.0, 0.96);
+    // ── Glass focal lens ──────────────────────────────────────────────────────
+    // The bright clear "bead" a real glass marble focuses near its centre (a hair
+    // below middle, as in the reference). Stays smooth (no dots) and bright — this
+    // is the single biggest cue that the orb is a refractive 3D sphere, not a disc.
+    vec2 lensP = vLocalPosition.xy - vec2(0.0, -0.1);
+    float lens = smoothstep(0.3, 0.0, length(lensP)) * coreMask;
+    color += (uCoreColor * 0.6 + vec3(0.32)) * lens * (0.4 + uPulse * 0.15);
+
+    // ── Halftone screen (wraps the SURFACE → 3D) ──────────────────────────────
+    // The dot-screen is laid out in the sphere's OWN surface coordinates (from the
+    // object-space normal), so the dots curve over the marble and compress toward
+    // the silhouette — reading as 3D — and turn with the core like pigment
+    // suspended in glass. Dot SIZE tracks local brightness (bright = filled, dim =
+    // small dots). While forming, the dots "develop" small/sparse → resolved.
+    float devel = mix(0.4, 1.0, clamp(uFormation, 0.0, 1.0));
+    vec3 ln = normalize(vLocalNormal);
+    vec2 sph = vec2(atan(ln.z, ln.x), acos(clamp(ln.y, -1.0, 1.0)));
+    vec2 cell = fract(sph * uHalftoneScale * 0.5) - 0.5;
+    float cellDist = length(cell);
+    float fill = clamp(energy * 0.6 + heart * 0.7 + innerLight * 0.5, 0.0, 1.0);
+    float dotRad = mix(0.18, 0.5, fill) * devel;
+    float dotShape = smoothstep(dotRad, dotRad - 0.16, cellDist);
+    // Heart + focal lens stay solid; dots only texture the cloudy regions.
+    float pattern = mix(dotShape, 1.0, clamp(heart * 0.9 + lens, 0.0, 1.0));
+
+    // Alpha: dense through the lit core, thinning to a soft hazy edge.
+    float density = mix(0.34, 0.9, swirl);
+    float alpha = density * (0.5 + coreMask * 0.42 + innerLight * 0.5 + lens * 0.4 + depthMask * 0.08) * (1.0 - uDegradedFactor * 0.2);
+    // Dots read as BRIGHTNESS modulation (bright cores over a dimmer field) so the
+    // body persists; alpha is dotted with a floor so the silhouette stays whole.
+    color *= mix(1.0, 0.42 + dotShape * 1.05, uHalftone * (1.0 - max(heart * 0.6, lens)));
+    alpha *= mix(1.0, 0.5 + 0.5 * pattern, uHalftone);
+    // Forming: dust condenses + brightens into the finished orb.
+    alpha *= 0.24 + 0.76 * clamp(uFormation, 0.0, 1.0);
+    alpha = clamp(alpha, 0.0, 0.97);
     gl_FragColor = vec4(color, alpha);
   }
 `
@@ -152,19 +241,38 @@ const shellFragmentShader = `
   uniform float uOpacity;
   uniform float uFocusIntensity;
   uniform float uDegradedFactor;
+  uniform float uFormation;   // 0..1 — shell refracts in as the orb forms
 
   varying vec3 vNormal;
   varying vec3 vWorldPosition;
 
   void main() {
-    vec3 viewDirection = normalize(cameraPosition - vWorldPosition);
-    float fresnel = pow(1.0 - max(dot(normalize(vNormal), viewDirection), 0.0), 2.3);
-    float sheen = 0.5 + 0.5 * sin(uTime * 0.13 + vWorldPosition.y * 1.6 + vWorldPosition.x * 1.1);
-    float rim = smoothstep(0.24, 0.98, fresnel);
-    vec3 base = mix(uShadowColor, uShellColor, 0.42 + sheen * 0.12);
-    vec3 color = mix(base, uEdgeColor, rim * (0.16 + uFocusIntensity * 0.12));
-    float alpha = (uOpacity + rim * 0.18 + uPulse * 0.03) * (1.0 - uDegradedFactor * 0.18);
-    gl_FragColor = vec4(color, alpha);
+    vec3 V = normalize(cameraPosition - vWorldPosition);
+    vec3 N = normalize(vNormal);
+    float ndv = max(dot(N, V), 0.0);
+    // Sharper fresnel → a clear glass envelope: nearly invisible across the facing
+    // centre (so the dotted plasma reads as suspended INSIDE the glass), brightening
+    // to a crisp luminous rim at the silhouette.
+    float fresnel = pow(1.0 - ndv, 3.0);
+    float rim = smoothstep(0.16, 0.95, fresnel);
+    vec3 color = mix(uShellColor, uEdgeColor, rim);
+
+    // Two specular glints — a tight bright key (upper-left) + a softer fill
+    // (lower-right) — give the hard, rounded, refractive glass read of the ref.
+    vec3 keyDir = normalize(vec3(-0.5, 0.7, 0.85));
+    float spec = pow(max(dot(reflect(-V, N), keyDir), 0.0), 64.0);
+    color += vec3(1.0) * spec;
+    vec3 fillDir = normalize(vec3(0.45, -0.4, 0.8));
+    float spec2 = pow(max(dot(reflect(-V, N), fillDir), 0.0), 26.0);
+    color += uEdgeColor * spec2 * 0.5;
+
+    // Alpha: clear through the facing centre (uOpacity kept low so plasma shows
+    // through), opaque-bright at the rim + glints → a hard glass shell, not a
+    // glowing fog ball.
+    float alpha = uOpacity * 0.45 + rim * 0.72 + spec * 0.95 + spec2 * 0.28 + uPulse * 0.02;
+    alpha *= (1.0 - uDegradedFactor * 0.18);
+    alpha *= 0.2 + 0.8 * clamp(uFormation, 0.0, 1.0);
+    gl_FragColor = vec4(color, clamp(alpha, 0.0, 1.0));
   }
 `
 
@@ -185,6 +293,9 @@ export const SoulOrbPlasmaMaterial = shaderMaterial(
     uDegradedFactor: 0,
     uDuality: 0,
     uCoreGlow: 0.5,
+    uFormation: 1,        // 1 = fully formed (the JS driver ramps 0→1 on mount)
+    uHalftone: 0.9,       // printed dot-screen strength
+    uHalftoneScale: 14,   // dot grid density
   },
   plasmaVertexShader,
   plasmaFragmentShader,
@@ -200,6 +311,7 @@ export const SoulOrbShellMaterial = shaderMaterial(
     uOpacity: 0.28,
     uFocusIntensity: 0.5,
     uDegradedFactor: 0,
+    uFormation: 1,
   },
   shellVertexShader,
   shellFragmentShader,

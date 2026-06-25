@@ -151,6 +151,21 @@ def get_config() -> AppConfig:
         default_secure = not (frontend_is_local or testing)
     cookie_secure = _env_bool("COOKIE_SECURE", default_secure)
 
+    # ── Fail-fast on the public dev signing key in real production ─────────────
+    # SECRET_KEY signs the auth JWTs. If it silently falls back to the well-known
+    # "dev-secret-key" on a live deployment, anyone can forge a valid token and
+    # bypass auth. Refuse to boot in that case. Local/testing/debug runs (and the
+    # Vite-proxied 127.0.0.1 workflow) are intentionally exempt so onboarding and
+    # `start-local.ps1` keep working with no extra ceremony.
+    secret_key = _env("SECRET_KEY", "dev-secret-key") or "dev-secret-key"
+    is_real_production = environment == "production" and not (debug or testing or frontend_is_local)
+    if secret_key == "dev-secret-key" and is_real_production:
+        raise RuntimeError(
+            "SECRET_KEY is unset in production. Refusing to start with the public "
+            "'dev-secret-key' - it signs auth JWTs and would let anyone forge a "
+            "session. Set a strong, random SECRET_KEY environment variable."
+        )
+
     return AppConfig(
         environment=environment,
         debug=debug,
@@ -158,7 +173,7 @@ def get_config() -> AppConfig:
         port=_env_int("PORT", 5000),
         mongodb_uri=_build_mongo_uri(),
         frontend_url=frontend_url,
-        secret_key=_env("SECRET_KEY", "dev-secret-key") or "dev-secret-key",
+        secret_key=secret_key,
         spotify_client_id=_env("SPOTIFY_CLIENT_ID"),
         spotify_client_secret=_env("SPOTIFY_CLIENT_SECRET"),
         spotify_redirect_uri=_env("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:5000/auth/spotify/callback") or "http://127.0.0.1:5000/auth/spotify/callback",

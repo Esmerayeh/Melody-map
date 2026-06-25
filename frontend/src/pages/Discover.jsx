@@ -104,13 +104,13 @@ function SongRow({ song, index, liked, onLike, tracking }) {
       </div>
       {song._tags && (
         <div className="hidden lg:flex items-center gap-1 shrink-0">
-          {song._tags.mood && <TagPill label={song._tags.mood} color="#f0c089" />}
+          {song._tags.mood && <TagPill label={song._tags.mood} color="#e1a7c6" />}
           {song._tags.era  && <TagPill label={song._tags.era}  color="#60a5fa" />}
         </div>
       )}
       <div className="flex items-center gap-1 shrink-0">
           <button onClick={() => onLike(song.id || title, tracking, index)}
-            className={`touch-target p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-gray-600 hover:text-pink-400'}`}>
+            className={`touch-target p-1.5 rounded-lg transition-all ${liked ? 'text-brand-pink' : 'text-gray-600 hover:text-[#d15296]'}`}>
             <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-brand-pink' : ''}`} />
           </button>
           {url && (
@@ -128,7 +128,7 @@ function SongRow({ song, index, liked, onLike, tracking }) {
                 candidateSource: tracking.candidateSource,
               })).catch(() => {})
             }}
-              className="touch-target touch-reveal p-1.5 rounded-lg text-gray-500 hover:text-green-400 transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100">
+              className="touch-target touch-reveal p-1.5 rounded-lg text-gray-500 hover:text-[#ac6294] transition-all opacity-100 md:opacity-0 md:group-hover:opacity-100">
               <ExternalLink className="w-3.5 h-3.5" />
             </a>
           )}
@@ -178,15 +178,15 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected, tracki
       whileHover={{ y: -2, boxShadow: `0 12px 40px ${playlist.color}20` }}
       transition={{ delay: index * 0.07 }}
       className="rounded-[28px] border border-white/8 overflow-hidden aura-card"
-      style={{ background: `linear-gradient(135deg, ${playlist.color}14, rgba(255,255,255,0.03))` }}>
+      style={{ background: `linear-gradient(135deg, ${playlist.color}22, rgba(48,23,37,0.9))` }}>
       <div className="relative p-5">
         <div className="absolute inset-x-0 top-0 h-20 opacity-70" style={{ background: `radial-gradient(circle at top left, ${playlist.color}26, transparent 70%)` }} />
         <div className="flex flex-wrap gap-1.5 mb-3">
           {playlist.mood_tags.slice(0, 3).map((t) => <TagPill key={t} label={t} color={playlist.color} />)}
-          {playlist.era_tags.slice(0, 2).map((t)  => <TagPill key={t} label={t} color="#60a5fa" />)}
+          {playlist.era_tags.slice(0, 2).map((t)  => <TagPill key={t} label={t} color="#ac6294" />)}
         </div>
         <h3 className="text-lg font-bold text-white leading-snug mb-2">{playlist.title}</h3>
-        <p className="text-sm text-gray-400 leading-relaxed italic mb-4">"{playlist.description}"</p>
+        <p className="text-sm text-[#ebccdc] leading-relaxed italic mb-4">"{playlist.description}"</p>
         <div className="flex items-start gap-2.5 p-3 rounded-xl mb-4"
           style={{ background: `${playlist.color}10`, border: `1px solid ${playlist.color}25` }}>
           <Sparkles className="w-3.5 h-3.5 shrink-0 mt-0.5" style={{ color: playlist.color }} />
@@ -195,19 +195,19 @@ function PlaylistCard({ playlist, index, liked, onLike, spotifyConnected, tracki
         {playlist.why_receipts?.length ? (
           <div className="mb-4 space-y-1.5">
             {playlist.why_receipts.slice(0, 2).map((receipt) => (
-              <p key={receipt} className="text-[11px] leading-relaxed text-slate-500">Because {receipt}.</p>
+              <p key={receipt} className="text-[11px] leading-relaxed text-[#e4d3de]/80">Because {receipt}.</p>
             ))}
           </div>
         ) : null}
         {playlist.harmonic_mood_vector?.name && (
           <div className="mb-4 px-3 py-2 rounded-lg bg-white/3 border border-white/6 flex items-center gap-2">
-          <span className="text-xs text-gray-500">Mood current:</span>
-            <span className="text-xs font-medium text-amber-300">{playlist.harmonic_mood_vector.name}</span>
+          <span className="text-xs text-[#ebccdc]/80">Mood current:</span>
+            <span className="text-xs font-medium text-[#de83b4]">{playlist.harmonic_mood_vector.name}</span>
           </div>
         )}
         <div className="flex flex-wrap gap-1.5 mb-4">
           {playlist.aesthetic_tags.map((t) => (
-            <span key={t} className="text-xs px-2 py-0.5 rounded-md bg-white/4 text-gray-500 border border-white/6">{t}</span>
+            <span key={t} className="text-xs px-2 py-0.5 rounded-md bg-white/8 text-[#ebccdc] border border-white/10">{t}</span>
           ))}
         </div>
         <button onClick={handleExpand} className="touch-target flex min-h-11 items-center gap-2 text-left text-sm font-medium transition-all" style={{ color: playlist.color }}>
@@ -255,7 +255,7 @@ function AlbumCard({ item, index, onLike, liked }) {
   return (
     <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
       transition={{ delay: index * 0.04 }}
-      whileHover={{ scale: 1.03, boxShadow: '0 8px 32px rgba(224,163,92,0.18)' }}
+      whileHover={{ scale: 1.03, boxShadow: '0 8px 32px rgba(193,19,127,0.18)' }}
       className="group relative glass-hover rounded-2xl overflow-hidden cursor-pointer">
       <div className="relative aspect-square overflow-hidden bg-surface-3">
         {item.image
@@ -285,7 +285,7 @@ function ArtistCard({ artist, index }) {
   return (
     <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}
       transition={{ delay: index * 0.05 }}
-      whileHover={{ scale: 1.02, boxShadow: '0 4px 20px rgba(224,163,92,0.15)' }}
+      whileHover={{ scale: 1.02, boxShadow: '0 4px 20px rgba(193,19,127,0.15)' }}
       className="group glass-hover rounded-2xl p-4 flex items-center gap-3 cursor-pointer">
       <div className="w-12 h-12 rounded-full overflow-hidden shrink-0 bg-surface-3">
         {artist.image
@@ -342,6 +342,18 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
     finally { setLoading(false) }
   }, [profile])
 
+  // Auto-shape the first sequence on arrival so Discover opens straight into its
+  // content (no "Shape the sequence" button gate). Runs once; the user can still
+  // re-shape / toggle Wander afterwards.
+  const autoGenRef = useRef(false)
+  useEffect(() => {
+    if (autoGenRef.current) return
+    if (isConnected && !generated && !loading) {
+      autoGenRef.current = true
+      generate(0, serendipity)
+    }
+  }, [isConnected, generated, loading, serendipity, generate])
+
   const handleRegenerate = () => { const next = seed + 1; setSeed(next); generate(next, serendipity) }
   const toggleLike = (id, tracking, index = 0) => {
     setLiked((prev) => {
@@ -376,7 +388,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
     <div className="flex flex-col items-center justify-center py-24 text-center">
       <motion.div animate={{ rotate: [0, 8, -8, 0], scale: [1, 1.04, 1] }}
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-        className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-purple/25 to-pink-500/25 border border-brand-purple/20 flex items-center justify-center mb-6">
+        className="w-20 h-20 rounded-3xl bg-gradient-to-br from-brand-purple/25 to-[#d15296]/25 border border-brand-purple/20 flex items-center justify-center mb-6">
         <Wand2 className="w-9 h-9 text-brand-purple" />
       </motion.div>
       <h2 className="text-xl font-bold text-white mb-2">Shape a new sequence</h2>
@@ -407,7 +419,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
         <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
           <button onClick={() => setSerendipity((v) => !v)}
             className={`touch-target flex min-h-11 items-center justify-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all sm:justify-start ${
-              serendipity ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' : 'bg-white/4 border-white/8 text-gray-500 hover:text-gray-300'
+              serendipity ? 'bg-[#de83b4]/15 border-[#de83b4]/30 text-[#de83b4]' : 'bg-white/4 border-white/8 text-gray-500 hover:text-gray-300'
             }`}>
             <Shuffle className="w-3.5 h-3.5" />
             Serendipity {serendipity ? 'ON' : 'OFF'}
@@ -419,7 +431,7 @@ function ForYouTab({ spotifyConnected, lastfmConnected }) {
       </div>
       {serendipity && (
         <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="mb-5 p-3 rounded-xl bg-amber-500/8 border border-amber-500/20 text-xs text-amber-300 flex items-center gap-2">
+          className="mb-5 p-3 rounded-xl bg-[#de83b4]/8 border border-[#de83b4]/20 text-xs text-[#de83b4] flex items-center gap-2">
           <Shuffle className="w-3.5 h-3.5 shrink-0" />
           Serendipity mode - these sequences drift toward the farther edge of your taste.
         </motion.div>
@@ -607,7 +619,7 @@ export default function Discover() {
         <Link
           to="/universe?mode=song"
           className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
-          style={{ background: 'rgba(224,163,92,0.08)', border: '1px solid rgba(224,163,92,0.16)' }}
+          style={{ background: 'rgba(193,19,127,0.08)', border: '1px solid rgba(193,19,127,0.16)' }}
         >
           <p className="section-label mb-2">See it in space</p>
           <p className="text-sm font-semibold text-white">Open these sequences inside the galaxy</p>
@@ -616,7 +628,7 @@ export default function Discover() {
         <Link
           to="/auralith?mode=playlist&prompt=shape%20a%20sequence%20from%20what%20just%20drifted%20toward%20me"
           className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
-          style={{ background: 'rgba(224,163,92,0.08)', border: '1px solid rgba(224,163,92,0.16)' }}
+          style={{ background: 'rgba(193,19,127,0.08)', border: '1px solid rgba(193,19,127,0.16)' }}
         >
           <p className="section-label mb-2">Ask Auralith to continue</p>
           <p className="text-sm font-semibold text-white">Turn a drift into a sequence</p>
@@ -625,7 +637,7 @@ export default function Discover() {
         <Link
           to="/identity"
           className="touch-target rounded-[24px] p-4 aura-card aura-interactive"
-          style={{ background: 'rgba(96,165,250,0.08)', border: '1px solid rgba(96,165,250,0.16)' }}
+          style={{ background: 'rgba(172,98,148,0.08)', border: '1px solid rgba(172,98,148,0.16)' }}
         >
           <p className="section-label mb-2">Inner reading</p>
           <p className="text-sm font-semibold text-white">See why these signals fit</p>

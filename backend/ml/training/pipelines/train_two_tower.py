@@ -32,6 +32,28 @@ def build_training_matrices(interactions_path: str) -> tuple:
     return frame, windows, vocab, histories
 
 
+# A run only produces trustworthy retrieval eval when there are enough items to make
+# recall@50 non-trivial and enough users/sequences to learn from. Below these, the run
+# is a SMOKE TEST (e.g. recall@50=1.0 just because there are <50 candidate items) and is
+# tagged as such so it is never mistaken for a real evaluation result.
+_MIN_ITEMS_FOR_EVAL = 50
+_MIN_USERS = 5
+_MIN_WINDOWS = 50
+
+
+def classify_run(n_users: int, n_items: int, n_windows: int) -> tuple[str, str]:
+    reasons = []
+    if n_items < _MIN_ITEMS_FOR_EVAL:
+        reasons.append(f"items={n_items}<{_MIN_ITEMS_FOR_EVAL} (recall@50 is trivially ~1.0)")
+    if n_users < _MIN_USERS:
+        reasons.append(f"users={n_users}<{_MIN_USERS}")
+    if n_windows < _MIN_WINDOWS:
+        reasons.append(f"windows={n_windows}<{_MIN_WINDOWS}")
+    if reasons:
+        return "smoke_test", "; ".join(reasons)
+    return "production", f"users={n_users}, items={n_items}, windows={n_windows}"
+
+
 def _log_mlflow(output_dir: str, payload: dict, artifacts: dict) -> None:
     path = Path(output_dir) / "mlflow_run.json"
     run_payload = {**payload, "artifacts": artifacts, "tracking_uri": Config.mlflow_tracking_uri}
@@ -42,15 +64,27 @@ def _log_mlflow(output_dir: str, payload: dict, artifacts: dict) -> None:
         mlflow.set_tracking_uri(Config.mlflow_tracking_uri)
         mlflow.set_experiment("melody-map-retrieval")
         with mlflow.start_run(run_name=payload["model_version"]):
+            # Tag the run type FIRST so smoke-test runs are unmistakable in the UI.
+            mlflow.set_tag("run_type", payload.get("run_type", "unknown"))
+            mlflow.set_tag("run_type_reason", payload.get("run_type_reason", ""))
+            dataset = payload.get("dataset", {})
+            mlflow.set_tags({f"dataset.{k}": v for k, v in dataset.items()})
             mlflow.log_params(
                 {
                     "model_version": payload["model_version"],
                     "embedding_dim": payload["embedding_dim"],
                     "epochs": payload["epochs"],
                     "batch_size": payload["batch_size"],
+                    **{f"dataset_{k}": v for k, v in dataset.items()},
                 }
             )
-            mlflow.log_metrics({"recall_at_50": payload["recall_at_50"], "mrr_at_50": payload["mrr_at_50"]})
+            mlflow.log_metrics(
+                {
+                    "recall_at_10": payload.get("recall_at_10", 0.0),
+                    "recall_at_50": payload["recall_at_50"],
+                    "mrr_at_50": payload["mrr_at_50"],
+                }
+            )
             for artifact_path in artifacts.values():
                 if Path(artifact_path).exists():
                     mlflow.log_artifact(artifact_path)
@@ -65,14 +99,18 @@ def _split_windows(windows: list[dict]) -> tuple[list[dict], list[dict]]:
     return windows[:pivot], windows[pivot:]
 
 
-def _compute_eval_metrics(model: TwoTowerRetrievalModel, dataset: RetrievalDataset, top_k: int = 50) -> tuple[float, float]:
+def _compute_eval_metrics(model: TwoTowerRetrievalModel, dataset: RetrievalDataset, top_k: int = 50) -> tuple[float, float, float]:
+    # Also computes recall@10. With a small item catalogue recall@50 saturates to 1.0
+    # (trivially — there are fewer than 50 candidates), so recall@10 is the honest,
+    # non-trivial signal worth reading until the catalogue grows past ~50 items.
     if len(dataset) == 0:
-        return 0.0, 0.0
+        return 0.0, 0.0, 0.0
     model.eval()
     all_item_indices = torch.arange(len(dataset.vocab.idx_to_track), dtype=torch.long)
     with torch.no_grad():
         item_vectors = model.item_tower(all_item_indices)
         hits = 0
+        hits_at_10 = 0
         reciprocal_ranks = []
         for row in dataset:
             user_vector = model.user_tower(
@@ -86,11 +124,15 @@ def _compute_eval_metrics(model: TwoTowerRetrievalModel, dataset: RetrievalDatas
             if target_index in ranked_indices:
                 hits += 1
                 reciprocal_ranks.append(1.0 / (ranked_indices.index(target_index) + 1))
+                if target_index in ranked_indices[:10]:
+                    hits_at_10 += 1
             else:
                 reciprocal_ranks.append(0.0)
-    recall = hits / max(len(dataset), 1)
+    denom = max(len(dataset), 1)
+    recall = hits / denom
+    recall_at_10 = hits_at_10 / denom
     mrr = float(np.mean(reciprocal_ranks)) if reciprocal_ranks else 0.0
-    return round(float(recall), 6), round(float(mrr), 6)
+    return round(float(recall), 6), round(float(mrr), 6), round(float(recall_at_10), 6)
 
 
 def train_two_tower_model(
@@ -104,6 +146,7 @@ def train_two_tower_model(
     output.mkdir(parents=True, exist_ok=True)
     frame, windows, vocab, histories = build_training_matrices(interactions_path)
     if not windows:
+        run_type, reason = classify_run(0, 0, 0)
         artifacts = {
             "model_version": model_version,
             "embedding_dim": 0,
@@ -111,6 +154,9 @@ def train_two_tower_model(
             "batch_size": batch_size,
             "recall_at_50": 0.0,
             "mrr_at_50": 0.0,
+            "run_type": run_type,
+            "run_type_reason": "no training windows — " + reason,
+            "dataset": {"interactions": int(len(frame)), "users": 0, "items": 0, "windows": 0},
             "artifact_path": str(output / "model.pt"),
             "user_embeddings_path": str(output / "user_embeddings.json"),
             "item_embeddings_path": str(output / "item_embeddings.json"),
@@ -149,7 +195,8 @@ def train_two_tower_model(
             loss.backward()
             optimizer.step()
 
-    recall_at_50, mrr_at_50 = _compute_eval_metrics(model, valid_dataset)
+    recall_at_50, mrr_at_50, recall_at_10 = _compute_eval_metrics(model, valid_dataset)
+    run_type, reason = classify_run(len(vocab.idx_to_user), len(vocab.idx_to_track), len(windows))
     model.eval()
     with torch.no_grad():
         all_item_indices = torch.arange(len(vocab.idx_to_track), dtype=torch.long)
@@ -180,7 +227,20 @@ def train_two_tower_model(
     vocab_path = output / "vocab.json"
     user_embeddings_path.write_text(json.dumps(user_map), encoding="utf-8")
     item_embeddings_path.write_text(json.dumps(item_map), encoding="utf-8")
-    metrics_path.write_text(json.dumps({"recall_at_50": recall_at_50, "mrr_at_50": mrr_at_50}, indent=2), encoding="utf-8")
+    metrics_path.write_text(
+        json.dumps(
+            {
+                "recall_at_10": recall_at_10,
+                "recall_at_50": recall_at_50,
+                "mrr_at_50": mrr_at_50,
+                "run_type": run_type,
+                "run_type_reason": reason,
+                "dataset": {"interactions": int(len(frame)), "users": len(vocab.idx_to_user), "items": len(vocab.idx_to_track), "windows": len(windows)},
+            },
+            indent=2,
+        ),
+        encoding="utf-8",
+    )
     vocab_path.write_text(json.dumps({"users": vocab.idx_to_user, "tracks": vocab.idx_to_track}, indent=2), encoding="utf-8")
     torch.save(
         {
@@ -202,8 +262,17 @@ def train_two_tower_model(
         "embedding_dim": int(item_embeddings.shape[1]) if item_embeddings.size else 0,
         "epochs": epochs,
         "batch_size": batch_size,
+        "recall_at_10": recall_at_10,
         "recall_at_50": recall_at_50,
         "mrr_at_50": mrr_at_50,
+        "run_type": run_type,
+        "run_type_reason": reason,
+        "dataset": {
+            "interactions": int(len(frame)),
+            "users": len(vocab.idx_to_user),
+            "items": len(vocab.idx_to_track),
+            "windows": len(windows),
+        },
         "artifact_path": str(model_path),
         "user_embeddings_path": str(user_embeddings_path),
         "item_embeddings_path": str(item_embeddings_path),

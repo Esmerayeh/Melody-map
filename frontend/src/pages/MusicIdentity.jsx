@@ -7,11 +7,9 @@ import RouteStatusBanner from '../components/RouteStatusBanner'
 import MusicIdentityPanel from '../components/MusicIdentityPanel'
 import { MOTION_TOKENS } from '../features/motion/motionTokens'
 import { useRouteReadiness } from '../hooks/useRouteReadiness'
-import ShareableIdentityCard from '../components/identity/ShareableIdentityCard'
 import { exportElementAsPng } from '../components/identity/identityCardExport'
 import {
   buildIdentityShareText,
-  buildSoulOrbShareText,
   copyShareText,
   getCurrentShareUrl,
   getInstagramStoryInstructions,
@@ -19,11 +17,12 @@ import {
   shareViaSystem,
 } from '../utils/shareUtils'
 import { shareAPI } from '../services/api'
-import SoulOrbShareCard from '../components/share/SoulOrbShareCard'
+import MelodyMapShareCard from '../components/share/MelodyMapShareCard'
+import DeferredSoulOrb from '../components/DeferredSoulOrb'
 
 const pct = (v, max = 100) => Math.round(Math.min(Math.max((v ?? 0), 0), max))
 
-function TraitBar({ label, value, color = '#e0a35c', icon, delay = 0 }) {
+function TraitBar({ label, value, color = '#c1337f', icon, delay = 0 }) {
   return (
     <motion.div
       initial={{ opacity: 0, x: -12 }}
@@ -76,7 +75,6 @@ function DnaBand({ label, pct: p, color, icon, delay = 0 }) {
 export default function MusicIdentity() {
   const { profile, phase, confidence, dataQuality, readiness, tier } = useMusicProfile()
   const cardRef = useRef(null)
-  const orbCardRef = useRef(null)
   const [shareStatus, setShareStatus] = useState('')
   const safeProfile = profile || {}
 
@@ -150,6 +148,30 @@ export default function MusicIdentity() {
         )}
       </motion.div>
 
+      {/* Real-time 3D Soul Orb hero — reuses the existing R3F orb (shader-lit
+          sphere, fresnel rim, uTime noise shimmer, scale/emissive forming
+          animation on mount, prefers-reduced-motion aware, circle-clipped
+          transparent canvas). No card so it reads as a clean luminous sphere
+          floating in dark space. The unified MelodyMapShareCard below is the
+          PNG-export snapshot (html2canvas can't capture WebGL, so it uses a CSS
+          glass-marble orb). */}
+      <div className="flex justify-center py-1">
+        <DeferredSoulOrb
+          personality={safeProfile.personality}
+          personalityMeta={safeProfile.personalityMeta}
+          mbti={safeProfile.mbti}
+          mbtiMeta={safeProfile.mbtiMeta}
+          audioFeatures={safeProfile.audioFeatures}
+          analyticsMetrics={safeProfile.analyticsMetrics}
+          confidence={safeProfile.confidence}
+          dataQuality={safeProfile.dataQuality}
+          genres={safeProfile.genres}
+          topArtists={safeProfile.topArtists}
+          size={240}
+          showLabels
+        />
+      </div>
+
       {boot.variant !== 'ready' && (
         <RouteStatusBanner
           variant={boot.variant}
@@ -208,7 +230,7 @@ export default function MusicIdentity() {
               <div key={signal.id} className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">
                 <div className="flex items-center justify-between gap-3">
                   <p className="text-sm font-semibold text-white">{signal.label}</p>
-                  <span className="text-sm tabular-nums" style={{ color: signal.color || '#f0c089' }}>{pct(signal.pct)}%</span>
+                  <span className="text-sm tabular-nums" style={{ color: signal.color || '#e1a7c6' }}>{pct(signal.pct)}%</span>
                 </div>
                 <p className="mt-2 text-xs leading-relaxed text-slate-400">{signal.evidence?.[0]}</p>
               </div>
@@ -219,7 +241,7 @@ export default function MusicIdentity() {
 
       <div className="grid grid-cols-1 lg:grid-cols-[1.1fr_0.9fr] gap-6">
         <div className="noire-panel rounded-[32px] p-6 relative overflow-hidden">
-          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_25%_20%,rgba(224,163,92,0.18),transparent_55%),radial-gradient(circle_at_85%_70%,rgba(245,114,182,0.12),transparent_60%)]" />
+          <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(circle_at_25%_20%,rgba(193,19,127,0.18),transparent_55%),radial-gradient(circle_at_85%_70%,rgba(245,114,182,0.12),transparent_60%)]" />
           <div className="relative z-10">
             <div className="flex items-center gap-3 mb-4">
               <div className="w-10 h-10 rounded-xl flex items-center justify-center border border-white/10 bg-white/5">
@@ -234,7 +256,7 @@ export default function MusicIdentity() {
               {musicIdentity.poeticLine || safeProfile.musicIdentitySummary || identityType.description || 'The inner reading is still forming, but the contours are visible.'}
             </p>
             {identityType.tagline && (
-              <p className="mt-3 text-sm italic leading-relaxed text-amber-200/80">{identityType.tagline}</p>
+              <p className="mt-3 text-sm italic leading-relaxed text-[#f4e6ee]/80">{identityType.tagline}</p>
             )}
             <div className="mt-5 grid gap-3">
               {traits.length ? traits.map((trait, index) => (
@@ -242,7 +264,7 @@ export default function MusicIdentity() {
                   key={trait.id || trait.label || index}
                   label={trait.label || trait.id || 'Trait'}
                   value={pct(trait.pct)}
-                  color={trait.color || '#e0a35c'}
+                  color={trait.color || '#c1337f'}
                   icon={trait.emoji || '✦'}
                   delay={index * 0.1}
                 />
@@ -255,7 +277,7 @@ export default function MusicIdentity() {
 
         <div className="noire-info-card rounded-[28px] p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Brain className="w-4 h-4 text-amber-300" />
+            <Brain className="w-4 h-4 text-[#de83b4]" />
               <p className="page-header-kicker">Sonic axes</p>
           </div>
           {sonicAxes.length ? (
@@ -268,7 +290,7 @@ export default function MusicIdentity() {
                   <div key={axis.id} className="rounded-2xl border border-white/8 bg-white/[0.035] p-3">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-sm font-semibold text-white">{axis.direction}</p>
-                      <span className="text-xs text-amber-200">{axis.score == null ? 'forming' : `${pct(axis.score)}%`}</span>
+                      <span className="text-xs text-[#f4e6ee]">{axis.score == null ? 'forming' : `${pct(axis.score)}%`}</span>
                     </div>
                     <p className="mt-1 text-[11px] text-slate-500">{axis.left} / {axis.right}</p>
                     {axis.evidence?.[0] && <p className="mt-2 text-xs leading-relaxed text-slate-400">{axis.evidence[0]}</p>}
@@ -292,7 +314,7 @@ export default function MusicIdentity() {
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <div className="noire-panel rounded-[28px] p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Compass className="w-4 h-4 text-sky-300" />
+            <Compass className="w-4 h-4 text-[#ac6294]" />
             <p className="page-header-kicker">Your sonic field</p>
           </div>
           <div className="space-y-3">
@@ -301,7 +323,7 @@ export default function MusicIdentity() {
                 key={band.label || index}
                 label={band.label || 'Signal band'}
                 pct={pct(band.pct)}
-                color={band.color || '#e0a35c'}
+                color={band.color || '#c1337f'}
                 icon={band.icon || '✧'}
                 delay={index * 0.12}
               />
@@ -314,7 +336,7 @@ export default function MusicIdentity() {
 
         <div className="noire-orb-panel rounded-[28px] p-6">
           <div className="flex items-center gap-2 mb-4">
-            <Disc3 className="w-4 h-4 text-pink-300" />
+            <Disc3 className="w-4 h-4 text-[#d15296]" />
             <p className="page-header-kicker">Inner reflection</p>
           </div>
           <MusicIdentityPanel profile={safeProfile} />
@@ -322,16 +344,18 @@ export default function MusicIdentity() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <ShareableIdentityCard ref={cardRef} profile={safeProfile} />
+        <MelodyMapShareCard ref={cardRef} profile={safeProfile} />
         <div className="noire-panel rounded-[28px] p-6">
           <p className="page-header-kicker mb-2">Share your music identity</p>
-          <p className="text-sm text-slate-400">Export a visual snapshot of your identity type, sonic axes, top metrics, and evidence anchors without exposing raw listening history.</p>
+          <p className="text-sm" style={{ color: 'var(--text-secondary)' }}>
+            One card with your identity type, Soul Orb, personality, sonic axes, and every signal percentage — no raw listening history exposed.
+          </p>
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             <button
                 type="button"
                 onClick={async () => {
                   try {
-                    const result = await exportElementAsPng(cardRef.current)
+                    const result = await exportElementAsPng(cardRef.current, 'melody-map-identity.png')
                     setShareStatus(result?.method === 'preview'
                       ? 'Mobile browser opened the card in a new tab for saving.'
                       : 'Identity card downloaded.')
@@ -339,7 +363,8 @@ export default function MusicIdentity() {
                     setShareStatus(error.message || 'Identity card export failed.')
                   }
                 }}
-                className="touch-target flex items-center justify-center gap-2 rounded-full border border-sky-400/25 bg-sky-400/10 px-4 py-2 text-sm text-sky-100"
+                className="touch-target flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm font-semibold"
+                style={{ color: '#faf5f8', border: '1px solid rgba(193,19,127,0.45)', background: 'rgba(193,19,127,0.22)' }}
               >
                 <Download className="h-4 w-4" />
                 Download image
@@ -360,7 +385,8 @@ export default function MusicIdentity() {
                     setShareStatus(error.message || 'Could not copy share text.')
                   }
                 }}
-                className="touch-target flex items-center justify-center gap-2 rounded-full border border-rose-400/25 bg-rose-400/10 px-4 py-2 text-sm text-rose-100"
+                className="touch-target flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm"
+                style={{ color: '#ebccdc', border: '1px solid rgba(193,19,127,0.25)', background: 'rgba(48,23,37,0.55)' }}
               >
                 <Share2 className="h-4 w-4" />
                 Copy share text
@@ -379,7 +405,8 @@ export default function MusicIdentity() {
                   setShareStatus(error.message || 'Could not open the share sheet.')
                 }
               }}
-              className="touch-target flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-sm text-white"
+              className="touch-target flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm"
+              style={{ color: '#ebccdc', border: '1px solid rgba(193,19,127,0.25)', background: 'rgba(48,23,37,0.55)' }}
             >
               <Share2 className="h-4 w-4" />
               Share results
@@ -390,61 +417,17 @@ export default function MusicIdentity() {
                 shareToWhatsApp({ text: buildIdentityShareText(safeProfile), url: getCurrentShareUrl() })
                 setShareStatus('WhatsApp share opened.')
               }}
-              className="touch-target flex items-center justify-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100"
+              className="touch-target flex items-center justify-center gap-2 rounded-full px-4 py-2 text-sm"
+              style={{ color: '#ebccdc', border: '1px solid rgba(193,19,127,0.25)', background: 'rgba(48,23,37,0.55)' }}
             >
               <MessageCircle className="h-4 w-4" />
               WhatsApp
             </button>
             </div>
-          <p className="mt-4 rounded-[18px] border border-white/8 bg-white/[0.03] p-3 text-xs text-slate-400">
+          <p className="mt-4 rounded-[18px] p-3 text-xs" style={{ color: 'var(--text-secondary)', border: '1px solid rgba(193,19,127,0.18)', background: 'rgba(48,23,37,0.4)' }}>
             Instagram Story: {getInstagramStoryInstructions()}
           </p>
-          {shareStatus ? <p className="mt-4 text-xs text-slate-500">{shareStatus}</p> : null}
-        </div>
-      </div>
-
-      <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <SoulOrbShareCard ref={orbCardRef} profile={safeProfile} />
-        <div className="noire-panel rounded-[28px] p-6">
-          <p className="page-header-kicker mb-2">Soul Orb share card</p>
-          <p className="text-sm text-slate-400">
-            A dedicated orb snapshot with energy, valence, danceability, and a poetic identity summary.
-          </p>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await exportElementAsPng(orbCardRef.current, 'melody-map-soul-orb.png')
-                  setShareStatus('Soul Orb card downloaded.')
-                } catch (error) {
-                  setShareStatus(error.message || 'Soul Orb export failed.')
-                }
-              }}
-              className="touch-target rounded-full border border-sky-400/25 bg-sky-400/10 px-4 py-2 text-sm text-sky-100"
-            >
-              Download orb card
-            </button>
-            <button
-              type="button"
-              onClick={async () => {
-                try {
-                  await shareViaSystem({
-                    title: 'My Melody Map Soul Orb',
-                    text: buildSoulOrbShareText(safeProfile),
-                    url: getCurrentShareUrl(),
-                  })
-                  setShareStatus('Soul Orb share opened, or copied as a fallback.')
-                } catch (error) {
-                  setShareStatus(error.message || 'Could not share the Soul Orb.')
-                }
-              }}
-              className="touch-target rounded-full border border-rose-400/25 bg-rose-400/10 px-4 py-2 text-sm text-rose-100"
-            >
-              Share orb
-            </button>
-          </div>
-          <p className="mt-4 text-xs text-slate-500">{getInstagramStoryInstructions()}</p>
+          {shareStatus ? <p className="mt-4 text-xs" style={{ color: 'var(--text-muted)' }}>{shareStatus}</p> : null}
         </div>
       </div>
 
@@ -452,21 +435,21 @@ export default function MusicIdentity() {
         <Link
           to="/universe"
           className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
-          style={{ background: 'rgba(224,163,92,0.18)', border: '1px solid rgba(224,163,92,0.32)' }}
+          style={{ background: 'rgba(193,19,127,0.18)', border: '1px solid rgba(193,19,127,0.32)' }}
         >
           Enter the galaxy
         </Link>
         <Link
             to="/soulmates"
             className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
-          style={{ background: 'rgba(244,114,182,0.16)', border: '1px solid rgba(244,114,182,0.3)' }}
+          style={{ background: 'rgba(209,82,150,0.16)', border: '1px solid rgba(209,82,150,0.3)' }}
         >
           Compare soulmates
         </Link>
         <Link
           to="/identity"
           className="noire-chip rounded-full px-5 py-2.5 text-sm font-semibold text-white"
-          style={{ background: 'rgba(96,165,250,0.16)', border: '1px solid rgba(96,165,250,0.32)' }}
+          style={{ background: 'rgba(172,98,148,0.16)', border: '1px solid rgba(172,98,148,0.32)' }}
         >
           Identity drift
         </Link>

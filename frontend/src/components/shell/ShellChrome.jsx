@@ -13,13 +13,13 @@ import { authAPI } from '../../services/api'
 // Full route nav for the bottom dock — every shell destination. Warm accent per
 // sector (zero purple), reused from the retired sidebar palette.
 const DOCK_NAV = [
-  { path: '/universe',       end: false, icon: Globe2,          short: 'Universe',  label: 'Universe',       color: '#e0a35c' },
-  { path: '/discover',       end: false, icon: Compass,         short: 'Discover',  label: 'Discover',       color: '#c9a36a' },
-  { path: '/soulmates',      end: false, icon: Heart,           short: 'Soulmates', label: 'Soulmates',      color: '#c97b7b' },
-  { path: '/aesthetic',      end: false, icon: Sparkles,        short: 'Aesthetic', label: 'Aesthetic',      color: '#e0a35c' },
-  { path: '/auralith',       end: false, icon: Wand2,           short: 'Auralith',  label: 'Auralith',       color: '#d9a0a0' },
-  { path: '/identity',       end: true,  icon: Brain,           short: 'Identity',  label: 'Music identity', color: '#c9a36a' },
-  { path: '/profile',        end: false, icon: User,            short: 'Profile',   label: 'Profile',        color: '#e0a35c' },
+  { path: '/universe',       end: false, icon: Globe2,          short: 'Universe',  label: 'Universe',       color: '#c1337f' },
+  { path: '/discover',       end: false, icon: Compass,         short: 'Discover',  label: 'Discover',       color: '#de83b4' },
+  { path: '/soulmates',      end: false, icon: Heart,           short: 'Soulmates', label: 'Soulmates',      color: '#d15296' },
+  { path: '/aesthetic',      end: false, icon: Sparkles,        short: 'Aesthetic', label: 'Aesthetic',      color: '#c1337f' },
+  { path: '/auralith',       end: false, icon: Wand2,           short: 'Auralith',  label: 'Auralith',       color: '#d15296' },
+  { path: '/identity',       end: true,  icon: Brain,           short: 'Identity',  label: 'Music identity', color: '#de83b4' },
+  { path: '/profile',        end: false, icon: User,            short: 'Profile',   label: 'Profile',        color: '#c1337f' },
 ]
 
 // Primary nav for the top glass strip — a curated subset.
@@ -28,6 +28,7 @@ const STRIP_NAV = [
   { path: '/discover',  end: false, label: 'Discover'  },
   { path: '/soulmates', end: false, label: 'Soulmates' },
   { path: '/auralith',  end: false, label: 'Auralith'  },
+  { path: '/identity',  end: true,  label: 'Identity'  },
 ]
 
 // ── Cold-start banner (ported from the retired TopBar) ──────────────────────
@@ -46,7 +47,7 @@ function ColdStartBanner() {
   if (!show) return null
   return (
     <div
-      className="shell-chrome shell-chrome--fade shell-glass fixed left-1/2 top-2 z-[45] flex -translate-x-1/2 items-center gap-2 rounded-full px-4 py-1.5 text-[11px] text-amber-200"
+      className="shell-chrome shell-chrome--fade shell-glass fixed left-1/2 top-2 z-[45] flex -translate-x-1/2 items-center gap-2 rounded-full px-4 py-1.5 text-[11px] text-[#f4e6ee]"
       style={{ paddingTop: 'calc(0.375rem + env(safe-area-inset-top))' }}
       role="status"
     >
@@ -87,10 +88,10 @@ function TopStrip() {
             key={item.path}
             to={item.path}
             end={item.end}
-            className="shell-mono rounded-[10px] px-2.5 py-1.5 text-[9.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70"
+            className="shell-mono rounded-[10px] px-2.5 py-1.5 text-[9.5px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[#c1337f]/70"
             style={({ isActive }) =>
               isActive
-                ? { color: '#f4ead9', background: 'rgba(224,163,92,0.16)', boxShadow: 'inset 0 0 0 1px rgba(224,163,92,0.3)' }
+                ? { color: '#f4ead9', background: 'rgba(193,19,127,0.16)', boxShadow: 'inset 0 0 0 1px rgba(193,19,127,0.3)' }
                 : { color: 'rgba(214,205,189,0.5)' }
             }
           >
@@ -107,7 +108,7 @@ function TopStrip() {
           onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your universe…"
           aria-label="Search"
-          className="w-40 rounded-[10px] border border-white/10 bg-white/[0.05] py-1.5 pl-7 pr-3 text-[11px] text-[rgba(220,212,235,0.8)] outline-none transition-colors placeholder:text-[rgba(214,205,189,0.35)] focus:border-[#e0a35c]/40"
+          className="w-40 rounded-[10px] border border-white/10 bg-white/[0.05] py-1.5 pl-7 pr-3 text-[11px] text-[rgba(220,212,235,0.8)] outline-none transition-colors placeholder:text-[rgba(214,205,189,0.35)] focus:border-[#c1337f]/40"
         />
       </div>
     </div>
@@ -148,7 +149,7 @@ function StatusCluster() {
       <div className="shell-glass hidden items-center gap-1.5 rounded-full px-3 py-1.5 sm:flex">
         <span
           className="shell-live-dot h-1.5 w-1.5 rounded-full"
-          style={{ background: online ? '#74d4a0' : '#e0a35c', boxShadow: `0 0 8px ${online ? '#74d4a0' : '#e0a35c'}` }}
+          style={{ background: online ? '#74d4a0' : '#c1337f', boxShadow: `0 0 8px ${online ? '#74d4a0' : '#c1337f'}` }}
         />
         <span className="shell-mono text-[8.5px] text-[rgba(214,205,189,0.6)]">
           {online ? 'Auralith Online' : 'Auralith Waking'}
@@ -159,15 +160,15 @@ function StatusCluster() {
       <Link
         to="/profile"
         aria-label={`${safeUsername} — open profile`}
-        className="shell-glass flex items-center gap-2 rounded-full px-1.5 py-1.5 outline-none transition-colors hover:border-[#e0a35c]/30 focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70"
+        className="shell-glass flex items-center gap-2 rounded-full px-1.5 py-1.5 outline-none transition-colors hover:border-[#c1337f]/30 focus-visible:ring-2 focus-visible:ring-[#c1337f]/70"
       >
-        <span className="h-7 w-7 overflow-hidden rounded-full ring-1 ring-[#e0a35c]/25">
+        <span className="h-7 w-7 overflow-hidden rounded-full ring-1 ring-[#c1337f]/25">
           {avatar ? (
             <img src={avatar} alt="" className="h-full w-full object-cover" />
           ) : (
             <span
               className="flex h-full w-full items-center justify-center text-[11px] font-semibold"
-              style={{ background: 'linear-gradient(135deg, rgba(224,163,92,0.34), rgba(201,123,123,0.2))', color: '#f2ebe0' }}
+              style={{ background: 'linear-gradient(135deg, rgba(193,19,127,0.34), rgba(160,84,136,0.2))', color: '#ebccdc' }}
             >
               {safeUsername[0]?.toUpperCase()}
             </span>
@@ -185,7 +186,7 @@ function StatusCluster() {
         onClick={handleLogout}
         aria-label="Sign out"
         title="Sign out"
-        className="shell-glass flex h-9 w-9 items-center justify-center rounded-full text-[rgba(214,205,189,0.55)] outline-none transition-colors hover:text-[#e0a35c] focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70"
+        className="shell-glass flex h-9 w-9 items-center justify-center rounded-full text-[rgba(214,205,189,0.55)] outline-none transition-colors hover:text-[#c1337f] focus-visible:ring-2 focus-visible:ring-[#c1337f]/70"
       >
         <LogOut className="h-3.5 w-3.5" />
       </button>
@@ -212,7 +213,7 @@ function Dock() {
             end={item.end}
             aria-label={item.label}
             title={item.label}
-            className="group flex shrink-0 flex-col items-center gap-1 rounded-2xl px-1.5 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070512]"
+            className="group flex shrink-0 flex-col items-center gap-1 rounded-2xl px-1.5 py-1 outline-none focus-visible:ring-2 focus-visible:ring-[#c1337f]/70 focus-visible:ring-offset-2 focus-visible:ring-offset-[#070512]"
           >
             {({ isActive }) => (
               <>
@@ -282,7 +283,7 @@ function HideUiToggle() {
       aria-pressed={uiHidden}
       aria-label={uiHidden ? 'Show interface' : 'Hide interface'}
       title={uiHidden ? 'Show UI (H)' : 'Hide UI (H)'}
-      className="shell-glass fixed bottom-3 right-4 z-40 flex items-center gap-1.5 rounded-full px-3 py-2 text-[rgba(214,205,189,0.5)] outline-none transition-colors hover:text-[#e0a35c] focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70 sm:right-6"
+      className="shell-glass fixed bottom-3 right-4 z-40 flex items-center gap-1.5 rounded-full px-3 py-2 text-[rgba(214,205,189,0.5)] outline-none transition-colors hover:text-[#c1337f] focus-visible:ring-2 focus-visible:ring-[#c1337f]/70 sm:right-6"
       style={{ marginBottom: 'env(safe-area-inset-bottom)', opacity: uiHidden ? 0.55 : 1 }}
     >
       {uiHidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}

@@ -31,7 +31,7 @@ import { MOTION_TOKENS }     from '../motion/motionTokens'
 const ENTRIES = [
   { dot: '#9DB7FF', label: 'Distance',   value: 'audio similarity — similar sounds cluster together' },
   { dot: '#b59cff', label: 'X axis',     value: 'valence — dark (left) ↔ bright (right)' },
-  { dot: '#9fdcff', label: 'Y axis',     value: 'energy — quiet (bottom) ↔ intense (top)' },
+  { dot: '#ac6294', label: 'Y axis',     value: 'energy — quiet (bottom) ↔ intense (top)' },
   { dot: '#f1c68a', label: 'Z axis',     value: 'texture — electronic/kinetic ↔ organic/still' },
   { dot: '#EAE6FF', label: 'Brightness', value: 'significance in your listening history' },
   { dot: '#ccd6ff', label: 'Ghost ○',   value: 'long-term-only artist — former orbit' },
@@ -77,12 +77,12 @@ export default function SemanticLegend({ className = '', compact = false, semant
             }}
           >
             {/* Scanner line */}
-            <div className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[#9fdcff]/30 to-transparent" />
+            <div className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[#ac6294]/30 to-transparent" />
 
             {/* Header */}
             <div className="flex items-center justify-between mb-3">
               <div>
-                <p className="text-[9px] font-semibold uppercase tracking-[0.26em] text-[#9fdcff]/55">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.26em] text-[#ac6294]/55">
                   Semantic Key
                 </p>
                 <p className="text-[10px] text-white/55 mt-0.5">
@@ -126,13 +126,13 @@ export default function SemanticLegend({ className = '', compact = false, semant
             {semanticCoverage !== null && semanticCoverage < 0.75 ? (
               <div className="mt-3 pt-2.5 border-t border-white/6">
                 <div className="flex items-center gap-1.5 mb-1">
-                  <div className="h-1.5 rounded-full bg-[#9fdcff]/30 flex-1">
+                  <div className="h-1.5 rounded-full bg-[#ac6294]/30 flex-1">
                     <div
-                      className="h-full rounded-full bg-[#9fdcff]/60"
+                      className="h-full rounded-full bg-[#ac6294]/60"
                       style={{ width: `${Math.round((semanticCoverage ?? 0) * 100)}%` }}
                     />
                   </div>
-                  <span className="text-[9px] text-[#9fdcff]/45 tabular-nums">
+                  <span className="text-[9px] text-[#ac6294]/45 tabular-nums">
                     {Math.round((semanticCoverage ?? 0) * 100)}%
                   </span>
                 </div>

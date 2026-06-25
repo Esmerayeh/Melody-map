@@ -34,41 +34,62 @@
   --mm-color-space-1: #070512;     /* sky top */
   --mm-color-space-2: #130a1e;     /* sky mid */
   --mm-color-space-3: #1e0a18;     /* sky bottom (warm) */
-  --mm-color-panel: rgba(14, 10, 24, 0.62);
-  --mm-color-panel-soft: rgba(8, 5, 18, 0.55);
-  --mm-color-panel-strong: rgba(8, 5, 18, 0.78);
-  --mm-color-copy: #f6f1e8;        /* --ink */
-  --mm-color-copy-soft: #c8c0b5;   /* --ink-dim */
-  --mm-color-muted: #82796b;       /* --ink-faint */
-  --mm-color-line: rgba(255, 220, 200, 0.16);  /* --glass-edge */
+  /* Panels recoloured to the DARK end of the pink-plum palette so glass cards
+     stay legible over the bright pink nebula backdrop (950 #301725 / 900 #51203A). */
+  --mm-color-panel: rgba(64,24,46,0.74);          /* 950 */
+  --mm-color-panel-soft: rgba(64,24,46,0.74);     /* 950, lighter veil */
+  --mm-color-panel-strong: rgba(64,24,46,0.74);   /* 950, opaque */
+  --mm-color-copy: #faf5f8;        /* 50  — near-white, high contrast */
+  --mm-color-copy-soft: #ebccdc;   /* 200 — soft pink-white */
+  --mm-color-muted: #9a2d67;       /* 700 — muted rose */
+  --mm-color-line: rgba(193, 19, 127, 0.25);  /* 600 #C1337F — soft pink rim */
 
-  /* Accent values from the reference :root; legacy names kept for consumers. */
-  --mm-color-lavender: #ff7a9d;    /* → rose primary (was violet) */
-  --mm-color-rose: #ff7a9d;        /* --rose */
-  --mm-color-cyan: #5fd8ff;        /* --cyan */
-  --mm-color-indigo: #b0b8d4;      /* --ghost (rare cool) */
-  --mm-color-silver: #f6f1e8;
-  --mm-color-moon: #b0b8d4;
-  --mm-color-amber: #ffb35a;       /* --amber */
-  --mm-color-gold: #ffd89b;        /* --gold */
-  --mm-color-emerald: #74ffc9;     /* --emerald */
+  /* Accents — EVERYTHING maps onto the two pink-plum ramps now (no amber / cyan /
+     emerald / rose). "Warm/primary" accents → pink (Color 1); "cool" accents →
+     mauve (Color 2). Legacy names kept so consumers don't need to change. */
+  --mm-color-lavender: #d15296;    /* pink 500 (primary accent) */
+  --mm-color-rose: #c1337f;        /* pink 600 */
+  --mm-color-cyan: #ac6294;        /* mauve 500 (was cyan) */
+  --mm-color-indigo: #81466e;      /* mauve 700 (cool/ghost) */
+  --mm-color-silver: #ebccdc;      /* pink 200 */
+  --mm-color-moon: #c28fb2;        /* mauve 400 */
+  --mm-color-amber: #de83b4;       /* pink 400 (was amber) */
+  --mm-color-gold: #e1a7c6;        /* pink 300 (was gold) */
+  --mm-color-emerald: #c28fb2;     /* mauve 400 (was emerald) */
 
-  --mm-gradient-aurora: linear-gradient(135deg, #ffd89b 0%, #ff7a9d 45%, #5fd8ff 100%);
-  --mm-gradient-oracle: linear-gradient(135deg, rgba(255, 122, 157, 0.22), rgba(95, 216, 255, 0.14) 50%, rgba(255, 179, 90, 0.12) 100%);
-  --mm-gradient-noir: linear-gradient(160deg, rgba(20, 14, 30, 0.62) 0%, rgba(8, 5, 18, 0.55) 100%);
-  --mm-gradient-nebula: radial-gradient(circle at 20% 20%, rgba(95, 216, 255, 0.18), transparent 40%), radial-gradient(circle at 80% 15%, rgba(255, 122, 157, 0.16), transparent 36%), radial-gradient(circle at 78% 72%, rgba(255, 179, 90, 0.12), transparent 32%), linear-gradient(180deg, #070512 0%, #02030a 100%);
+  --mm-gradient-aurora: linear-gradient(135deg, #e1a7c6 0%, #d15296 45%, #ac6294 100%);
+  --mm-gradient-oracle: linear-gradient(135deg, rgba(193, 19, 127, 0.24), rgba(172, 98, 148, 0.16) 50%, rgba(222, 131, 180, 0.14) 100%);
+  --mm-gradient-noir: linear-gradient(160deg, rgba(64,24,46,0.74) 0%, rgba(64,24,46,0.74) 100%);
+  --mm-gradient-nebula: radial-gradient(circle at 20% 20%, rgba(172, 98, 148, 0.18), transparent 40%), radial-gradient(circle at 80% 15%, rgba(193, 19, 127, 0.18), transparent 36%), radial-gradient(circle at 78% 72%, rgba(222, 131, 180, 0.12), transparent 32%), linear-gradient(180deg, #301725 0%, #1d0f18 100%);
 
   --mm-shadow-panel: 0 24px 64px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.04);
   --mm-shadow-float: 0 22px 60px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.03);
   --mm-shadow-soft: 0 14px 34px rgba(0, 0, 0, 0.3);
-  --mm-shadow-orb: 0 0 44px rgba(255, 122, 157, 0.22), 0 0 96px rgba(95, 216, 255, 0.08);
+  --mm-shadow-orb: 0 0 44px rgba(193, 19, 127, 0.24), 0 0 96px rgba(172, 98, 148, 0.10);
 
-  --mm-glow-lavender: 0 0 32px rgba(255, 122, 157, 0.24), 0 0 84px rgba(255, 122, 157, 0.08);
-  --mm-glow-rose: 0 0 32px rgba(255, 122, 157, 0.22), 0 0 84px rgba(255, 122, 157, 0.08);
-  --mm-glow-cyan: 0 0 32px rgba(95, 216, 255, 0.2), 0 0 84px rgba(95, 216, 255, 0.06);
+  --mm-glow-lavender: 0 0 32px rgba(209, 82, 150, 0.26), 0 0 84px rgba(209, 82, 150, 0.10);
+  --mm-glow-rose: 0 0 32px rgba(193, 19, 127, 0.24), 0 0 84px rgba(193, 19, 127, 0.08);
+  --mm-glow-cyan: 0 0 32px rgba(172, 98, 148, 0.22), 0 0 84px rgba(172, 98, 148, 0.08);
 
   --mm-blur-panel: blur(28px) saturate(165%);
   --mm-blur-heavy: blur(44px) saturate(180%);
+
+  /* ── Pink-plum glass system ───────────────────────────────────────────────
+     Dark-plum glass + near-white text so every floating panel stays legible
+     against the bright pink nebula. Consumed directly by components and by the
+     shared panel classes in index.css. */
+  --glass-bg: rgba(64,24,46,0.74);          /* 950 #301725 */
+  --glass-bg-hover: rgba(64,24,46,0.74);    /* 900 #51203A */
+  --glass-border: rgba(193, 19, 127, 0.25);    /* 600 #C1337F — soft pink rim */
+  --glass-border-hover: rgba(193, 19, 127, 0.45);
+
+  --text-primary: #faf5f8;       /* 50  — near white, high contrast on dark plum */
+  --text-secondary: #ebccdc;     /* 200 — soft pink-white */
+  --text-muted: #9a2d67;         /* 700 — muted rose, readable on dark panels */
+  --text-on-glass: #faf5f8;
+  /* Subtle drop for text sitting directly over the bright nebula (not in a card).
+     Stays DARK (a halo) so near-white text reads on the bright pink-400 glass. */
+  --text-nebula-shadow: 0 1px 12px rgba(20,10,16, 0.9);
 
   --mm-motion-fast: 180ms;
   --mm-motion-base: 360ms;

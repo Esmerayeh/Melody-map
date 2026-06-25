@@ -39,13 +39,13 @@ export default function SpotifyConnect({ variant = 'button' }) {
       <div className="flex items-center gap-2">
         {spotifyProfile.image && (
           <img src={spotifyProfile.image} alt={spotifyProfile.name}
-            className="w-7 h-7 rounded-full object-cover border border-green-500/40" />
+            className="w-7 h-7 rounded-full object-cover border border-[#ac6294]/40" />
         )}
         <div className="hidden sm:block">
-          <p className="text-xs font-medium text-green-400 leading-none">{spotifyProfile.name}</p>
+          <p className="text-xs font-medium text-[#ac6294] leading-none">{spotifyProfile.name}</p>
           <p className="text-xs text-gray-500 leading-none mt-0.5">Spotify Connected</p>
         </div>
-        <CheckCircle className="w-4 h-4 text-green-400" />
+        <CheckCircle className="w-4 h-4 text-[#ac6294]" />
         <button onClick={handleDisconnect}
           className="text-xs text-gray-500 hover:text-gray-300 transition-colors ml-1">
           ×
@@ -56,7 +56,7 @@ export default function SpotifyConnect({ variant = 'button' }) {
 
   if (spotifyConnected) {
     return (
-      <div className="flex items-center gap-1.5 text-green-400 text-sm">
+      <div className="flex items-center gap-1.5 text-[#ac6294] text-sm">
         <CheckCircle className="w-4 h-4" />
         <span className="hidden sm:inline text-xs">Connected</span>
       </div>

@@ -53,6 +53,62 @@ def init_mongo(mongo_instance):
         pass
 
 
+_local_fallback_warned: set[str] = set()
+
+
+def _warn_local_fallback(operation: str) -> None:
+    """Make the in-memory fallback LOUD. When ``_mongo`` is None (any context that
+    didn't call ``init_mongo`` — a standalone script, worker, training job, or a
+    benchmark), every read silently returns from the empty in-process ``_local_*``
+    stores. That previously looked like "retrieval returned nothing" with zero
+    signal. Warn once per operation so the misconfiguration is visible."""
+    if operation in _local_fallback_warned:
+        return
+    _local_fallback_warned.add(operation)
+    logger.warning(
+        "feature_store: Mongo not initialized — '%s' is reading from the in-process "
+        "in-memory store (no persisted Mongo data). Run inside the Flask app (which "
+        "calls init_mongo at startup) or call feature_store.connect_mongo_from_config().",
+        operation,
+    )
+
+
+def connect_mongo_from_config():
+    """Wire feature_store to live MongoDB using Config defaults, for code that runs
+    OUTSIDE the Flask app (scripts, workers, training, benchmarks). The Flask app
+    calls ``init_mongo`` at startup; this is the standalone equivalent. Idempotent —
+    returns the existing handle if already connected, or None if Mongo is unreachable."""
+    global _mongo
+    if _mongo is not None:
+        return _mongo
+    try:
+        from pymongo import MongoClient
+
+        from config import Config
+
+        uri = Config.mongodb_uri or "mongodb://localhost:27017/melody_map"
+        client = MongoClient(uri, serverSelectionTimeoutMS=3000)
+        client.admin.command("ping")
+        db = client.get_default_database()
+        if db is None:
+            from urllib.parse import urlparse
+
+            db = client[urlparse(uri).path.lstrip("/") or "melody_map"]
+
+        class _MongoHandle:
+            pass
+
+        handle = _MongoHandle()
+        handle.db = db
+        handle.cx = client
+        init_mongo(handle)
+        logger.info("feature_store: connected to live Mongo (db=%s)", db.name)
+        return _mongo
+    except Exception as exc:
+        logger.warning("feature_store: connect_mongo_from_config failed (%s)", type(exc).__name__)
+        return None
+
+
 def _stable_hash(payload: dict) -> str:
     encoded = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     return hashlib.sha256(encoded).hexdigest()
@@ -292,6 +348,7 @@ def register_embedding(entity_type: str, entity_id: str, embedding_version: str,
 
 def get_embedding(entity_type: str, entity_id: str, embedding_version: str | None = None) -> dict | None:
     if _mongo is None:
+        _warn_local_fallback("get_embedding")
         matches = [
             document
             for (stored_type, stored_entity_id, stored_version), document in _local_embeddings.items()
@@ -312,6 +369,7 @@ def get_embedding(entity_type: str, entity_id: str, embedding_version: str | Non
 
 def list_embeddings(entity_type: str, embedding_version: str | None = None, limit: int = 1000) -> list[dict]:
     if _mongo is None:
+        _warn_local_fallback("list_embeddings")
         matches = [
             document
             for (stored_type, _stored_entity_id, stored_version), document in _local_embeddings.items()
@@ -351,6 +409,7 @@ def upsert_auralith_chunk(user_id: str, chunk: dict) -> dict:
 
 def list_auralith_chunks(user_id: str, source_type: str | None = None, limit: int = 200) -> list[dict]:
     if _mongo is None:
+        _warn_local_fallback("list_auralith_chunks")
         docs = [doc for doc in _local_auralith_chunks.values() if doc.get("user_id") == user_id and (not source_type or doc.get("source_type") == source_type)]
         return sorted(docs, key=lambda item: item.get("updated_at", datetime.min.replace(tzinfo=UTC)), reverse=True)[:limit]
     query = {"user_id": user_id}

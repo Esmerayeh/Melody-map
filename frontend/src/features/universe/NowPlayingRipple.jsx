@@ -43,7 +43,7 @@ export default function NowPlayingRipple({ currentTrackId, reducedMotion = false
       {[0, 0.28, 0.56].map((delay) => (
         <div
           key={delay}
-          className="absolute rounded-full border border-[#9fdcff]/35"
+          className="absolute rounded-full border border-[#ac6294]/35"
           style={{
             width: 92,
             height: 92,

@@ -52,7 +52,7 @@ function AudioRadar({ features }) {
     <svg width="180" height="180" viewBox="0 0 180 180">
       <defs>
         <radialGradient id="radarFill" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#e0a35c" stopOpacity="0.4" />
+          <stop offset="0%" stopColor="#c1337f" stopOpacity="0.4" />
           <stop offset="100%" stopColor="#E040FB" stopOpacity="0.1" />
         </radialGradient>
         <filter id="radarGlow">
@@ -63,16 +63,16 @@ function AudioRadar({ features }) {
       {gridLevels.map((level) => (
         <polygon key={level}
           points={angles.map((a) => toXY(a, level * r).join(',')).join(' ')}
-          fill="none" stroke="rgba(224,163,92,0.08)" strokeWidth="1" />
+          fill="none" stroke="rgba(193,19,127,0.08)" strokeWidth="1" />
       ))}
       {angles.map((a, i) => {
         const [x, y] = toXY(a, r)
-        return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(224,163,92,0.1)" strokeWidth="1" />
+        return <line key={i} x1={cx} y1={cy} x2={x} y2={y} stroke="rgba(193,19,127,0.1)" strokeWidth="1" />
       })}
-      <polygon points={polyPoints} fill="url(#radarFill)" stroke="#e0a35c" strokeWidth="1.5" filter="url(#radarGlow)" />
+      <polygon points={polyPoints} fill="url(#radarFill)" stroke="#c1337f" strokeWidth="1.5" filter="url(#radarGlow)" />
       {values.map((v, i) => {
         const [x, y] = toXY(angles[i], v * r)
-        return <circle key={i} cx={x} cy={y} r="3" fill="#e0a35c" style={{ filter: 'drop-shadow(0 0 4px #e0a35c)' }} />
+        return <circle key={i} cx={x} cy={y} r="3" fill="#c1337f" style={{ filter: 'drop-shadow(0 0 4px #c1337f)' }} />
       })}
       {keys.map((key, i) => {
         const [x, y] = toXY(angles[i], r + 16)
@@ -156,13 +156,13 @@ function ArtistChip({ artist, rank }) {
       <div className="relative shrink-0">
         {artist.image
           ? <img src={artist.image} alt={artist.name} className="w-10 h-10 rounded-full object-cover" />
-          : <div className="w-10 h-10 rounded-full bg-amber-500/20 flex items-center justify-center text-sm font-bold text-amber-300">{rank + 1}</div>
+          : <div className="w-10 h-10 rounded-full bg-[#de83b4]/20 flex items-center justify-center text-sm font-bold text-[#de83b4]">{rank + 1}</div>
         }
           <div className="absolute inset-0 rounded-full opacity-0 transition-opacity md:group-hover:opacity-100"
-            style={{ boxShadow: '0 0 12px rgba(224,163,92,0.5)' }} />
+            style={{ boxShadow: '0 0 12px rgba(193,19,127,0.5)' }} />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-medium text-white truncate md:group-hover:text-amber-300 transition-colors">{artist.name}</p>
+          <p className="text-sm font-medium text-white truncate md:group-hover:text-[#de83b4] transition-colors">{artist.name}</p>
           <p className="text-xs text-gray-600 truncate">{artist.genres?.[0] || 'Artist'}</p>
         </div>
       <ExternalLink className="w-3.5 h-3.5 text-gray-500 md:text-gray-700 md:group-hover:text-gray-400 shrink-0 transition-colors" />
@@ -190,7 +190,7 @@ function TrackRow({ track, rank }) {
       </div>
       {track.spotify_url && (
           <a href={track.spotify_url} target="_blank" rel="noopener noreferrer"
-            className="touch-reveal opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-xs text-green-400 shrink-0">{'->'}</a>
+            className="touch-reveal opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity text-xs text-[#ac6294] shrink-0">{'->'}</a>
       )}
     </motion.div>
   )
@@ -214,7 +214,7 @@ function IdentityCard({ profile }) {
   const traits = (primary?.evidenceSignals || []).map((signal) => signal?.label).filter(Boolean).length
     ? (primary?.evidenceSignals || []).map((signal) => signal?.label).filter(Boolean)
     : personality.slice(1, 5).map((trait) => trait?.label || trait?.archetype).filter(Boolean)
-  const accentColor    = primary?.color  || personalityMeta?.color  || '#e0a35c'
+  const accentColor    = primary?.color  || personalityMeta?.color  || '#c1337f'
 
   return (
     <TiltCard className="h-full">
@@ -261,10 +261,10 @@ function IdentityCard({ profile }) {
 
 // ── Feature nav cards ──────────────────────────────────────────────────────────
 const NAV_CARDS = [
-  { to: '/universe',  icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#e0a35c' },
+  { to: '/universe',  icon: Disc3,    label: 'Music Galaxy',    desc: '3D taste universe',         from: '#6366f1', to2: '#c1337f' },
   { to: '/discover',  icon: Radio,    label: 'Sonic Echoes',    desc: 'signals drifting your way', from: '#ec4899', to2: '#f43f5e' },
-  { to: '/soulmates', icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#f0c089', to2: '#c97b7b' },
-  { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', from: '#f59e0b', to2: '#ef4444' },
+  { to: '/soulmates', icon: Heart,    label: 'Music Soulmate',  desc: 'see where your worlds meet', from: '#e1a7c6', to2: '#d15296' },
+  { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', from: '#c1337f', to2: '#ef4444' },
   { to: '/identity',  icon: Sparkles, label: 'Inner Music Self', desc: 'Follow the full reading',  from: '#38bdf8', to2: '#6366f1' },
 ]
 
@@ -360,7 +360,7 @@ export default function Dashboard() {
                     : 'The room is awake and listening, even before your full profile settles into focus.'}
                 </p>
                 {liveTrack?.title ? (
-                  <p className="mt-4 text-sm text-cyan-200">
+                  <p className="mt-4 text-sm text-[#e4d3de]">
                     Now shaping the field: {liveTrack.title} by {liveTrack.artist}
                   </p>
                 ) : null}
@@ -417,7 +417,7 @@ export default function Dashboard() {
                 transition={timeRange === value ? MOTION_TOKENS.focusSettle : MOTION_TOKENS.chip}
                 className="dimensional-chip px-3 py-2 rounded-xl text-xs font-medium transition-all duration-200"
                 style={timeRange === value
-                  ? { background: 'rgba(224,163,92,0.2)', color: '#e3dbff', border: '1px solid rgba(224,163,92,0.26)', boxShadow: '0 0 18px rgba(224,163,92,0.12)' }
+                  ? { background: 'rgba(193,19,127,0.2)', color: '#e3dbff', border: '1px solid rgba(193,19,127,0.26)', boxShadow: '0 0 18px rgba(193,19,127,0.12)' }
                   : { color: 'rgba(196,185,226,0.58)' }}>
                 {label}
               </motion.button>
@@ -457,14 +457,14 @@ export default function Dashboard() {
       {isConnected && error && (
         <div className="text-center py-12 text-gray-400">
           <p className="mb-3">something slipped through the static.</p>
-          <button onClick={refetch} className="text-sm text-amber-400 hover:text-amber-300">Try again</button>
+          <button onClick={refetch} className="text-sm text-[#de83b4] hover:text-[#de83b4]">Try again</button>
         </div>
       )}
 
       {isConnected && !loading && profile && (
         <div className="space-y-6">
           {profile?.isDegraded && (
-            <div className="flex flex-wrap gap-2 text-[11px] text-amber-300/80">
+            <div className="flex flex-wrap gap-2 text-[11px] text-[#de83b4]/80">
               <span>partial signal</span>
               <span>-</span>
               <span>
@@ -485,7 +485,7 @@ export default function Dashboard() {
             fallback={<ShellSkeleton lines={4} />}
           >
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#e0a35c'} delay={0} />
+              <StatOrb icon={Users}      label="Voices you orbit"  value={artists.length || '--'} color={pastelPalette[0] || '#c1337f'} delay={0} />
               <StatOrb icon={Music2}     label="Songs in reach"   value={tracks.length  || '--'} color={pastelPalette[1] || '#FF5DA2'} delay={0.05} />
               <StatOrb icon={TrendingUp} label="Atmospheres held" value={genres.length  || '--'} color={pastelPalette[2] || '#34D399'} delay={0.1} />
               <StatOrb icon={Zap}        label="Current intensity"   value={metrics?.energyScore != null ? `${metrics.energyScore}%` : null} color={pastelPalette[3] || '#FBBF24'} delay={0.15} />
@@ -512,8 +512,8 @@ export default function Dashboard() {
           {/* DNA report */}
           {liveTrack?.title && (
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
-              className="noire-panel p-5 rounded-[28px] border border-cyan-400/15">
-              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-cyan-200 mb-2">Live listening sync</p>
+              className="noire-panel p-5 rounded-[28px] border border-[#ac6294]/15">
+              <p className="text-xs font-semibold uppercase tracking-[0.25em] text-[#e4d3de] mb-2">Live listening sync</p>
               <p className="text-sm font-semibold text-white">{liveTrack.title} by {liveTrack.artist}</p>
               <p className="mt-2 text-xs text-slate-500">The Soul Orb is leaning into the current track audio signature while the session is active.</p>
             </motion.div>
@@ -523,18 +523,18 @@ export default function Dashboard() {
           {metrics && profile?.canComputeAnalytics && (
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
               className="noire-panel p-6 rounded-[28px] relative overflow-hidden"
-              style={{ background: 'linear-gradient(135deg, rgba(0,209,255,0.04), rgba(224,64,251,0.04))', border: '1px solid rgba(0,209,255,0.1)' }}
+              style={{ background: 'linear-gradient(135deg, rgba(0,209,255,0.04), rgba(193,19,127,0.04))', border: '1px solid rgba(0,209,255,0.1)' }}
             >
               <div className="absolute inset-0 opacity-30"
-                style={{ background: 'radial-gradient(ellipse at 80% 50%, rgba(224,64,251,0.08) 0%, transparent 60%)' }} />
+                style={{ background: 'radial-gradient(ellipse at 80% 50%, rgba(193,19,127,0.08) 0%, transparent 60%)' }} />
               <p className="text-xs font-semibold uppercase tracking-[0.25em] text-neon-cyan mb-4 relative z-10">Signal reading</p>
               <div className="flex flex-wrap gap-2 relative z-10">
                 {[
                   metrics?.energyScore != null ? { label: `${metrics.energyScore}% Energy`, color: '#FBBF24' } : null,
                   metrics?.valenceScore != null ? { label: `${metrics.valenceScore}% Valence`, color: '#E040FB' } : null,
                   metrics?.tempoAvg != null ? { label: `${metrics.tempoAvg} BPM`, color: '#00D1FF' } : null,
-                  metrics?.danceabilityScore != null ? { label: `${metrics.danceabilityScore}% Dance`, color: '#e0a35c' } : null,
-                  metrics?.nostalgiaIndex != null ? { label: `${metrics.nostalgiaIndex}% Nostalgia`, color: '#f472b6' } : null,
+                  metrics?.danceabilityScore != null ? { label: `${metrics.danceabilityScore}% Dance`, color: '#c1337f' } : null,
+                  metrics?.nostalgiaIndex != null ? { label: `${metrics.nostalgiaIndex}% Nostalgia`, color: '#d15296' } : null,
                   metrics?.diversityScore != null ? { label: `${metrics.diversityScore}% Diversity`, color: '#34D399' } : null,
                 ].filter(Boolean).map(({ label, color }, i) => (
                   <motion.span key={label}
@@ -575,7 +575,7 @@ export default function Dashboard() {
                     className="dimensional-chip flex items-center gap-1.5 px-4 py-1.5 rounded-xl text-xs font-semibold text-white transition-all"
                     style={{ background: 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(168,85,247,0.25))', border: '1px solid rgba(99,102,241,0.35)', boxShadow: '0 0 16px rgba(99,102,241,0.15)' }}
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+                    <Sparkles className="w-3.5 h-3.5 text-[#de83b4]" />
                     Let it flare open
                   </motion.button>
                 )}
@@ -596,7 +596,7 @@ export default function Dashboard() {
                     transition={{ delay: i * 0.03 }}
                     whileHover={{ scale: 1.03, y: -1 }}
                     className="dimensional-chip px-3 py-1.5 rounded-full text-sm cursor-default"
-                    style={{ background: 'rgba(224,163,92,0.1)', color: '#a5b4fc', border: '1px solid rgba(224,163,92,0.2)' }}
+                    style={{ background: 'rgba(193,19,127,0.1)', color: '#a5b4fc', border: '1px solid rgba(193,19,127,0.2)' }}
                   >{g.genre}</motion.span>
                 ))}
               </div>

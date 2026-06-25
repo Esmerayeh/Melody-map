@@ -122,7 +122,7 @@ export default function SpotifySuccess() {
 
         {status === 'loading' && (
           <>
-            <Loader2 className="w-8 h-8 text-indigo-400 animate-spin mx-auto" />
+            <Loader2 className="w-8 h-8 text-[#ac6294] animate-spin mx-auto" />
             <h2 className="mt-4 text-xl font-bold text-white">Restoring your listening session</h2>
             <p className="mt-2 text-gray-400 text-sm">We are exchanging the callback, restoring the cookie-backed session, and hydrating the first profile layer before navigating.</p>
           </>

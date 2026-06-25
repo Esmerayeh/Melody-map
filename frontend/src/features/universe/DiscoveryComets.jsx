@@ -46,7 +46,7 @@ const DEMO_COMET_SEEDS = [
 const GENRE_TRAIL_COLORS = {
   'dream pop':   '#b59cff',
   'shoegaze':    '#9db7ff',
-  'ambient folk':'#9fdcff',
+  'ambient folk':'#ac6294',
   'neo-soul':    '#f1aacb',
   'slowcore':    '#ccd6ff',
   'lo-fi indie': '#b59cff',
@@ -97,6 +97,11 @@ function buildCometPath(id, confidence, risk) {
 const TRAIL_LEN = 22
 const MAX_COMETS = 6
 
+// Module-scope scratch reused by every CometHead's frame loop — avoids allocating
+// a THREE.Vector3 per comet per frame. Safe: each frame callback copies out of it
+// (into posRef + mesh.position) before the next comet's callback runs.
+const _cometScratch = new THREE.Vector3()
+
 function CometTrail({ path, color, opacity, trailPositions }) {
   const geo = useMemo(() => {
     const g = new THREE.BufferGeometry()
@@ -104,6 +109,9 @@ function CometTrail({ path, color, opacity, trailPositions }) {
     g.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     return g
   }, [])
+
+  // Dispose the trail buffer on unmount (route away from /universe).
+  useEffect(() => () => geo?.dispose(), [geo])
 
   useFrame(() => {
     const attr = geo.attributes.position
@@ -127,15 +135,15 @@ function CometHead({ path, color, opacity, posRef, onHover, onClick, hovered, la
   const meshRef = useRef()
   const t       = useRef(0)
 
-  useFrame((_, delta) => {
+  useFrame((state, delta) => {
     if (reducedMotion) return
     t.current = Math.min(t.current + delta * path.speed, 1)
-    const pos = new THREE.Vector3().lerpVectors(path.origin, path.target, t.current)
+    const pos = _cometScratch.lerpVectors(path.origin, path.target, t.current)
     posRef.current.push(pos.x, pos.y, pos.z)
     if (posRef.current.length > TRAIL_LEN * 3) posRef.current.splice(0, 3)
     if (meshRef.current) {
       meshRef.current.position.copy(pos)
-      const pulse = 1 + Math.sin(Date.now() * 0.004) * 0.22
+      const pulse = 1 + Math.sin(state.clock.elapsedTime * 4) * 0.22
       meshRef.current.scale.setScalar(pulse)
     }
   })
@@ -270,7 +278,7 @@ function DecodeCard({ comet, isDemo, onClose, onCapture, captured }) {
           </button>
         )}
         {captured && (
-          <span className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-emerald-300"
+          <span className="flex items-center gap-1.5 rounded-full px-4 py-2 text-xs font-semibold text-[#ac6294]"
                 style={{ background: 'rgba(52,211,153,0.12)', border: '1px solid rgba(52,211,153,0.24)' }}>
             <Zap className="h-3.5 w-3.5" /> In orbit
           </span>

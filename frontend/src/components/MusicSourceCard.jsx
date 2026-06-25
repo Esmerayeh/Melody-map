@@ -46,13 +46,13 @@ export function ProviderBadge() {
     return (
       <div className="flex items-center gap-2">
         {spotifyProfile?.image && (
-          <img src={spotifyProfile.image} alt={spotifyProfile.name} className="w-6 h-6 rounded-full object-cover border border-green-500/40" />
+          <img src={spotifyProfile.image} alt={spotifyProfile.name} className="w-6 h-6 rounded-full object-cover border border-[#ac6294]/40" />
         )}
-        <span className="hidden sm:flex items-center gap-1 text-xs text-green-400 font-medium">
+        <span className="hidden sm:flex items-center gap-1 text-xs text-[#ac6294] font-medium">
           <SpotifyIcon />
           {spotifyProfile?.name || 'Spotify'}
         </span>
-        <CheckCircle className="w-3.5 h-3.5 text-green-400" />
+        <CheckCircle className="w-3.5 h-3.5 text-[#ac6294]" />
         <button onClick={() => disconnectProvider('spotify', disconnectSpotify, disconnectLastfm, clearProfile)} className="text-gray-500 hover:text-gray-300 text-xs transition-colors">x</button>
       </div>
     )
@@ -103,7 +103,7 @@ export default function MusicSourceCard({ compact = false }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-400" />
+              <CheckCircle className="w-4 h-4 text-[#ac6294]" />
               <button onClick={() => disconnectProvider('spotify', disconnectSpotify, disconnectLastfm, clearProfile)} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Disconnect</button>
             </div>
           </div>
@@ -120,7 +120,7 @@ export default function MusicSourceCard({ compact = false }) {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-green-400" />
+              <CheckCircle className="w-4 h-4 text-[#ac6294]" />
               <button onClick={() => disconnectProvider('lastfm', disconnectSpotify, disconnectLastfm, clearProfile)} className="text-xs text-gray-500 hover:text-red-400 transition-colors">Disconnect</button>
             </div>
           </div>
@@ -135,16 +135,16 @@ export default function MusicSourceCard({ compact = false }) {
         <div className="flex justify-center mb-5">
           <svg width="160" height="100" viewBox="0 0 160 100" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
             <ellipse cx="80" cy="50" rx="70" ry="28" stroke="rgba(124,111,255,0.15)" strokeWidth="1" />
-            <ellipse cx="80" cy="50" rx="50" ry="18" stroke="rgba(244,114,182,0.12)" strokeWidth="1" />
+            <ellipse cx="80" cy="50" rx="50" ry="18" stroke="rgba(209,82,150,0.12)" strokeWidth="1" />
             {[[20,20],[140,18],[60,12],[110,80],[30,72],[150,60],[80,8],[45,88]].map(([x,y],i) => (
-              <circle key={i} cx={x} cy={y} r={1.5 + (i % 3) * 0.8} fill={i % 2 === 0 ? '#7c6fff' : '#f472b6'} opacity={0.5 + (i % 4) * 0.12} />
+              <circle key={i} cx={x} cy={y} r={1.5 + (i % 3) * 0.8} fill={i % 2 === 0 ? '#7c6fff' : '#d15296'} opacity={0.5 + (i % 4) * 0.12} />
             ))}
             <circle cx="80" cy="50" r="12" fill="rgba(124,111,255,0.12)" />
             <circle cx="80" cy="50" r="6" fill="rgba(124,111,255,0.25)" />
             <circle cx="80" cy="50" r="2.5" fill="#7c6fff" />
-            <circle cx="30" cy="50" r="3" fill="#f472b6" opacity="0.7" />
+            <circle cx="30" cy="50" r="3" fill="#d15296" opacity="0.7" />
             <circle cx="130" cy="50" r="3" fill="#7c6fff" opacity="0.7" />
-            <circle cx="80" cy="22" r="2.5" fill="#fbbf24" opacity="0.6" />
+            <circle cx="80" cy="22" r="2.5" fill="#de83b4" opacity="0.6" />
             <circle cx="80" cy="78" r="2.5" fill="#34d399" opacity="0.6" />
           </svg>
         </div>

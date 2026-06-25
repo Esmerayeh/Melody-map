@@ -41,11 +41,12 @@ test('recommendation tracking does not fabricate session ids', () => {
 })
 
 test('primary mobile entry points point to the social soulmates route', () => {
+  // BottomNav.jsx and TopBar.jsx were retired in the 11→6 route consolidation;
+  // their nav (the bottom dock + top glass strip) now lives in ShellChrome.jsx.
   const files = [
     path.join(ROOT, 'pages', 'Dashboard.jsx'),
     path.join(ROOT, 'pages', 'Profile.jsx'),
-    path.join(ROOT, 'components', 'BottomNav.jsx'),
-    path.join(ROOT, 'components', 'TopBar.jsx'),
+    path.join(ROOT, 'components', 'shell', 'ShellChrome.jsx'),
   ]
 
   files.forEach((file) => {

@@ -72,8 +72,12 @@ export default function GalaxyAudioController({ reducedMotion = false }) {
       aria-label={muted ? 'Turn on galaxy ambient sound' : 'Mute galaxy ambient sound'}
       aria-pressed={!muted}
       title={muted ? 'Galaxy sound: off' : 'Galaxy sound: on'}
-      className="fixed bottom-5 left-5 z-[70] flex h-11 w-11 items-center justify-center rounded-full border bg-[#120b06]/80 text-[#ffd9a0] shadow-[0_8px_30px_rgba(0,0,0,0.5)] backdrop-blur-md transition hover:bg-[#1a0f07]/85"
+      className="fixed z-40 flex h-11 w-11 items-center justify-center rounded-full border bg-[#120b06]/80 text-[#ffd9a0] shadow-[0_8px_30px_rgba(0,0,0,0.5)] backdrop-blur-md transition hover:bg-[#1a0f07]/85"
       style={{
+        // z-40: below modals (z-50) and the dock, above canvas/HUD content (was z-[70],
+        // which let it sit over the nav/dock). Safe-area insets keep it off the OS taskbar.
+        bottom: 'calc(1.25rem + env(safe-area-inset-bottom))',
+        left: 'calc(1.25rem + env(safe-area-inset-left))',
         borderColor: muted ? 'rgba(255,217,160,0.22)' : 'rgba(255,206,138,0.55)',
         boxShadow: muted ? undefined : '0 0 18px rgba(255,206,138,0.25)',
       }}

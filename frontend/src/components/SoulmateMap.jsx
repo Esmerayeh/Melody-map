@@ -12,7 +12,7 @@ import * as d3 from 'd3'
 const TYPE_CONFIG = {
   shared: { color: '#a78bfa', glow: '#7c3aed', r: 10, emissive: 1.4 },
   user_a: { color: '#60a5fa', glow: '#2563eb', r:  7, emissive: 0.8 },
-  user_b: { color: '#f472b6', glow: '#db2777', r:  7, emissive: 0.8 },
+  user_b: { color: '#d15296', glow: '#db2777', r:  7, emissive: 0.8 },
 }
 
 export default function SoulmateMap({ graph, userAName = 'You', userBName = 'Soulmate', height = 500 }) {

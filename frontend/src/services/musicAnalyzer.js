@@ -113,24 +113,41 @@ export function analyzeMusic({ topArtists = [], topTracks = [], audioFeatures = 
 
   const avgFeatures = { energy, valence, danceability, acousticness, tempo, speechiness, instrumentalness }
 
+  // CREDIBILITY GUARD: Spotify retired the audio-features endpoint, so for most
+  // accounts `audioFeatures` arrives empty. The `|| 0.5` fallbacks above keep the
+  // internal visual math safe, but emitting them as user-facing scores produced
+  // the "mushy middle" — every taste read floored to ~50% Energy / 50% Valence /
+  // "balanced", which reads as a broken demo and breaks the "this is YOU" spell.
+  // When there is no real audio signal, the audio-DERIVED metrics are null so the
+  // (already null-guarding) UI hides them instead of fabricating a number. The
+  // genre- and recency-derived metrics below stay — those are still real signal.
+  const hasAudio = audioFeatures.some((f) => f && (f.energy != null || f.valence != null))
+  const score = (value) => (hasAudio ? Math.round(value * 100) : null)
+
   return {
     dominantGenres:    genres.slice(0, 8),
-    mood:              deriveMood(energy, valence),
-    energyScore:       Math.round(energy * 100),
-    valenceScore:      Math.round(valence * 100),
-    danceabilityScore: Math.round(danceability * 100),
-    acousticnessScore: Math.round(acousticness * 100),
-    tempoAvg:          Math.round(tempo),
-    nostalgiaIndex:    Math.round(calcNostalgiaIndex(topTracks) * 100),
-    diversityScore:    Math.round(calcDiversity(genres) * 100),
-    sonicBrightness:   Math.round(calcSonicBrightness(avgFeatures) * 100),
+    mood:              hasAudio ? deriveMood(energy, valence) : null,
+    energyScore:       score(energy),
+    valenceScore:      score(valence),
+    danceabilityScore: score(danceability),
+    acousticnessScore: score(acousticness),
+    tempoAvg:          hasAudio ? Math.round(tempo) : null,
+    nostalgiaIndex:    Math.round(calcNostalgiaIndex(topTracks) * 100), // from release dates — real
+    diversityScore:    Math.round(calcDiversity(genres) * 100),         // from genre spread — real
+    sonicBrightness:   hasAudio ? Math.round(calcSonicBrightness(avgFeatures) * 100) : null,
+    hasAudioFeatures:  hasAudio,
     avgFeatures,
-    // Scatter data: each track as {x: valence, y: energy, label}
-    moodScatter: audioFeatures.slice(0, 30).map((f, i) => ({
-      x: Math.round((f.valence ?? 0.5) * 100),
-      y: Math.round((f.energy  ?? 0.5) * 100),
-      label: topTracks[i]?.title || topTracks[i]?.name || `Track ${i + 1}`,
-      artist: topTracks[i]?.artist || topTracks[i]?.artists?.[0]?.name || '',
-    })),
+    // Scatter data: one point per track that actually carries audio features.
+    // Empty (not a cloud of fabricated 50/50 points) when features are missing.
+    moodScatter: audioFeatures
+      .slice(0, 30)
+      .map((f, i) => ({ f, i }))
+      .filter(({ f }) => f && f.valence != null && f.energy != null)
+      .map(({ f, i }) => ({
+        x: Math.round(f.valence * 100),
+        y: Math.round(f.energy * 100),
+        label: topTracks[i]?.title || topTracks[i]?.name || `Track ${i + 1}`,
+        artist: topTracks[i]?.artist || topTracks[i]?.artists?.[0]?.name || '',
+      })),
   }
 }

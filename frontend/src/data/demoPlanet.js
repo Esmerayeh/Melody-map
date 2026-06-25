@@ -5,8 +5,9 @@
  * Every property intentionally resembles a real profile object so the
  * Soul Orb, Galaxy, and identity pages render without modification.
  *
- * All data is CLEARLY fictional — labels use evocative but non-real names.
- * Nothing claims to be from a real Spotify account.
+ * Artists/tracks are REAL public artists (dream-pop / shoegaze / ambient-folk)
+ * so the demo can showcase real in-galaxy Spotify playback. This is curated demo
+ * data, NOT any real user's listening history — the /demo banner says as much.
  *
  * Visual identity: "Dreamy / Melancholic" archetype blend.
  * Audio signature: low energy, high acousticness, medium valence, moderate tempo.
@@ -53,29 +54,36 @@ export const DEMO_PROFILE = {
   ],
 
   // ── Top artists ─────────────────────────────────────────────────────────────
+  // Real, public artists in the dream-pop / shoegaze / ambient-folk sphere so the
+  // demo can showcase real in-galaxy playback (the Spotify Embed needs a real
+  // track/artist id). Each spotify_url is that artist's signature track, so an
+  // artist star plays too — verified live via Spotify search, not recalled.
   topArtists: [
-    { id: 'a1', name: 'Velvet Collapse',    popularity: 72, genres: ['dream pop', 'shoegaze'],      image: null },
-    { id: 'a2', name: 'Pale Shore',         popularity: 68, genres: ['dream pop', 'ambient folk'],  image: null },
-    { id: 'a3', name: 'Glass Meridian',     popularity: 81, genres: ['shoegaze', 'chamber pop'],    image: null },
-    { id: 'a4', name: 'Hollow Archive',     popularity: 64, genres: ['neo-soul', 'slowcore'],       image: null },
-    { id: 'a5', name: 'The Quiet Radius',   popularity: 59, genres: ['lo-fi indie', 'ambient folk'],image: null },
-    { id: 'a6', name: 'Moth Signal',        popularity: 55, genres: ['melancholic r&b'],            image: null },
-    { id: 'a7', name: 'Crestfall',          popularity: 62, genres: ['dream pop'],                  image: null },
-    { id: 'a8', name: 'Sunken Hymns',       popularity: 48, genres: ['slowcore', 'ambient folk'],   image: null },
-    { id: 'a9', name: 'Neon Bruise',        popularity: 74, genres: ['shoegaze', 'neo-soul'],       image: null, metrics: { isSurge: true }  },
-    { id:'a10', name: 'Porcelain Distance', popularity: 44, genres: ['chamber pop'],                image: null, metrics: { isGhost: true } },
+    { id: 'a1', name: 'Beach House',     popularity: 72, genres: ['dream pop', 'shoegaze'],        image: null, spotify_url: 'https://open.spotify.com/track/7H0ya83CMmgFcOhw0UB6ow' },
+    { id: 'a2', name: 'Slowdive',        popularity: 68, genres: ['shoegaze', 'dream pop'],        image: null, spotify_url: 'https://open.spotify.com/track/0eVz3hV2xOXdneGpnWDFpb' },
+    { id: 'a3', name: 'Sufjan Stevens',  popularity: 81, genres: ['chamber pop', 'ambient folk'],  image: null, spotify_url: 'https://open.spotify.com/track/0MNNKSUU9OOQ8DSGWduw79' },
+    { id: 'a4', name: 'Sampha',          popularity: 64, genres: ['neo-soul', 'melancholic r&b'],  image: null, spotify_url: 'https://open.spotify.com/track/3D1VUmjj0IlhdHqGConc7C' },
+    { id: 'a5', name: 'Beach Fossils',   popularity: 59, genres: ['lo-fi indie', 'dream pop'],     image: null, spotify_url: 'https://open.spotify.com/track/6XyjwF7CAwuEaW77noJr6I' },
+    { id: 'a6', name: 'Sade',            popularity: 55, genres: ['neo-soul', 'melancholic r&b'],  image: null, spotify_url: 'https://open.spotify.com/track/7H3ojI1BsVy0dEJENqMt1k' },
+    { id: 'a7', name: 'Grouper',         popularity: 62, genres: ['ambient folk', 'slowcore'],     image: null, spotify_url: 'https://open.spotify.com/track/1nJV1JGWf61WRJy851LO34' },
+    { id: 'a8', name: 'Alex G',          popularity: 48, genres: ['lo-fi indie', 'slowcore'],      image: null, spotify_url: 'https://open.spotify.com/track/4p9iQNEmsIGkB6eG8Val8n' },
+    { id: 'a9', name: 'DIIV',            popularity: 74, genres: ['shoegaze', 'dream pop'],        image: null, spotify_url: 'https://open.spotify.com/track/30uvCVEYqgktyLfDcI76Hx', metrics: { isSurge: true } },
+    { id:'a10', name: 'Cocteau Twins',   popularity: 44, genres: ['dream pop', 'shoegaze'],        image: null, spotify_url: 'https://open.spotify.com/track/37pKTyMwalomKCZjxTc2QZ', metrics: { isGhost: true } },
   ],
 
   // ── Top tracks ──────────────────────────────────────────────────────────────
+  // Each carries a real spotify_url → the track satellite plays the actual song
+  // on star-open via the Spotify Embed. audio_features stay low/introspective to
+  // preserve the galaxy's sonic color + mood-region mapping.
   topTracks: [
-    { id: 't1',  title: 'Everything Softens',   artist: 'Velvet Collapse',  album_art: null, audio_features: { energy: 0.22, valence: 0.33 } },
-    { id: 't2',  title: 'Coastline Memory',     artist: 'Pale Shore',       album_art: null, audio_features: { energy: 0.30, valence: 0.45 } },
-    { id: 't3',  title: 'Glass Meridian',       artist: 'Glass Meridian',   album_art: null, audio_features: { energy: 0.35, valence: 0.40 } },
-    { id: 't4',  title: 'Low Tide Dispatch',    artist: 'Hollow Archive',   album_art: null, audio_features: { energy: 0.19, valence: 0.28 } },
-    { id: 't5',  title: 'Quiet Radius',         artist: 'The Quiet Radius', album_art: null, audio_features: { energy: 0.25, valence: 0.36 } },
-    { id: 't6',  title: 'Signal Moth',          artist: 'Moth Signal',      album_art: null, audio_features: { energy: 0.26, valence: 0.41 } },
-    { id: 't7',  title: 'After the Crest',      artist: 'Crestfall',        album_art: null, audio_features: { energy: 0.32, valence: 0.38 } },
-    { id: 't8',  title: 'Hymn for the Drowned', artist: 'Sunken Hymns',     album_art: null, audio_features: { energy: 0.18, valence: 0.24 } },
+    { id: 't1',  title: 'Space Song',                          artist: 'Beach House',    album_art: null, audio_features: { energy: 0.22, valence: 0.33 }, spotify_url: 'https://open.spotify.com/track/7H0ya83CMmgFcOhw0UB6ow' },
+    { id: 't2',  title: 'Sugar for the Pill',                  artist: 'Slowdive',       album_art: null, audio_features: { energy: 0.30, valence: 0.45 }, spotify_url: 'https://open.spotify.com/track/0eVz3hV2xOXdneGpnWDFpb' },
+    { id: 't3',  title: 'Mystery of Love',                     artist: 'Sufjan Stevens', album_art: null, audio_features: { energy: 0.35, valence: 0.40 }, spotify_url: 'https://open.spotify.com/track/0MNNKSUU9OOQ8DSGWduw79' },
+    { id: 't4',  title: '(No One Knows Me) Like the Piano',    artist: 'Sampha',         album_art: null, audio_features: { energy: 0.19, valence: 0.28 }, spotify_url: 'https://open.spotify.com/track/3D1VUmjj0IlhdHqGConc7C' },
+    { id: 't5',  title: 'Sleep Apnea',                         artist: 'Beach Fossils',  album_art: null, audio_features: { energy: 0.25, valence: 0.36 }, spotify_url: 'https://open.spotify.com/track/6XyjwF7CAwuEaW77noJr6I' },
+    { id: 't6',  title: 'By Your Side',                        artist: 'Sade',           album_art: null, audio_features: { energy: 0.26, valence: 0.41 }, spotify_url: 'https://open.spotify.com/track/7H3ojI1BsVy0dEJENqMt1k' },
+    { id: 't7',  title: 'Living Room',                         artist: 'Grouper',        album_art: null, audio_features: { energy: 0.32, valence: 0.38 }, spotify_url: 'https://open.spotify.com/track/1nJV1JGWf61WRJy851LO34' },
+    { id: 't8',  title: 'Mary',                                artist: 'Alex G',         album_art: null, audio_features: { energy: 0.18, valence: 0.24 }, spotify_url: 'https://open.spotify.com/track/4p9iQNEmsIGkB6eG8Val8n' },
   ],
 
   // ── Analytics ───────────────────────────────────────────────────────────────

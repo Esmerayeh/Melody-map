@@ -148,14 +148,14 @@ def _build_galaxy_artifact(profile: dict, idempotency_key: str) -> dict:
 
     genre_list = [
         (g["genre"] if isinstance(g, dict) else g)
-        for g in raw_genres[:10]
+        for g in raw_genres[:50]
     ]
 
     # ── Build genre→artist feature lookup ────────────────────────────────────
     # Collect audio features per genre from artists so genre nodes can be
     # positioned semantically (mirrors buildGenreAnchors in galaxyBuilder.js).
     genre_feature_map: dict[str, list[dict]] = {}
-    for artist in raw_artists[:40]:
+    for artist in raw_artists[:50]:
         af = artist.get("audio_features") or {}
         if not isinstance(af, dict) or not any(af.values()):
             continue
@@ -202,6 +202,7 @@ def _build_galaxy_artifact(profile: dict, idempotency_key: str) -> dict:
         nodes.append({
             "id":           f"genre:{slug}",
             "type":         "genre",
+            "rank":         i,
             "label":        genre,
             "color":        color,
             "size":         round(0.55 + weight * 0.7, 2),
@@ -216,7 +217,7 @@ def _build_galaxy_artifact(profile: dict, idempotency_key: str) -> dict:
     artist_node_map: dict[str, dict] = {}
     semantic_artist_count = 0
 
-    for i, artist in enumerate(raw_artists[:40]):
+    for i, artist in enumerate(raw_artists[:50]):
         name       = artist.get("name", "")
         artist_id  = artist.get("id") or f"artist:{name.lower().replace(' ', '-')}"
         popularity = _clamp(artist.get("popularity", 50) / 100.0)
@@ -286,7 +287,7 @@ def _build_galaxy_artifact(profile: dict, idempotency_key: str) -> dict:
             })
 
     # ── Track nodes (optional, limited) ──────────────────────────────────────
-    for i, track in enumerate(raw_tracks[:20]):
+    for i, track in enumerate(raw_tracks[:50]):
         title     = track.get("title", "")
         artist    = track.get("artist", "")
         track_id  = track.get("id") or f"track:{title.lower().replace(' ', '-')}:{artist.lower().replace(' ', '-')}"
@@ -367,7 +368,7 @@ def _build_galaxy_artifact(profile: dict, idempotency_key: str) -> dict:
 
     # ── Regions ───────────────────────────────────────────────────────────────
     regions: list[dict] = []
-    for i, genre in enumerate(genre_list[:6]):
+    for i, genre in enumerate(genre_list[:20]):
         slug  = genre.lower().replace(" ", "-")
         gpos  = genre_positions.get(slug, {"x": 0, "y": 0, "z": 0})
         artist_ids = [

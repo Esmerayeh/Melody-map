@@ -48,7 +48,7 @@ const ARCHETYPES = [
     id: 'dreamy',
     label: 'Dreamy',
     emoji: '🌙',
-    color: '#a78bfa',
+    color: '#c28fb2',
     description: 'Atmospheric, introspective, and beautifully hazy.',
     score: ({ acousticness, valence, energy }) => weightedAverage([
       { value: acousticness != null ? clamp(acousticness) : null, weight: 0.5 },
@@ -60,7 +60,7 @@ const ARCHETYPES = [
     id: 'nostalgic',
     label: 'Nostalgic',
     emoji: '🎞️',
-    color: '#fbbf24',
+    color: '#de83b4',
     description: 'Warm memories wrapped in slow, organic sound.',
     score: ({ tempo, acousticness }) => weightedAverage([
       { value: normalizeTempo(tempo) != null ? (1 - normalizeTempo(tempo)) : null, weight: 0.55 },
@@ -71,7 +71,7 @@ const ARCHETYPES = [
     id: 'chaotic',
     label: 'Chaotic',
     emoji: '⚡',
-    color: '#ef4444',
+    color: '#c1337f',
     description: 'High-octane, unpredictable, and relentlessly intense.',
     score: ({ energy, tempo }) => weightedAverage([
       { value: energy != null ? clamp(energy) : null, weight: 0.55 },
@@ -82,7 +82,7 @@ const ARCHETYPES = [
     id: 'romantic',
     label: 'Romantic',
     emoji: '🌹',
-    color: '#f472b6',
+    color: '#d15296',
     description: 'Tender, emotional, and deeply soulful.',
     score: ({ valence, acousticness, energy }) => weightedAverage([
       { value: valence != null ? clamp(valence) : null, weight: 0.45 },
@@ -94,7 +94,7 @@ const ARCHETYPES = [
     id: 'melancholic',
     label: 'Melancholic',
     emoji: '🌧️',
-    color: '#60a5fa',
+    color: '#ac6294',
     description: 'Beautifully sad — you find meaning in the minor key.',
     score: ({ valence, energy }) => weightedAverage([
       { value: valence != null ? (1 - clamp(valence)) : null, weight: 0.65 },
@@ -105,7 +105,7 @@ const ARCHETYPES = [
     id: 'cosmic',
     label: 'Cosmic',
     emoji: '🪐',
-    color: '#34d399',
+    color: '#a05488',
     description: 'Ambient, vast, and instrumental — music as a universe.',
     score: ({ instrumentalness, acousticness, energy }) => weightedAverage([
       { value: instrumentalness != null ? clamp(instrumentalness) : null, weight: 0.5 },

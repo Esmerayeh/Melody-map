@@ -13,7 +13,7 @@ export default function GalaxyLegend({
   const topRegions = regions.slice(0, 4)
 
   return (
-    <motion.div layout transition={MOTION_TOKENS.focus} className="absolute bottom-[5.75rem] left-3 right-3 flex max-w-none flex-col gap-3 sm:bottom-5 sm:left-5 sm:right-auto sm:max-w-sm">
+    <motion.div layout transition={MOTION_TOKENS.focus} className="absolute bottom-[5.75rem] left-3 right-3 flex max-w-none flex-col gap-3 sm:bottom-5 sm:left-[4.75rem] sm:right-auto sm:max-w-sm">
       {density && (
         <motion.div layout transition={MOTION_TOKENS.panel} className="noire-info-card px-3.5 py-3 text-[11px] text-gray-300">
           <div className="flex flex-wrap items-center gap-2">
@@ -23,7 +23,7 @@ export default function GalaxyLegend({
             <span>/</span>
             <span>{density.trackSatellites} satellites</span>
           </div>
-          <p className="mt-2 text-[10px] uppercase tracking-[0.24em] text-gray-500">{profileTier} profile mode</p>
+          <p className="mt-2 text-[10px] uppercase tracking-[0.24em] text-gray-300">{profileTier} profile mode</p>
         </motion.div>
       )}
 
@@ -44,7 +44,7 @@ export default function GalaxyLegend({
               <span className="mt-1 h-2.5 w-2.5 shrink-0 rounded-full shadow-[0_0_18px_currentColor]" style={{ background: cluster.color, color: cluster.color }} />
               <div className="min-w-0">
                 <p className="font-semibold text-white">{cluster.label}</p>
-                <p className="truncate text-gray-400">{cluster.dominantGenres.slice(0, 3).join(' / ')}</p>
+                <p className="truncate text-gray-300">{cluster.dominantGenres.slice(0, 3).join(' / ')}</p>
               </div>
             </motion.button>
           ))}
@@ -52,8 +52,8 @@ export default function GalaxyLegend({
       )}
 
       {!!topRegions.length && (
-        <motion.div layout transition={MOTION_TOKENS.panel} className="noire-info-card px-3.5 py-3 text-[11px] text-gray-400">
-          <p className="mb-2 uppercase tracking-[0.22em] text-gray-500">Mood Nebula</p>
+        <motion.div layout transition={MOTION_TOKENS.panel} className="noire-info-card px-3.5 py-3 text-[11px] text-gray-300">
+          <p className="mb-2 uppercase tracking-[0.22em] text-gray-300">Mood Nebula</p>
           <div className="space-y-2">
             {topRegions.map((region) => (
               <motion.button

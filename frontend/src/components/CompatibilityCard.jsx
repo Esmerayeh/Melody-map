@@ -227,7 +227,7 @@ function AuralithSoulmatePanel({ result }) {
           ) : null}
         </div>
       ) : null}
-      {error ? <p className="mt-3 text-xs text-rose-300">{error}</p> : null}
+      {error ? <p className="mt-3 text-xs text-[#d15296]">{error}</p> : null}
     </section>
   )
 }
@@ -278,7 +278,7 @@ function ShareCard({ result, userAName, userBName, shareHref }) {
               setStatus(error.message || 'Match card export failed.')
             }
           }}
-          className="touch-target flex items-center justify-center gap-2 rounded-full border border-sky-400/25 bg-sky-400/10 px-4 py-2 text-sm text-sky-100"
+          className="touch-target flex items-center justify-center gap-2 rounded-full border border-[#ac6294]/25 bg-[#ac6294]/10 px-4 py-2 text-sm text-[#e4d3de]"
         >
           <Download className="h-4 w-4" />
           Download match card
@@ -293,7 +293,7 @@ function ShareCard({ result, userAName, userBName, shareHref }) {
               setStatus(error.message || 'Could not share this match.')
             }
           }}
-          className="touch-target flex items-center justify-center gap-2 rounded-full border border-fuchsia-400/25 bg-fuchsia-400/10 px-4 py-2 text-sm text-fuchsia-100"
+          className="touch-target flex items-center justify-center gap-2 rounded-full border border-[#d15296]/25 bg-[#d15296]/10 px-4 py-2 text-sm text-[#f4e6ee]"
         >
           <Share2 className="h-4 w-4" />
           Share match
@@ -304,7 +304,7 @@ function ShareCard({ result, userAName, userBName, shareHref }) {
             shareToWhatsApp({ text: shareText, url: shareHref })
             setStatus('WhatsApp share opened.')
           }}
-          className="touch-target flex items-center justify-center gap-2 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 py-2 text-sm text-emerald-100"
+          className="touch-target flex items-center justify-center gap-2 rounded-full border border-[#ac6294]/25 bg-[#ac6294]/10 px-4 py-2 text-sm text-[#e4d3de]"
         >
           <MessageCircle className="h-4 w-4" />
           WhatsApp
@@ -555,7 +555,7 @@ export default function CompatibilityCard({
 
       <ShareCard result={result} userAName={userAName} userBName={userBName} shareHref={shareHref} />
 
-      {result.note && <p className="text-xs text-amber-300/80">{result.note}</p>}
+      {result.note && <p className="text-xs text-[#de83b4]/80">{result.note}</p>}
     </div>
   )
 }

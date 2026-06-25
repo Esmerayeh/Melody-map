@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame } from '@react-three/fiber'
 import { Bloom, EffectComposer } from '@react-three/postprocessing'
 import * as THREE from 'three'
@@ -116,7 +116,7 @@ function OrbRing({ radius, color, opacity, behavior, axis = [0, 0, 0], rotationO
   )
 }
 
-function OrbParticleHalo({ count, color, accent, behavior, lowPower = false }) {
+function OrbParticleHalo({ count, color, accent, behavior, lowPower = false, formationRef }) {
   const groupRef = useRef()
   const particleCount = lowPower ? Math.max(6, Math.round(count * 0.6)) : count
   const particles = useMemo(
@@ -136,16 +136,22 @@ function OrbParticleHalo({ count, color, accent, behavior, lowPower = false }) {
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.getElapsedTime()
+    // While forming, the satellites stream in from far out (spread ↓ to 1) and
+    // grow in as they arrive (scale ∝ form), so the orb gathers its dust before
+    // settling into its idle orbit.
+    const form = formationRef ? formationRef.current : 1
+    const spread = 1 + (1 - form) * 2.6
     groupRef.current.children.forEach((child, index) => {
       const particle = particles[index]
       if (!particle) return
-      const radius = particle.radius + Math.sin(t * 0.22 + index) * particle.drift + (particle.escape ? Math.sin(t * 0.15 + index) * 0.18 : 0)
+      const radius = (particle.radius + Math.sin(t * 0.22 + index) * particle.drift + (particle.escape ? Math.sin(t * 0.15 + index) * 0.18 : 0)) * spread
       const angle = t * (behavior.rotationSpeed * (particle.escape ? 0.2 : 0.14)) + particle.angle
       child.position.x = Math.cos(angle) * radius
       child.position.z = Math.sin(angle) * radius
       child.position.y = particle.vertical + Math.sin(t * 0.28 + index) * 0.05
       const pulse = 1 + Math.sin(t * behavior.pulseSpeed * 0.86 + index) * 0.14
-      child.scale.setScalar(particle.size * pulse)
+      child.scale.setScalar(particle.size * pulse * form)
+      child.visible = form > 0.02
     })
   })
 
@@ -163,7 +169,7 @@ function OrbParticleHalo({ count, color, accent, behavior, lowPower = false }) {
   )
 }
 
-function OrbCore({ presentation, hovered }) {
+function OrbCore({ presentation, hovered, formationRef }) {
   const outerShellRef = useRef()
   const coreRef = useRef()
   const nucleusRef = useRef()
@@ -174,9 +180,71 @@ function OrbCore({ presentation, hovered }) {
   // Warm white-hot heart: the core hue lifted toward a warm white, NOT pure
   // cold #fff. Computed once per palette change, never in useFrame.
   const warmNucleus = useMemo(
-    () => `#${new THREE.Color(palette.core).lerp(new THREE.Color('#fff3e0'), 0.6).getHexString()}`,
+    () => `#${new THREE.Color(palette.core).lerp(new THREE.Color('#f4e6ee'), 0.6).getHexString()}`,
     [palette.core],
   )
+
+  // Palette/preset-derived uniforms (all the colours + static shader scalars)
+  // change only when `presentation` changes — set them ONCE here instead of
+  // reallocating ~20 THREE.Color objects every frame inside useFrame (that was the
+  // top GC-churn source whenever the orb is on screen). useFrame now only writes
+  // the genuinely time-varying scalars (uTime/uPulse/uStateMix).
+  useEffect(() => {
+    const s = presentation.shader
+    if (shellMaterialRef.current) {
+      shellMaterialRef.current.uShellColor = new THREE.Color(palette.glow)
+      shellMaterialRef.current.uEdgeColor = new THREE.Color(palette.ring).lerp(new THREE.Color('#fff7ff'), s.fresnelIntensity * 0.24)
+      shellMaterialRef.current.uShadowColor = new THREE.Color(palette.shadow)
+      shellMaterialRef.current.uOpacity = s.shellOpacity
+      shellMaterialRef.current.uFocusIntensity = s.focusIntensity
+      shellMaterialRef.current.uDegradedFactor = s.degradedFactor
+    }
+    if (plasmaMaterialRef.current) {
+      plasmaMaterialRef.current.uCoreColor = new THREE.Color(palette.core)
+      plasmaMaterialRef.current.uAuraColor = new THREE.Color(palette.glow)
+      plasmaMaterialRef.current.uEdgeColor = new THREE.Color(palette.ring)
+      plasmaMaterialRef.current.uShadowColor = new THREE.Color(palette.shadow)
+      plasmaMaterialRef.current.uNoiseScale = s.noiseScale
+      plasmaMaterialRef.current.uNoiseSpeed = s.noiseSpeed
+      plasmaMaterialRef.current.uFocusIntensity = s.focusIntensity
+      plasmaMaterialRef.current.uDegradedFactor = s.degradedFactor
+      plasmaMaterialRef.current.uDuality = s.duality
+      // Kept modest (was doubled) so the core lights the glass without blooming out.
+      plasmaMaterialRef.current.uCoreGlow = Math.min(0.7, s.coreGlow * 1.1)
+    }
+    if (coreMaterialRef.current) {
+      coreMaterialRef.current.uCoreColor = new THREE.Color('#fff4ff').lerp(new THREE.Color(palette.core), 0.72)
+      coreMaterialRef.current.uAuraColor = new THREE.Color(palette.core)
+      coreMaterialRef.current.uEdgeColor = new THREE.Color(palette.ring)
+      coreMaterialRef.current.uShadowColor = new THREE.Color(palette.shadow).lerp(new THREE.Color(palette.glow), 0.18)
+      coreMaterialRef.current.uNoiseScale = s.noiseScale * 1.14
+      coreMaterialRef.current.uNoiseSpeed = s.noiseSpeed * 1.08
+      coreMaterialRef.current.uFocusIntensity = s.focusIntensity + 0.12
+      coreMaterialRef.current.uDegradedFactor = s.degradedFactor
+      coreMaterialRef.current.uDuality = s.duality * 0.8
+      coreMaterialRef.current.uCoreGlow = Math.min(0.7, s.coreGlow * 1.1 + 0.06)
+    }
+    // Halftone dot-screen density is data-driven: a richer / more-resolved taste
+    // profile prints a finer grid (more, smaller dots); a sparse profile reads as
+    // a coarser screen. The inner core uses a finer grid + lighter strength so the
+    // heart stays a solid lens, the outer cloud is where the dots live.
+    const formationComplexity = presentation.formation?.complexity ?? 0.5
+    const halftoneScale = 11 + formationComplexity * 12
+    const initialFormation = formationRef ? formationRef.current : 1
+    if (plasmaMaterialRef.current) {
+      plasmaMaterialRef.current.uHalftone = 0.92
+      plasmaMaterialRef.current.uHalftoneScale = halftoneScale
+      plasmaMaterialRef.current.uFormation = initialFormation
+    }
+    if (coreMaterialRef.current) {
+      coreMaterialRef.current.uHalftone = 0.6
+      coreMaterialRef.current.uHalftoneScale = halftoneScale * 1.3
+      coreMaterialRef.current.uFormation = initialFormation
+    }
+    if (shellMaterialRef.current) {
+      shellMaterialRef.current.uFormation = initialFormation
+    }
+  }, [presentation, palette.core, palette.glow, palette.ring, palette.shadow, formationRef])
 
   useFrame(({ clock }) => {
     const t = clock.getElapsedTime()
@@ -189,61 +257,42 @@ function OrbCore({ presentation, hovered }) {
     }
 
     if (coreRef.current) {
-      coreRef.current.rotation.y = -t * behavior.rotationSpeed * 0.72
-      coreRef.current.rotation.z = Math.sin(t * 0.28 + 1.4) * behavior.rotationWobble * 0.86
+      // Gentle independent turn — the halftone now wraps the SURFACE, so a fast
+      // spin would whip the dots. Slowed right down so the marble turns calmly.
+      coreRef.current.rotation.y = -t * behavior.rotationSpeed * 0.16
+      coreRef.current.rotation.z = Math.sin(t * 0.28 + 1.4) * behavior.rotationWobble * 0.4
       coreRef.current.scale.setScalar(0.84 + Math.sin(t * behavior.pulseSpeed * 1.08 + 1.2) * behavior.pulseAmplitude * 0.72)
     }
 
     if (nucleusRef.current) {
-      const pulse = 0.72 + Math.sin(t * behavior.pulseSpeed * 1.2 + 0.5) * behavior.pulseAmplitude * 1.6
-      nucleusRef.current.scale.setScalar(pulse)
+      const nucleusPulse = 0.72 + Math.sin(t * behavior.pulseSpeed * 1.2 + 0.5) * behavior.pulseAmplitude * 1.6
+      nucleusRef.current.scale.setScalar(nucleusPulse)
     }
 
     const pulse = 0.5 + Math.sin(t * behavior.pulseSpeed * 1.1) * behavior.pulseAmplitude * 0.65
     const stateMix = presentation.shader.stateMix + Math.sin(t * 0.22) * 0.04
+    // Forming progress (0→1) is owned by OrbPresenceRig and read here so the dust
+    // scatter, halftone "develop" and shell refract-in all advance in lockstep.
+    const formation = formationRef ? formationRef.current : 1
 
     if (shellMaterialRef.current) {
       shellMaterialRef.current.uTime = t
       shellMaterialRef.current.uPulse = pulse
-      shellMaterialRef.current.uShellColor = new THREE.Color(palette.glow)
-      shellMaterialRef.current.uEdgeColor = new THREE.Color(palette.ring).lerp(new THREE.Color('#fff7ff'), presentation.shader.fresnelIntensity * 0.24)
-      shellMaterialRef.current.uShadowColor = new THREE.Color(palette.shadow)
-      shellMaterialRef.current.uOpacity = presentation.shader.shellOpacity
-      shellMaterialRef.current.uFocusIntensity = presentation.shader.focusIntensity
-      shellMaterialRef.current.uDegradedFactor = presentation.shader.degradedFactor
+      shellMaterialRef.current.uFormation = formation
     }
 
     if (plasmaMaterialRef.current) {
       plasmaMaterialRef.current.uTime = t
       plasmaMaterialRef.current.uPulse = presentation.shader.pulse + pulse * 0.18
       plasmaMaterialRef.current.uStateMix = stateMix
-      plasmaMaterialRef.current.uCoreColor = new THREE.Color(palette.core)
-      plasmaMaterialRef.current.uAuraColor = new THREE.Color(palette.glow)
-      plasmaMaterialRef.current.uEdgeColor = new THREE.Color(palette.ring)
-      plasmaMaterialRef.current.uShadowColor = new THREE.Color(palette.shadow)
-      plasmaMaterialRef.current.uNoiseScale = presentation.shader.noiseScale
-      plasmaMaterialRef.current.uNoiseSpeed = presentation.shader.noiseSpeed
-      plasmaMaterialRef.current.uFocusIntensity = presentation.shader.focusIntensity
-      plasmaMaterialRef.current.uDegradedFactor = presentation.shader.degradedFactor
-      plasmaMaterialRef.current.uDuality = presentation.shader.duality
-      // Doubled so the core is genuinely bright and bleeds warm color outward.
-      plasmaMaterialRef.current.uCoreGlow = Math.min(1.0, presentation.shader.coreGlow * 2.0)
+      plasmaMaterialRef.current.uFormation = formation
     }
 
     if (coreMaterialRef.current) {
       coreMaterialRef.current.uTime = t * 0.9
       coreMaterialRef.current.uPulse = presentation.shader.pulse + pulse * 0.26
       coreMaterialRef.current.uStateMix = stateMix + 0.1
-      coreMaterialRef.current.uCoreColor = new THREE.Color('#fff4ff').lerp(new THREE.Color(palette.core), 0.72)
-      coreMaterialRef.current.uAuraColor = new THREE.Color(palette.core)
-      coreMaterialRef.current.uEdgeColor = new THREE.Color(palette.ring)
-      coreMaterialRef.current.uShadowColor = new THREE.Color(palette.shadow).lerp(new THREE.Color(palette.glow), 0.18)
-      coreMaterialRef.current.uNoiseScale = presentation.shader.noiseScale * 1.14
-      coreMaterialRef.current.uNoiseSpeed = presentation.shader.noiseSpeed * 1.08
-      coreMaterialRef.current.uFocusIntensity = presentation.shader.focusIntensity + 0.12
-      coreMaterialRef.current.uDegradedFactor = presentation.shader.degradedFactor
-      coreMaterialRef.current.uDuality = presentation.shader.duality * 0.8
-      coreMaterialRef.current.uCoreGlow = Math.min(1.0, presentation.shader.coreGlow * 2.0 + 0.12)
+      coreMaterialRef.current.uFormation = formation
     }
   })
 
@@ -268,12 +317,12 @@ function OrbCore({ presentation, hovered }) {
           than a cold glossy white ball. Dimmer so the dust does the talking. */}
       <mesh ref={nucleusRef}>
         <sphereGeometry args={[0.22, 28, 28]} />
-        <meshBasicMaterial color={warmNucleus} transparent opacity={0.22 + presentation.shader.focusIntensity * 0.12} />
+        <meshBasicMaterial color={warmNucleus} transparent opacity={0.09 + presentation.shader.focusIntensity * 0.06} />
       </mesh>
 
       <mesh scale={[0.48, 0.48, 0.48]}>
         <sphereGeometry args={[1, 20, 20]} />
-        <meshBasicMaterial color={palette.aura} transparent opacity={0.12 + presentation.shader.focusIntensity * 0.08} />
+        <meshBasicMaterial color={palette.aura} transparent opacity={0.05 + presentation.shader.focusIntensity * 0.04} />
       </mesh>
     </group>
   )
@@ -288,9 +337,25 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false, reducedMotion
   // motion. A fixed X tilt gives the volume depth so it never reads as a disc.
   const spinSpeed = reducedMotion ? 0.012 : 0.18
 
+  // ── Forming process driver ──────────────────────────────────────────────────
+  // A single source of truth (a ref, not state — never re-renders the scene) that
+  // ramps 0→1 once on mount: the orb coalesces out of scattered dust into a formed
+  // entity. The DURATION scales with the user's profile detail — a richer, more
+  // resolved taste takes longer and forms more elaborately; a sparse profile snaps
+  // together quickly. Reduced motion skips straight to the finished orb.
+  const formationRef = useRef(reducedMotion ? 1 : 0)
+  const formStartRef = useRef(null)
+  const formDuration = reducedMotion ? 0.0001 : 2.6 + (presentation.formation?.complexity ?? 0.5) * 2.6
+
   useFrame(({ clock }) => {
     if (!groupRef.current) return
     const t = clock.getElapsedTime()
+
+    // Advance the forming progress (ease-out cubic) before anything reads it.
+    if (formStartRef.current === null) formStartRef.current = t
+    const fp = Math.min(1, Math.max(0, (t - formStartRef.current) / formDuration))
+    formationRef.current = 1 - Math.pow(1 - fp, 3)
+
     const amplitude = (reducedMotion ? 0.3 : 1) * (MOTION_FLOAT.orb.amplitude + focusBias * 0.03)
 
     // Gentle float (kept subtle under reduced motion).
@@ -306,7 +371,7 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false, reducedMotion
 
   return (
     <group ref={groupRef}>
-      <OrbCore presentation={presentation} hovered={hovered} />
+      <OrbCore presentation={presentation} hovered={hovered} formationRef={formationRef} />
       {/* No rings: a nebula has none. The torus rings read as a hard edge-on
           seam, so they are removed entirely — no line anywhere on the orb. */}
       <OrbParticleHalo
@@ -315,6 +380,7 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false, reducedMotion
         accent={presentation.palette.ring}
         behavior={presentation.behavior}
         lowPower={lowPower}
+        formationRef={formationRef}
       />
     </group>
   )
@@ -322,13 +388,21 @@ function OrbPresenceRig({ presentation, hovered, lowPower = false, reducedMotion
 
 function OrbCanvas({ presentation, hovered, lowPower = false, reducedMotion = false }) {
   const { palette, behavior, threads } = presentation
-  const bloomIntensity = 0.72 + behavior.glowIntensity * 0.76 + (hovered ? 0.08 : 0)
+  // Bloom kept LOW + high-threshold on purpose: a heavy bloom blew the orb out into
+  // a glowing peach blob (the opposite of the clear glass-marble reference). Now
+  // only the brightest specular glints bloom a touch; the glass + dots stay crisp.
+  const bloomIntensity = 0.22 + behavior.glowIntensity * 0.18 + (hovered ? 0.05 : 0)
   const maxDpr = typeof window === 'undefined' ? 1.5 : Math.min(1.5, window.devicePixelRatio || 1.5)
   const dpr = lowPower ? [1, 1] : [1, maxDpr]
 
   return (
     <>
       <OrbConnectionThreads color={palette.thread} opacity={threads.opacity} count={threads.count} />
+      {/* Clip the WebGL canvas to a circle. The EffectComposer/bloom buffer paints
+          the FULL rectangular canvas, which reads as a hard square seam / glow box
+          on the transparent layout. overflow-hidden + rounded-full masks it to the
+          sphere. The aura glow lives outside this wrapper, so the soft halo stays. */}
+      <div className="absolute inset-0 overflow-hidden rounded-full">
       <Canvas
         camera={{ position: [0, 0, 3.45], fov: 42 }}
         gl={{ antialias: true, alpha: true, toneMapping: THREE.ACESFilmicToneMapping }}
@@ -346,13 +420,14 @@ function OrbCanvas({ presentation, hovered, lowPower = false, reducedMotion = fa
           <EffectComposer>
             <Bloom
               intensity={bloomIntensity}
-              luminanceThreshold={0.18}
-              luminanceSmoothing={0.94}
+              luminanceThreshold={0.62}
+              luminanceSmoothing={0.9}
               mipmapBlur
             />
           </EffectComposer>
         )}
       </Canvas>
+      </div>
     </>
   )
 }
@@ -424,9 +499,12 @@ export default function MusicSoulOrb(props) {
 
   return (
     <motion.div
-        initial={{ opacity: 0, scale: 0.84 }}
+        // Form-in: ramp seed → full sphere (scale + opacity, ease-out ~1.2s), then
+        // the inner heroFloat / OrbAura breathe take over as the idle pulse. Under
+        // reduced motion, render the finished orb directly (initial=false → no ramp).
+        initial={adaptive.prefersReducedMotion ? false : { opacity: 0, scale: 0.2 }}
         animate={{ opacity: 1, scale: 1 }}
-        transition={MOTION_TOKENS.focusSettle}
+        transition={adaptive.prefersReducedMotion ? { duration: 0 } : { duration: 1.2, ease: [0.22, 1, 0.36, 1] }}
         className="flex flex-col items-center gap-3"
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -466,6 +544,21 @@ export default function MusicSoulOrb(props) {
               border: `1px solid ${presentation.palette.shell}22`,
               boxShadow: `0 0 28px ${presentation.palette.glow}08 inset`,
               opacity: 0.62,
+            }}
+          />
+          {/* Glassmorphic backing box — a slightly darker plum, blurred glass panel
+              sits behind the orb so the glow-on-dark glass marble has dark contrast
+              to read against (a light pool washed it out). Transparent + backdrop
+              blur keeps it glassy and cohesive with the cosmic UI; the soft pink rim
+              frames the orb. */}
+          <div
+            className="pointer-events-none absolute inset-[4%] rounded-[28px]"
+            style={{
+              background: 'linear-gradient(160deg, rgba(38,18,29,0.55) 0%, rgba(28,13,22,0.62) 100%)',
+              border: '1px solid rgba(193,19,127,0.22)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 10px 32px rgba(0,0,0,0.4)',
+              backdropFilter: 'blur(14px) saturate(140%)',
+              WebkitBackdropFilter: 'blur(14px) saturate(140%)',
             }}
           />
             <OrbCanvas presentation={presentation} hovered={hovered} lowPower={effectiveLowPower} reducedMotion={adaptive.prefersReducedMotion} />

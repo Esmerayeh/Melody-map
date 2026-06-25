@@ -20,7 +20,7 @@ const normalizeTempo = (tempo) => {
 }
 
 const hexToRgb = (hex) => {
-  const cleaned = (hex || '#7c6fff').replace('#', '')
+  const cleaned = (hex || '#ac6294').replace('#', '')
   const normalized = cleaned.length === 3
     ? cleaned.split('').map((char) => char + char).join('')
     : cleaned
@@ -55,14 +55,14 @@ const mixHex = (colorA, colorB, ratio = 0.5) => {
 //
 // Stops: valence position -> core hue.
 const VALENCE_STOPS = [
-  { at: 0.00, color: '#b59cff' }, // extreme-low only: cool violet
-  { at: 0.18, color: '#ff6f93' }, // deep rose
-  { at: 0.38, color: '#ff8aa8' }, // rose
-  { at: 0.55, color: '#ffb88a' }, // warm rose-gold (mid valence lands here)
-  { at: 0.75, color: '#ffb35a' }, // amber
-  { at: 1.00, color: '#ffd89b' }, // gold (high valence)
+  { at: 0.00, color: '#c28fb2' }, // extreme-low only: cool violet
+  { at: 0.18, color: '#d15296' }, // deep rose
+  { at: 0.38, color: '#de83b4' }, // rose
+  { at: 0.55, color: '#e1a7c6' }, // warm rose-gold (mid valence lands here)
+  { at: 0.75, color: '#de83b4' }, // amber
+  { at: 1.00, color: '#e1a7c6' }, // gold (high valence)
 ]
-const NEUTRAL_WARM = '#ffc69b' // valence unknown → filmic amber, never purple
+const NEUTRAL_WARM = '#e1a7c6' // valence unknown → filmic amber, never purple
 
 function lightenHex(hex, amount = 0.2) {
   return mixHexLocal(hex, '#ffffff', amount)
@@ -110,7 +110,7 @@ function deriveSignalColors({ valence, energy, brightness }) {
     primary: litCore,
     secondary: glow,
     accent,
-    shadow: mixHexLocal(core, '#140a08', 0.74), // warm deep charcoal, not blue-black
+    shadow: mixHexLocal(core, '#2a1d26', 0.74), // warm deep charcoal, not blue-black
     aura: mixHexLocal(glow, accent, 0.45),
   }
 }
@@ -129,44 +129,44 @@ export function deriveWarmOrbColors({ audioFeatures = {}, analyticsMetrics = {} 
 
 const TRAIT_BASES = {
   dreamy: {
-    core: '#7c6fff',
-    aura: '#93c5fd',
-    accent: '#d8b4fe',
+    core: '#ac6294',
+    aura: '#c28fb2',
+    accent: '#d4b5ca',
     noun: 'dream',
     texture: 'mist-soft',
   },
   nostalgic: {
-    core: '#f59e0b',
-    aura: '#fdba74',
-    accent: '#fcd34d',
+    core: '#c1337f',
+    aura: '#de83b4',
+    accent: '#e1a7c6',
     noun: 'memory',
     texture: 'amber-worn',
   },
   chaotic: {
-    core: '#f43f5e',
-    aura: '#fb7185',
-    accent: '#f472b6',
+    core: '#c1337f',
+    aura: '#d15296',
+    accent: '#d15296',
     noun: 'voltage',
     texture: 'fractured',
   },
   romantic: {
-    core: '#ec4899',
-    aura: '#f9a8d4',
-    accent: '#c084fc',
+    core: '#d15296',
+    aura: '#e1a7c6',
+    accent: '#c28fb2',
     noun: 'velvet',
     texture: 'silk-lit',
   },
   melancholic: {
-    core: '#4f46e5',
-    aura: '#60a5fa',
-    accent: '#818cf8',
+    core: '#a05488',
+    aura: '#c28fb2',
+    accent: '#ac6294',
     noun: 'ache',
     texture: 'deep-water',
   },
   cosmic: {
-    core: '#6d28d9',
-    aura: '#38bdf8',
-    accent: '#8b5cf6',
+    core: '#81466e',
+    aura: '#ac6294',
+    accent: '#ac6294',
     noun: 'starlight',
     texture: 'void-bound',
   },
@@ -174,39 +174,39 @@ const TRAIT_BASES = {
 
 const MOOD_FAMILIES = {
   melancholic: {
-    primary: '#4f46e5',
-    secondary: '#60a5fa',
-    accent: '#8b5cf6',
+    primary: '#a05488',
+    secondary: '#c28fb2',
+    accent: '#ac6294',
     label: 'nocturne',
   },
   romantic: {
-    primary: '#ec4899',
-    secondary: '#f472b6',
-    accent: '#c084fc',
+    primary: '#d15296',
+    secondary: '#d15296',
+    accent: '#c28fb2',
     label: 'afterglow',
   },
   euphoric: {
-    primary: '#fb7185',
-    secondary: '#f59e0b',
-    accent: '#fcd34d',
+    primary: '#d15296',
+    secondary: '#c1337f',
+    accent: '#e1a7c6',
     label: 'flare',
   },
   electric: {
-    primary: '#22d3ee',
-    secondary: '#7c3aed',
-    accent: '#f472b6',
+    primary: '#ac6294',
+    secondary: '#81466e',
+    accent: '#d15296',
     label: 'spark',
   },
   dreamy: {
-    primary: '#7c6fff',
-    secondary: '#93c5fd',
-    accent: '#c084fc',
+    primary: '#ac6294',
+    secondary: '#c28fb2',
+    accent: '#c28fb2',
     label: 'drift',
   },
   nostalgic: {
-    primary: '#f59e0b',
-    secondary: '#fdba74',
-    accent: '#fca5a5',
+    primary: '#c1337f',
+    secondary: '#de83b4',
+    accent: '#e1a7c6',
     label: 'echo',
   },
 }

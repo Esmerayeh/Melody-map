@@ -17,12 +17,12 @@ import { MOTION_TOKENS } from '../motion/motionTokens'
 import useUniverseEvents from './useUniverseEvents'
 
 const EVENT_COLORS = {
-  'new live signal':       '#9fdcff',
+  'new live signal':       '#ac6294',
   'former orbit detected': '#ccd6ff',
   'new surge star':        '#f1c68a',
   'comet decoded':         '#b9f5c8',
   'passport exported':     '#b59cff',
-  'semantic map locked':   '#9fdcff',
+  'semantic map locked':   '#ac6294',
   'Auralith found a bridge': '#f1aacb',
   'obsession field active':  '#f1c68a',
 }
@@ -30,7 +30,7 @@ const EVENT_COLORS = {
 const ROW_OPACITIES = [1, 0.76, 0.52, 0.36]
 
 const EventRow = forwardRef(function EventRow({ event, onDismiss, age }, ref) {
-  const color   = EVENT_COLORS[event.type] || '#9fdcff'
+  const color   = EVENT_COLORS[event.type] || '#ac6294'
   const opacity = ROW_OPACITIES[age] ?? 0.36
 
   return (
@@ -91,9 +91,9 @@ export default function UniverseEventFeed({ className = '' }) {
         aria-label="Toggle signal feed"
       >
         <div className="flex items-center gap-1.5">
-          <Radio className="h-3 w-3 text-[#9fdcff]/60" />
+          <Radio className="h-3 w-3 text-[#ac6294]/60" />
           <span className="text-[9px] uppercase tracking-[0.22em] text-white/36">Signal feed</span>
-          <span className="rounded-full bg-[#9fdcff]/14 px-1.5 py-0.5 text-[9px] text-[#9fdcff]/80">
+          <span className="rounded-full bg-[#ac6294]/14 px-1.5 py-0.5 text-[9px] text-[#ac6294]/80">
             {visible.length}
           </span>
         </div>

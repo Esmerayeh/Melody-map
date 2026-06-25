@@ -126,7 +126,7 @@ export function mapGalaxySelectionToResonance({ node, cluster, region, edge, mod
       label: node.label,
       subtitle: `Resonating with ${role}`,
       color: node.color,
-      accent: node.metrics?.bridgeScore > 0.48 ? '#f472b6' : '#93c5fd',
+      accent: node.metrics?.bridgeScore > 0.48 ? '#d15296' : '#93c5fd',
       features: node.audioFeatures || {},
       metrics: node.metrics || {},
       confidence: node.confidence ?? 0.6,
@@ -182,7 +182,7 @@ export function mapGalaxySelectionToResonance({ node, cluster, region, edge, mod
       label: region.title || region.label,
       subtitle: `Touching your ${(region.title || region.label)} core`,
       color: region.color,
-      accent: mixHex(region.color, '#f59e0b', 0.4),
+      accent: mixHex(region.color, '#c1337f', 0.4),
       features,
       metrics: {
         centrality: region.coverage || 0.4,
@@ -209,7 +209,7 @@ export function mapGalaxySelectionToResonance({ node, cluster, region, edge, mod
       label: edge.type.replace(/_/g, ' '),
       subtitle: edge.type === 'bridge_lane' ? 'Crossing a bridge between worlds' : 'Tracing a live connection',
       color: mixHex(source?.color || '#7c6fff', target?.color || '#93c5fd', 0.5),
-      accent: edge.type === 'bridge_lane' ? '#f472b6' : '#c084fc',
+      accent: edge.type === 'bridge_lane' ? '#d15296' : '#c084fc',
       features,
       metrics: {
         centrality: average([source?.metrics?.centrality, target?.metrics?.centrality]) ?? 0.4,

@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
 import { MOTION_TOKENS } from '../motion/motionTokens'
+import SpotifyEmbedPlayer from '../../components/SpotifyEmbedPlayer'
 
 // 30s Spotify preview playback for "the open" (Path A). Self-contained: owns its
 // own <audio>, and stops on unmount — since the inspector content remounts per
@@ -117,7 +118,8 @@ export default function GalaxyInspector({ node, edge, cluster, region }) {
     )
   } else {
     content = (
-      <div className="noire-info-card mt-4 flex items-start gap-4 p-5">
+      <div className="noire-info-card mt-4 p-5">
+        <div className="flex items-start gap-4">
       {/* The art "blooms" on open: scales up from 0.9 + fades in over ~450ms
           (calm ease, no bounce) with a soft glow in the node's own warm light —
           turns the old static thumbnail into a reveal. Remounts per node (parent
@@ -175,18 +177,18 @@ export default function GalaxyInspector({ node, edge, cluster, region }) {
             ))}
           </div>
         )}
+      </div>
+        </div>
+        {/* The song actually plays: the official Spotify Embed renders inline on
+            star-open — real track, no API/scopes/token. Replaces the old external
+            "Open" link and the dead preview_url clip. Remounts per node (parent
+            AnimatePresence keyed by node id), so opening another star swaps tracks. */}
         {node.spotifyUrl && (
-          <a
-            href={node.spotifyUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="mt-4 inline-flex rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs font-medium text-emerald-400"
-          >
-            Open
-          </a>
+          <div className="mt-4">
+            <SpotifyEmbedPlayer url={node.spotifyUrl} label={node.label} />
+          </div>
         )}
       </div>
-    </div>
     )
   }
 

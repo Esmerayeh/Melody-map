@@ -11,8 +11,20 @@ from services.metrics_logger import log_model_latency
 
 
 class RetrievalService:
+    """Track candidate retrieval.
+
+    The OFFICIAL vector store is MongoDB ``embedding_registry`` — queried by cosine
+    similarity in ``_fallback_cosine_candidates``. FAISS is optional acceleration that
+    is used ONLY when a real, non-empty index has been built and activated (i.e.
+    ``IndexManager().load()`` returns a bundle). At this corpus size (~1k vectors) a
+    Mongo cosine scan is fast (single-digit ms) and is the documented default; the
+    previous on-disk FAISS scaffold was empty (ntotal=0) and has been removed.
+    """
+
     def __init__(self, embedding_version: str | None = None):
         self.embedding_version = embedding_version or Config.retrieval_model_version
+        # None unless a real index has been built + activated; absent the scaffold,
+        # IndexManager resolves no manifest and returns None (→ embedding_registry path).
         try:
             self.index_bundle = IndexManager().load()
         except Exception:
@@ -37,15 +49,19 @@ class RetrievalService:
             vector = self.get_user_vector(user_id, fallback_profile=fallback_profile)
             if not vector:
                 return []
+            # Default to the official store (Mongo embedding_registry). Only label a
+            # result "faiss" if a real index is loaded AND actually returns matches.
             results = []
-            source = "faiss"
+            source = "embedding_registry"
             if self.index_bundle:
                 try:
-                    results = query_faiss_index(self.index_bundle, vector, top_k=top_k)
+                    faiss_results = query_faiss_index(self.index_bundle, vector, top_k=top_k)
+                    if faiss_results:
+                        results = faiss_results
+                        source = "faiss"
                 except Exception:
                     results = []
             if not results:
-                source = "fallback"
                 results = self._fallback_cosine_candidates(vector, top_k=top_k)
             log_model_latency("retrieval", self.embedding_version, 0.0)
             return [

@@ -1,7 +1,8 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Billboard, Html, MeshDistortMaterial, OrbitControls, PerspectiveCamera } from '@react-three/drei'
-import { Canvas, useFrame, useThree } from '@react-three/fiber'
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Billboard, Html, MeshDistortMaterial, OrbitControls, PerspectiveCamera, shaderMaterial } from '@react-three/drei'
+import { Canvas, extend, useFrame, useLoader, useThree } from '@react-three/fiber'
 import * as THREE from 'three'
+import pinkNebulaImg from '../../assets/pink-nebula.avif'
 import { motion } from 'framer-motion'
 import useGalaxyInteractionStore from './useGalaxyInteractionStore'
 import { getNebulaColors } from './galaxyExplainer'
@@ -10,6 +11,7 @@ import { slugifyInteraction } from './interactionModel.js'
 import { MOTION_FLOAT, MOTION_TOKENS } from '../motion/motionTokens'
 import GalaxySceneBoundary from './GalaxySceneBoundary'
 import GalaxyAudioController from './GalaxyAudioController'
+import useAdaptiveExperience from '../../hooks/useAdaptiveExperience'
 import {
   applyTierLayout,
   SPREAD_SCALE,
@@ -29,6 +31,76 @@ const GalaxyLivingLayer   = lazy(() => import('./GalaxyLivingLayer'))
 const TraversalController = lazy(() => import('./TraversalController'))
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value))
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PlanetMaterial — every node (genre/artist/cluster/track) is a real rotating
+// procedural planet, lit by the central hero core as its "sun".
+//   • FBM value-noise surface in the node's own colour → continents + bands, each
+//     planet unique via uSeed. Surface is sampled in LOCAL space so it spins with
+//     the mesh (the parent useFrame rotates meshRef).
+//   • Day/night terminator from uLightDir (per node: direction toward the core),
+//     so the lit hemisphere always faces the galaxy's bright heart.
+//   • Fresnel atmosphere rim (uAtmo) glowing against black, brighter on the day side.
+//   • uGlow lifts emissive on hover/selection; uOpacity honours the view-mode fades.
+// One shared program (compiled once); per-node instances just carry uniforms — no
+// textures, no per-frame allocations. Warm palette preserved (driven by node colour).
+// ─────────────────────────────────────────────────────────────────────────────
+const PlanetMaterial = shaderMaterial(
+  {
+    uTime: 0, uSeed: 0, uGlow: 0, uOpacity: 1,
+    uColor: new THREE.Color('#ffffff'),
+    uColor2: new THREE.Color('#555555'),
+    uAtmo: new THREE.Color('#ffffff'),
+    uLightDir: new THREE.Vector3(0, 0, 1),
+  },
+  /* glsl */ `
+    varying vec3 vWorldNormal; varying vec3 vViewDir; varying vec3 vPosL;
+    void main() {
+      vPosL = position;
+      vWorldNormal = normalize(mat3(modelMatrix) * normal);
+      vec4 wp = modelMatrix * vec4(position, 1.0);
+      vViewDir = normalize(cameraPosition - wp.xyz);
+      gl_Position = projectionMatrix * viewMatrix * wp;
+    }`,
+  /* glsl */ `
+    uniform float uTime; uniform float uSeed; uniform float uGlow; uniform float uOpacity;
+    uniform vec3 uColor; uniform vec3 uColor2; uniform vec3 uAtmo; uniform vec3 uLightDir;
+    varying vec3 vWorldNormal; varying vec3 vViewDir; varying vec3 vPosL;
+
+    float hash(vec3 p){ p = fract(p * 0.3183099 + 0.1); p *= 17.0; return fract(p.x * p.y * p.z * (p.x + p.y + p.z)); }
+    float vnoise(vec3 x){
+      vec3 i = floor(x), f = fract(x); f = f * f * (3.0 - 2.0 * f);
+      return mix(mix(mix(hash(i + vec3(0,0,0)), hash(i + vec3(1,0,0)), f.x),
+                     mix(hash(i + vec3(0,1,0)), hash(i + vec3(1,1,0)), f.x), f.y),
+                 mix(mix(hash(i + vec3(0,0,1)), hash(i + vec3(1,0,1)), f.x),
+                     mix(hash(i + vec3(0,1,1)), hash(i + vec3(1,1,1)), f.x), f.y), f.z);
+    }
+    float fbm(vec3 p){ float a = 0.5, s = 0.0; for (int i = 0; i < 4; i++){ s += a * vnoise(p); p *= 2.02; a *= 0.5; } return s; }
+
+    void main() {
+      vec3 sp = normalize(vPosL) * 2.4 + uSeed;
+      float n  = fbm(sp + vec3(0.0, uTime * 0.015, 0.0));
+      float n2 = fbm(sp * 2.7 + 5.0);
+      // Continents/seas + a faint banding so gas-giant-ish and rocky planets both read.
+      float land  = smoothstep(0.44, 0.64, n);
+      float bands = 0.5 + 0.5 * sin(vPosL.y * 7.0 + n2 * 2.5);
+      vec3 surface = mix(uColor2, uColor, mix(land, bands, 0.4));
+      surface *= 0.6 + 0.6 * n2;                         // stronger mottled contrast → reads as terrain
+      // Day/night from the core "sun". Planets stay COOLER + dimmer than the hot
+      // core so the core remains the focal hero and the surface (not a bloom blob)
+      // is what you see — the terminator gives real volume.
+      float ndl = dot(normalize(vWorldNormal), normalize(uLightDir));
+      float day = smoothstep(-0.28, 0.5, ndl);
+      vec3 col = surface * (0.1 + 0.72 * day);           // night side near-dark, day below bloom
+      // Fresnel atmosphere rim — a thin lit halo on the day limb.
+      float fres = pow(1.0 - max(dot(normalize(vWorldNormal), normalize(vViewDir)), 0.0), 3.0);
+      col += uAtmo * fres * (0.22 + day * 0.6);
+      // Hover / selection lift.
+      col += uColor * uGlow;
+      gl_FragColor = vec4(col, uOpacity);
+    }`,
+)
+extend({ PlanetMaterial })
 
 // ── Hover feel tuning ───────────────────────────────────────────────────────
 // Hover-IN is a light underdamped spring (snappy ~100-120ms rise, subtle ~18%
@@ -93,7 +165,9 @@ let _TEX_DISC = null, _TEX_PUFF = null
 const getDiscTex = () => (_TEX_DISC ||= makeSoftDisc())
 const getPuffTex = () => (_TEX_PUFF ||= makeNebulaPuff())
 
-const STAR_PALETTE = [0xc7d6ff, 0xffffff, 0xffe9c0, 0xffc090, 0xff9a78].map((hx) => new THREE.Color(hx))
+// Pink-white star tints (palette): mostly white with soft pink/mauve hints — no
+// warm-orange stars (they clashed with the pink nebula).
+const STAR_PALETTE = [0xfaf5f8, 0xffffff, 0xf4e6ee, 0xe1a7c6, 0xc28fb2].map((hx) => new THREE.Color(hx))
 function defaultStarColor() {
   const roll = Math.random()
   if (roll < 0.18) return STAR_PALETTE[0]
@@ -103,15 +177,21 @@ function defaultStarColor() {
   return STAR_PALETTE[4]
 }
 // Biome nebulae — reference hues, positions/radii scaled (~0.6) to this world. No purple.
+// Restrained cosmic palette (per the cyber-celestial art direction): cool-dominant
+// violet / indigo / steel-blue / cyan with a single soft-magenta accent. The muddy
+// greens/teals/ambers were dropped — overlapping rainbow biomes are exactly what
+// read as grey "slop"; a tight, mostly-cool palette reads as one deep galaxy.
+// Pink-plum nebula biomes (palette only) — these tint both the dust clouds and
+// the stars/backdrop that sample them, so the whole galaxy reads pink/mauve.
 const NEBULAE = [
-  { center: [-43, 2, -5],  rx: 39, ry: 14, rz: 29, color: 0x6fd6ff, count: 26 },
-  { center: [31, -2, 11],  rx: 37, ry: 13, rz: 27, color: 0xff5f88, count: 26 },
-  { center: [-18, -3, 49], rx: 33, ry: 12, rz: 26, color: 0x4affb8, count: 22 },
-  { center: [23, 5, -59],  rx: 35, ry: 13, rz: 28, color: 0xb8d4ff, count: 22 },
-  { center: [66, 1, -24],  rx: 23, ry: 9,  rz: 18, color: 0xffa64a, count: 16 },
-  { center: [55, -1, 37],  rx: 22, ry: 9,  rz: 19, color: 0xff7aa0, count: 16 },
-  { center: [-65, -1, 30], rx: 25, ry: 9,  rz: 18, color: 0xffd58a, count: 16 },
-  { center: [-35, 2, -67], rx: 28, ry: 9,  rz: 20, color: 0x68ffd0, count: 16 },
+  { center: [-43, 2, -5],  rx: 39, ry: 14, rz: 29, color: 0xc1337f, count: 26 }, // pink 600
+  { center: [31, -2, 11],  rx: 37, ry: 13, rz: 27, color: 0xa05488, count: 26 }, // mauve 600
+  { center: [-18, -3, 49], rx: 33, ry: 12, rz: 26, color: 0xac6294, count: 22 }, // mauve 500
+  { center: [23, 5, -59],  rx: 35, ry: 13, rz: 28, color: 0xd15296, count: 22 }, // pink 500
+  { center: [66, 1, -24],  rx: 23, ry: 9,  rz: 18, color: 0xc28fb2, count: 16 }, // mauve 400
+  { center: [55, -1, 37],  rx: 22, ry: 9,  rz: 19, color: 0xde83b4, count: 16 }, // pink 400
+  { center: [-65, -1, 30], rx: 25, ry: 9,  rz: 18, color: 0x9a2d67, count: 16 }, // pink 700
+  { center: [-35, 2, -67], rx: 28, ry: 9,  rz: 20, color: 0x81466e, count: 16 }, // mauve 700
 ]
 const NEBULA_COLORS = NEBULAE.map((n) => new THREE.Color(n.color))
 const _tmpColor = new THREE.Color()
@@ -247,6 +327,37 @@ function buildDeepFieldGeometry(count) {
   g.setAttribute('aPhase', new THREE.BufferAttribute(ph, 1))
   return g
 }
+// Mid/near volume field — stars scattered through the SPACE AROUND the disk (a
+// spherical volume, not the disk plane) so there's real geometry at near/mid
+// depth to parallax against. Three strata now exist: the structured disk, this
+// volume, and the far deep-field shell (r≈260–350). As the camera orbits, these
+// mid stars sweep noticeably faster than the far shell → legible parallax (the
+// #1 depth cue). The per-star size attenuation in makeStarMaterial makes the
+// nearest of these render large + bright, the farther ones tiny + dim.
+function buildVolumeFieldGeometry(count) {
+  const pos = new Float32Array(count * 3), col = new Float32Array(count * 3)
+  const sz = new Float32Array(count), ph = new Float32Array(count)
+  for (let i = 0; i < count; i++) {
+    const u = Math.random(), v = Math.random()
+    const theta = u * Math.PI * 2, phi = Math.acos(2 * v - 1)
+    // Near/mid shell (~45..200). Slight power bias packs a few more in close so
+    // the foreground parallax layer is populated. Flattened a touch in Y so the
+    // volume hugs the disk rather than forming a perfect ball.
+    const r = 45 + Math.pow(Math.random(), 0.8) * 155
+    pos[i * 3]     = Math.sin(phi) * Math.cos(theta) * r
+    pos[i * 3 + 1] = Math.cos(phi) * r * 0.85
+    pos[i * 3 + 2] = Math.sin(phi) * Math.sin(theta) * r
+    const c = defaultStarColor(); const dim = 0.5 + Math.random() * 0.4
+    col[i * 3] = c.r * dim; col[i * 3 + 1] = c.g * dim; col[i * 3 + 2] = c.b * dim
+    sz[i] = 0.45 + Math.random() * 0.9; ph[i] = Math.random()
+  }
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
+  g.setAttribute('aColor', new THREE.BufferAttribute(col, 3))
+  g.setAttribute('aSize', new THREE.BufferAttribute(sz, 1))
+  g.setAttribute('aPhase', new THREE.BufferAttribute(ph, 1))
+  return g
+}
 function makeStarMaterial() {
   return new THREE.ShaderMaterial({
     uniforms: {
@@ -272,7 +383,7 @@ function makeStarMaterial() {
         // every frame WHILE MOVING. The 150px cap only clips stars within a few
         // units of the camera; the resting framing never reaches it (nearest
         // normal points are ~70px), so the depth "near = bigger" look is unchanged.
-        gl_PointSize = min(aSize * uPixelRatio * (180.0 / max(dist, 1.0)), 150.0 * uPixelRatio);
+        gl_PointSize = min(aSize * uPixelRatio * (200.0 / max(dist, 1.0)), 150.0 * uPixelRatio);
         // ── Distance depth cues (GPU-side, per-star, reuses dist) ──────────────
         // Near stars render brighter, far ones dimmer → a luminance gradient on
         // top of the size attenuation above. The very distant field also bleeds
@@ -303,62 +414,77 @@ function makeStarMaterial() {
 
 // Procedural galaxy starfield (replaces the old flat parallax layers).
 function ParallaxStarfield({ density, sparseMode, lowPower = false, reducedMotion = false }) {
-  const { diskPoints, deepPoints } = useMemo(() => {
+  const { diskPoints, volumePoints, deepPoints } = useMemo(() => {
     const scale = sparseMode ? 0.4 : lowPower ? 0.6 : 1
-    const diskPoints = new THREE.Points(buildGalaxyDiskGeometry(Math.floor(14000 * scale)), makeStarMaterial())
-    const deepPoints = new THREE.Points(buildDeepFieldGeometry(Math.floor(6000 * scale)), makeStarMaterial())
+    // Counts cut hard — the all-over white dots were too dense. The volume + deep
+    // shells (which fill the whole view) are thinned the most so the nebula reads
+    // as the backdrop; the disk keeps a modest spine of stars along the arms.
+    const diskPoints = new THREE.Points(buildGalaxyDiskGeometry(Math.floor(3000 * scale)), makeStarMaterial())
+    const volumePoints = new THREE.Points(buildVolumeFieldGeometry(Math.floor(700 * scale)), makeStarMaterial())
+    const deepPoints = new THREE.Points(buildDeepFieldGeometry(Math.floor(800 * scale)), makeStarMaterial())
     diskPoints.rotation.x = 0.18; deepPoints.rotation.x = 0.18
-    return { diskPoints, deepPoints }
+    return { diskPoints, volumePoints, deepPoints }
   }, [sparseMode, lowPower])
 
   useEffect(() => () => {
-    [diskPoints, deepPoints].forEach((p) => { p.geometry.dispose(); p.material.dispose() })
-  }, [diskPoints, deepPoints])
+    [diskPoints, volumePoints, deepPoints].forEach((p) => { p.geometry.dispose(); p.material.dispose() })
+  }, [diskPoints, volumePoints, deepPoints])
 
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.05)
     diskPoints.material.uniforms.uTime.value += dt
+    volumePoints.material.uniforms.uTime.value += dt
     deepPoints.material.uniforms.uTime.value += dt
-    // Disk rotation is LOCKED (no ambient spin). The decorative arms are wound to
-    // overlay the data-node arms (same ARM_COUNT/winding/scale), and the data
+    // Disk rotation stays LOCKED (no ambient spin). The decorative arms are wound
+    // to overlay the data-node arms (same ARM_COUNT/winding/scale), and the data
     // nodes don't spin — so any drift would slide the two layers apart over
-    // minutes and break the grand-design read. Life comes from twinkle (uTime),
-    // the living layer, nebula drift and node float instead. (deep field static.)
+    // minutes and break the grand-design read.
+    // The volume + deep-field layers are NOT aligned to anything, so a very slow
+    // independent drift gives living motion AND a second parallax rate (near layer
+    // slides faster than far) without breaking that alignment. Off for reduced motion.
+    if (!reducedMotion) {
+      volumePoints.rotation.y += dt * 0.006
+      deepPoints.rotation.y   += dt * 0.0018
+    }
   })
 
   return (
     <>
       <primitive object={deepPoints} />
+      <primitive object={volumePoints} />
       <primitive object={diskPoints} />
     </>
   )
 }
 
-// Gradient sky shell (BackSide) — warm deep-space backdrop behind everything.
-function GalaxySky() {
-  const mesh = useMemo(() => {
-    const geo = new THREE.SphereGeometry(500, 32, 32)
-    const mat = new THREE.ShaderMaterial({
-      side: THREE.BackSide, depthWrite: false, fog: false,
-      uniforms: {
-        uTopColor: { value: new THREE.Color(0x070512) },
-        uMidColor: { value: new THREE.Color(0x130a1e) },
-        uBotColor: { value: new THREE.Color(0x1e0a18) },
-      },
-      vertexShader: `varying vec3 vWorld; void main(){ vWorld = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-      fragmentShader: `
-        varying vec3 vWorld; uniform vec3 uTopColor; uniform vec3 uMidColor; uniform vec3 uBotColor;
-        void main() {
-          float t = normalize(vWorld).y * 0.5 + 0.5;
-          vec3 c = mix(uBotColor, uMidColor, smoothstep(0.0, 0.5, t));
-          c = mix(c, uTopColor, smoothstep(0.5, 1.0, t));
-          gl_FragColor = vec4(c, 1.0);
-        }`,
-    })
-    return new THREE.Mesh(geo, mat)
-  }, [])
-  useEffect(() => () => { mesh.geometry.dispose(); mesh.material.dispose() }, [mesh])
-  return <primitive object={mesh} />
+// Pink nebula backdrop — the rose/blush swirling galaxy image set as a FLAT
+// screen-space background (default UVMapping), so the image's real swirl/vortex
+// composition reads exactly as shot. (Equirectangular mapping was tried first but
+// it wraps a 16:9 image around a sphere and smears the swirl into a diffuse blob —
+// the composition only survives as a flat fill.) Replaces the old gradient sky
+// shell + the dark gl.setClearColor. Nothing else in the scene (stars, planets,
+// core, bloom, camera) is touched — only the backdrop.
+function GalaxyEnvironment() {
+  const scene = useThree((state) => state.scene)
+  const texture = useLoader(THREE.TextureLoader, pinkNebulaImg)
+  useEffect(() => {
+    // Default UVMapping → Three renders the texture as a flat backdrop stretched
+    // to fill the viewport, preserving the swirl rather than wrapping a sphere.
+    texture.mapping = THREE.UVMapping
+    texture.colorSpace = THREE.SRGBColorSpace
+    const previousBg = scene.background
+    const previousIntensity = scene.backgroundIntensity
+    scene.background = texture
+    // Dim the backdrop a touch so the MANY white stars baked into the nebula image
+    // read softer (they were the bulk of the "too many dots"); keeps the pink swirl.
+    scene.backgroundIntensity = 0.78
+    return () => {
+      scene.background = previousBg
+      scene.backgroundIntensity = previousIntensity ?? 1
+      texture.dispose()
+    }
+  }, [scene, texture])
+  return null
 }
 
 // Soft additive nebula puffs, chromatically varied per biome, drifting slowly.
@@ -380,14 +506,28 @@ function GalaxyNebulae({ sparseGraphics = false, reducedMotion = false }) {
           map: puff,
           color: baseColor.clone().lerp(new THREE.Color(0xffffff), Math.random() * 0.25),
           transparent: true, blending: THREE.AdditiveBlending, depthWrite: false,
-          // Trimmed ~30% fainter + smaller than before so the reshaped spiral
-          // arms aren't washed out by ambient haze (was 0.14+0.2 opacity, 14+30
-          // size). Smaller/fainter, not gone — and the data-attached RegionNebula
-          // haze is untouched, so genre centroids stay wrapped.
-          opacity: 0.10 + Math.random() * 0.14, rotation: Math.random() * Math.PI * 2,
+          // Fog pass: additive ambient puffs stack toward bright and washed the
+          // spiral arms into haze. Halved opacity (was 0.10+0.14) so the disk's
+          // individual stars + arm structure read as 3D THROUGH the haze, not
+          // buried under it. RegionNebula (data haze) is cut separately below;
+          // together they stop the scene reading as flat fog.
+          // Contrast pass (round 2): these big additive sprites overlap across the
+          // whole frame and their summed luminance is what washes a HEMISPHERE
+          // into grey-green fog (worst where a bright teal/mint biome sits, e.g.
+          // the lower-left). Thinned again (0.028+0.042 → 0.016+0.024) so the
+          // biome tint survives only as a hint and genuine black void returns
+          // ACROSS the whole field, not just the sparse side.
+          // Now that the flat bokeh discs (region shells + genre glow) are gone and
+          // the palette is a cohesive cool cosmic set, these TEXTURED puffs are the
+          // real nebula dust — nudged back up slightly so the galaxy has soft
+          // violet/cyan clouds, not a sterile void. Still well below the old wash.
+          opacity: 0.032 + Math.random() * 0.055, rotation: Math.random() * Math.PI * 2,
         })
         const sp = new THREE.Sprite(mat)
-        const s = 11 + Math.random() * 22
+        // Smaller footprint too (was 11+22): fewer overlapping pixels per puff
+        // means the additive stack rises less, so the haze stays local to each
+        // biome instead of bleeding across a whole hemisphere.
+        const s = 12 + Math.random() * 20
         sp.scale.set(s, s * (0.7 + Math.random() * 0.5), 1)
         sp.position.set(px, py, pz)
         group.add(sp)
@@ -555,11 +695,19 @@ function getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode) {
   }
 
   if (galaxyMode === 'song') {
+    // Song mode shows the top songs REGARDLESS of the Satellites toggle — entering
+    // Song mode is itself the request to see songs (this was the "shows nothing"
+    // bug). Top 50 by rank (Spotify's max for top items).
     if (node.type !== 'track') return { visible: false, opacity: 0 }
-    return { visible: showTracks, opacity: node.metrics?.significance > 0.56 ? 0.92 : 0.48 }
+    return { visible: (node.rank ?? 0) < 50, opacity: node.metrics?.significance > 0.56 ? 0.95 : 0.62 }
   }
 
-  if (node.type === 'track' && !showTracks) return { visible: false, opacity: 0 }
+  // Songs live ONLY in Song mode — never clutter the rest of the galaxy.
+  if (node.type === 'track') return { visible: false, opacity: 0 }
+
+  // Genres: full top-50 in Genre mode (handled above). In Universe mode, cap to
+  // the top 25 so it isn't crowded; other view-modes keep their own genre logic.
+  if (galaxyMode === 'universal' && node.type === 'genre' && (node.rank ?? 0) >= 25) return { visible: false, opacity: 0 }
 
   if (viewMode === 'identity') {
     if (node.type === 'track') return { visible: false, opacity: 0 }
@@ -594,7 +742,11 @@ function getNodeVisibility(node, galaxyMode, viewMode, showTracks, sparseMode) {
 //   artist — hidden until hovered/selected OR the camera comes within reveal
 //            range; only a few qualify at once
 //   song   — never labelled; songs are texture/dust only
-const ARTIST_REVEAL_DIST = 10  // an artist names itself only this near the camera
+// Scaled by SPREAD_SCALE: the whole layout (and the resting camera distance) is
+// multiplied by SPREAD_SCALE, so a base-10 reveal radius meant artists never came
+// "near" enough to ever name themselves once the galaxy was spread 4×. This keeps
+// the reveal at the same RELATIVE proximity it had before the spread pass.
+const ARTIST_REVEAL_DIST = 10 * SPREAD_SCALE  // an artist names itself only this near the camera
 
 function shouldShowNodeLabel(node, revealed, camDist) {
   if (node.type === 'track') return false   // songs are dust — never a text label
@@ -609,9 +761,12 @@ function shouldShowNodeLabel(node, revealed, camDist) {
 // are anchors); artists ramp from 0 at the reveal edge so their unmount past
 // the edge is invisible (already transparent) — a soft fade, never a pop.
 function genreLabelOpacity(camDist) {
-  if (!Number.isFinite(camDist)) return 0.46
-  const t = clamp((40 - camDist) / 30, 0, 1)   // far → 0, near → 1 over 10..40u
-  return 0.46 + t * 0.42                        // 0.46 (far) .. 0.88 (near)
+  if (!Number.isFinite(camDist)) return 0.78
+  // Distances scaled by SPREAD_SCALE — without it the ramp maxed out at 40u while
+  // the resting camera sits ~105u away, so every genre label was pinned at its
+  // dim far-opacity (0.46) and read as "no text". Now it brightens as you approach.
+  const t = clamp((40 * SPREAD_SCALE - camDist) / (30 * SPREAD_SCALE), 0, 1) // far → 0, near → 1
+  return 0.78 + t * 0.20                         // 0.78 (far) .. 0.98 (near) — readable on bright nebula
 }
 function artistLabelOpacity(camDist, revealed) {
   if (revealed) return 0.92
@@ -699,7 +854,7 @@ function buildVisibleLabelLayout(nodes, galaxyMode, viewMode, showTracks, focuse
   return layout
 }
 
-function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset, sparseMode, registerRef }) {
+function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, showLabel, labelOffset, sparseMode, coarsePointer = false, registerRef }) {
   const groupRef = useRef()
   const meshRef = useRef()
   const haloRef = useRef()
@@ -729,12 +884,28 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
   // are local world units that don't inherit that scale — so without this they
   // shrink to ~1/4 their old screen size and clicks miss the now-tiny targets.
   // Multiplying here restores the exact pre-spread (relative) click geometry.
+  // On touch (coarse pointer) enlarge the target ~1.5× — a fingertip is far less
+  // precise than a cursor, and a small star is otherwise hard to tap reliably.
   const hitRadius = Math.max(
     renderedSize * 3.4,
     node.type === 'track' ? 0.7 : node.type === 'genre' ? 2.6 : 1.5,
-  ) * SPREAD_SCALE
+  ) * SPREAD_SCALE * (coarsePointer ? 1.5 : 1)
   const driftSeed = useMemo(() => stableHash(node.id || node.label || 'node'), [node.id, node.label])
   const basePosition = useMemo(() => new THREE.Vector3(position.x, position.y, position.z), [position.x, position.y, position.z])
+
+  // Per-node planet uniforms (memoised — no per-frame allocation). Colours derive
+  // from the node's identity colour: a darker sea/land tone + a lighter atmosphere
+  // tint. uLightDir points at the galaxy core (0,0,0) so every planet's day side
+  // faces the hero "sun"; uSeed makes each planet's surface unique.
+  const planet = useMemo(() => {
+    const base = new THREE.Color(node.color || '#ffd9a8')
+    const land = base.clone().lerp(new THREE.Color('#0a0608'), 0.62)
+    const atmo = base.clone().lerp(new THREE.Color('#ffffff'), 0.45)
+    const dir = new THREE.Vector3(-position.x, -position.y, -position.z)
+    if (dir.lengthSq() < 1e-4) dir.set(0, 0, 1)
+    dir.normalize()
+    return { base, land, atmo, dir, seed: (driftSeed % 1000) / 37 }
+  }, [node.color, position.x, position.y, position.z, driftSeed])
 
   // Keep nodeRef current so the parent's single useFrame always sees latest node data.
   nodeRef.current = node
@@ -769,35 +940,74 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
 
   return (
     <group ref={groupRef} position={[position.x, position.y, position.z]}>
-      {/* Genre regions get a big soft nebula glow so they read as places, not
-          points. Size scales with the genre's weight. Additive, very soft. */}
-      {node.type === 'genre' && (
-        <mesh raycast={NO_RAYCAST}>
-          <sphereGeometry args={[renderedSize * (4.6 + (node.significance || node.metrics?.significance || 0.4) * 3.4), 20, 20]} />
-          <meshBasicMaterial color={node.color} transparent opacity={0.05} blending={THREE.AdditiveBlending} depthWrite={false} />
-        </mesh>
+      {/* (Removed the big additive genre glow sphere — those flat overlapping
+          discs were the main "bokeh slop". The planet body + anchor ring + label
+          mark a genre; the textured dust + crisp stars carry the atmosphere.) */}
+      {/* STRUCTURE LEGIBILITY — genre anchors wear a thin billboard RING so they
+          read on sight as labelled region anchors (a deliberate "you are here"
+          marker), instantly distinct from the bare points used for artist stars
+          and track satellites. Camera-facing, additive, dim — a designed glyph,
+          not more haze. Only genres get it; that's what makes the type obvious. */}
+      {node.type === 'genre' && galaxyMode !== 'universal' && (
+        <Billboard>
+          <mesh raycast={NO_RAYCAST}>
+            <ringGeometry args={[renderedSize * 2.15, renderedSize * 2.42, 48]} />
+            <meshBasicMaterial color={node.color} transparent opacity={0.32} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+        </Billboard>
+      )}
+      {/* Luminous star marker for artists / clusters / songs — a camera-facing
+          additive glow + hot white core so each reads as a bright POINT against the
+          bright nebula (the dark procedural planet alone was invisible, which also
+          made Song mode look empty and bridges look like they pointed at nothing).
+          Tracks are tiny, so they get a larger glow multiplier. Opacity follows the
+          view-mode dimming. */}
+      {(node.type === 'artist' || node.type === 'cluster' || node.type === 'track') && (
+        <Billboard>
+          <mesh raycast={NO_RAYCAST}>
+            <planeGeometry args={[renderedSize * (node.type === 'track' ? 18 : 7), renderedSize * (node.type === 'track' ? 18 : 7)]} />
+            <meshBasicMaterial map={getDiscTex()} color={node.color} transparent opacity={Math.min(0.85, 0.35 + visibility.opacity * 0.55)} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+          <mesh raycast={NO_RAYCAST}>
+            <planeGeometry args={[renderedSize * (node.type === 'track' ? 7 : 2.6), renderedSize * (node.type === 'track' ? 7 : 2.6)]} />
+            <meshBasicMaterial map={getDiscTex()} color="#fff3fb" transparent opacity={Math.min(0.95, 0.4 + visibility.opacity * 0.5)} blending={THREE.AdditiveBlending} depthWrite={false} />
+          </mesh>
+          {/* Songs wear a distinct RING so they read as selectable nodes, not the
+              decorative background star dust (the "looks exactly like a star" issue). */}
+          {node.type === 'track' && (
+            <mesh raycast={NO_RAYCAST}>
+              <ringGeometry args={[renderedSize * 11, renderedSize * 13, 30]} />
+              <meshBasicMaterial color={node.color} transparent opacity={0.6 * visibility.opacity + 0.2} side={THREE.DoubleSide} blending={THREE.AdditiveBlending} depthWrite={false} />
+            </mesh>
+          )}
+        </Billboard>
       )}
       {/* Decorative meshes are NON-raycastable so they never intercept a click;
           only the generous invisible hit sphere below is the click target. */}
       <mesh ref={haloRef} raycast={NO_RAYCAST}>
-        <sphereGeometry args={[renderedSize * (node.type === 'track' ? 1.4 : 1.8), 16, 16]} />
+        <sphereGeometry args={[renderedSize * (node.type === 'track' ? 1.05 : node.type === 'artist' ? 2.0 : 1.8), 16, 16]} />
         {/* Base opacity only — hover/selection raise is eased in the parent useFrame via haloMatRef. */}
         <meshBasicMaterial ref={haloMatRef} color={node.color} transparent opacity={0.03} />
       </mesh>
 
+      {/* Every node is a real rotating procedural planet (spin applied in the
+          parent useFrame via meshRef). Higher segment counts than the old blobs so
+          the silhouette reads round when you fly in close; tracks stay low-poly as
+          they're tiny dust. */}
       <mesh ref={meshRef} raycast={NO_RAYCAST}>
-        <sphereGeometry args={[renderedSize, node.type === 'track' ? 12 : 24, node.type === 'track' ? 12 : 24]} />
-        <MeshDistortMaterial
+        <sphereGeometry args={[renderedSize, node.type === 'track' ? 18 : 44, node.type === 'track' ? 18 : 44]} />
+        <planetMaterial
           ref={matRef}
-          color={node.color}
-          emissive={node.color}
-          emissiveIntensity={node.type === 'cluster' ? 0.9 : 0.65}
-          roughness={0.24}
-          metalness={0.62}
+          uColor={planet.base}
+          uColor2={planet.land}
+          uAtmo={planet.atmo}
+          uLightDir={planet.dir}
+          uSeed={planet.seed}
+          // Planets are SOLID bodies — keep them near-opaque so the surface +
+          // terminator read instead of the starfield showing through. View-mode
+          // de-emphasis now comes from the glow/halo, not from making worlds glassy.
+          uOpacity={clamp(visibility.opacity, node.type === 'track' ? 0.55 : 0.9, 1)}
           transparent
-          opacity={clamp(visibility.opacity * (node.type === 'track' ? 0.86 : 0.92), 0.18, 0.95)}
-          distort={node.type === 'genre' ? 0.11 : node.type === 'cluster' ? 0.07 : node.type === 'track' ? 0.04 : 0.13}
-          speed={node.type === 'track' ? 0.62 : node.type === 'genre' ? 0.44 : 0.9}
         />
       </mesh>
 
@@ -835,7 +1045,10 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
               legibility over the bright bloom). Opacity is driven by camera
               proximity from the layout, and framer tweens it smoothly as you
               move, so labels brighten/dim and fade in/out without a pop. */}
-          <Html distanceFactor={node.type === 'genre' ? 20 : 15} center zIndexRange={[40, 0]}>
+          {/* distanceFactor scaled by SPREAD_SCALE: drei sizes the label by
+              factor/cameraDistance, and the camera now rests ~4× farther out, so an
+              unscaled factor rendered the text ~4× too small to read. */}
+          <Html distanceFactor={(node.type === 'genre' ? 20 : 15) * SPREAD_SCALE} center zIndexRange={[40, 0]}>
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: labelOffset?.opacity ?? (node.type === 'genre' ? 0.6 : 0.85) }}
@@ -844,15 +1057,15 @@ function GalaxyNode({ node, cameraDistance, galaxyMode, viewMode, showTracks, sh
             >
               {node.type === 'genre' ? (
                 <span
-                  className="font-display lowercase text-[20px] font-normal leading-none text-[#f4dcb4]"
-                  style={{ textShadow: '0 0 22px rgba(244,196,120,0.30), 0 0 5px rgba(0,0,0,0.68), 0 1px 2px rgba(0,0,0,0.55)' }}
+                  className="font-display lowercase text-[21px] font-normal leading-none text-[#faf5f8]"
+                  style={{ textShadow: '0 0 3px rgba(18,10,16,0.95), 0 1px 4px rgba(18,10,16,0.9), 0 0 18px rgba(48,23,37,0.95), 0 0 30px rgba(48,23,37,0.7)' }}
                 >
                   {node.label}
                 </span>
               ) : (
                 <span
-                  className="text-[13px] font-medium leading-tight text-[#ecd9c0]"
-                  style={{ textShadow: '0 0 14px rgba(240,210,150,0.22), 0 0 4px rgba(0,0,0,0.72), 0 1px 2px rgba(0,0,0,0.55)' }}
+                  className="text-[13px] font-semibold leading-tight text-[#faf5f8]"
+                  style={{ textShadow: '0 0 3px rgba(18,10,16,0.95), 0 1px 4px rgba(18,10,16,0.92), 0 0 14px rgba(48,23,37,0.9)' }}
                 >
                   {node.label}
                 </span>
@@ -884,6 +1097,9 @@ function RegionParticles({ region, selected, hovered }) {
     nextGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     return nextGeometry
   }, [region.coverage])
+
+  // Dispose the imperatively-built buffer on coverage change / unmount (route away).
+  useEffect(() => () => geometry?.dispose(), [geometry])
 
   useFrame(({ clock }) => {
     if (!pointsRef.current) return
@@ -931,10 +1147,12 @@ function RegionNebula({ region, model, galaxyMode, viewMode }) {
   // too small for — its spread-out stars. baseScale is clamped at base size,
   // THEN multiplied by SPREAD_SCALE so each haze wraps its genre exactly as it
   // did before the scale pass, just larger.
-  // Smaller than before (was 4.4+cov*8.5, clamp 3.6..8.2) so the haze stops
-  // filling the whole screen — additive overdraw at that size tanked the
-  // framerate AND washed the image out. Still wraps each genre, just tighter.
-  const baseScale = clamp((3.2 + (region.coverage || 0) * 5.5) * tierScale, 2.6, 5.6) * SPREAD_SCALE
+  // Fog pass: tightened again (was 3.2+cov*5.5, clamp 2.6..5.6) so adjacent
+  // genre blobs stop OVERLAPPING into one screen-filling cloud. Each genre now
+  // wraps as a distinct, smaller soft place — that separation is what lets the
+  // eye read "regions" instead of "atmosphere". Pairs with the lower shell
+  // opacity below; the goal is legible structure, not more haze.
+  const baseScale = clamp((1.7 + (region.coverage || 0) * 2.8) * tierScale, 1.5, 3.0) * SPREAD_SCALE
   const visible = galaxyMode === 'universal' || galaxyMode === 'genre'
   const centroid = region?.centroid || { x: 0, y: 0, z: 0 }
   const centroidValid = Number.isFinite(centroid.x) && Number.isFinite(centroid.y) && Number.isFinite(centroid.z)
@@ -958,15 +1176,17 @@ function RegionNebula({ region, model, galaxyMode, viewMode }) {
   return (
     <group ref={groupRef} position={[centroid.x, centroid.y, centroid.z - 1.2]}>
       <RegionParticles region={region} selected={selected} hovered={hovered} />
-      {[1, 0.6].map((factor, index) => (
+      {/* The resting region-haze spheres are GONE — flat additive shells always
+          read as 2D bokeh discs and were the screen-filling "slop". A region's
+          soft cloud now appears ONLY when you hover/focus it (a gentle highlight),
+          so the resting galaxy stays deep + dark with structure from stars/dust. */}
+      {(hovered || selected) && [1, 0.6].map((factor, index) => (
         <mesh key={`${region.id}-${factor}`} scale={[baseScale * factor, baseScale * factor * (0.66 + index * 0.08), baseScale * factor]}>
           <sphereGeometry args={[1, 20, 20]} />
-          {/* Additive, layered → soft volumetric haze. Cut from 3 shells to 2 to
-              roughly halve the big-sphere overdraw (the main framerate cost). */}
           <meshBasicMaterial
             color={region.color}
             transparent
-            opacity={(selected ? 0.13 : hovered ? 0.1 : 0.07) - index * 0.018}
+            opacity={(selected ? 0.06 : 0.04) - index * 0.012}
             blending={THREE.AdditiveBlending}
             depthWrite={false}
           />
@@ -1153,7 +1373,7 @@ function TasteCore({ core, model, galaxyMode }) {
  * filtered subset (bridge_lane + audio_similarity) to avoid hundreds of
  * invisible hit targets.
  */
-function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
+function GalaxyEdgesBatch({ model, galaxyMode, viewMode, showTracks = false, sparseMode = false }) {
   const hoveredObject      = useGalaxyInteractionStore((state) => state.hoveredObject)
   const focusedObject      = useGalaxyInteractionStore((state) => state.focusedObject)
   const setHoveredObject   = useGalaxyInteractionStore((state) => state.setHoveredObject)
@@ -1164,6 +1384,16 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
     () => Object.fromEntries((model?.nodes || []).map((n) => [n.id, n])),
     [model],
   )
+
+  // Only the nodes actually RENDERED in the current mode — edges to hidden nodes
+  // would draw a line to an empty position ("bridges pointing nowhere").
+  const visibleIds = useMemo(() => {
+    const s = new Set()
+    for (const n of (model?.nodes || [])) {
+      if (getNodeVisibility(n, galaxyMode, viewMode, showTracks, sparseMode).visible) s.add(n.id)
+    }
+    return s
+  }, [model, galaxyMode, viewMode, showTracks, sparseMode])
 
   const highlightedNodeIds = useMemo(() => {
     const ids = new Set()
@@ -1178,12 +1408,15 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
     const all = model?.edges || []
     const hi  = (e) => highlightedNodeIds.has(e.source) || highlightedNodeIds.has(e.target)
     if (viewMode === 'constellation') return all.filter((e) => e.type === 'bridge_lane' || e.type === 'audio_similarity' || hi(e)).slice(0, 90)
-    if (galaxyMode === 'song')        return all.filter((e) => e.type.startsWith('song_') && hi(e)).slice(0, 36)
+    if (galaxyMode === 'song')        return all.filter((e) => e.type.startsWith('song_')).slice(0, 110)
     if (galaxyMode === 'artist')      return all.filter((e) => (e.type === 'bridge_lane' || e.type === 'audio_similarity' || e.type === 'shared_genre') && (hi(e) || (e.weight || 0) > 0.74)).slice(0, 54)
     if (galaxyMode === 'genre')       return all.filter((e) => (e.type === 'genre_affinity' || e.type === 'bridge_lane') && (hi(e) || (e.weight || 0) > 0.78)).slice(0, 48)
     if (viewMode === 'discovery')     return all.filter((e) => e.type === 'bridge_lane' && (hi(e) || (e.weight || 0) > 0.8)).slice(0, 42)
     if (viewMode === 'genre')         return all.filter((e) => (e.type === 'genre_affinity' || e.type === 'cluster_membership') && (hi(e) || (e.weight || 0) > 0.8)).slice(0, 42)
-    return all.filter((e) => e.type === 'bridge_lane' && (hi(e) || (e.weight || 0) > 0.84)).slice(0, 34)
+    // Default (Universal): show the connective WEB — each artist linked to its
+    // genre(s) (shared_genre) + genre affinities + the strongest bridge lanes — so
+    // the 50 artists / 50 genres read as one connected galaxy, not loose dots.
+    return all.filter((e) => (e.type === 'shared_genre' || e.type === 'genre_affinity' || e.type === 'bridge_lane') && (hi(e) || (e.weight || 0) > 0.5)).slice(0, 110)
   }, [galaxyMode, highlightedNodeIds, model, viewMode])
 
   // ── Build main batch geometry ──────────────────────────────────────────────
@@ -1200,6 +1433,8 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
       const src = nodeMap[edge.source]
       const tgt = nodeMap[edge.target]
       if (!src || !tgt) return
+      // Drop edges whose endpoint isn't rendered in this mode (no lines to nowhere).
+      if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) return
 
       const isHighlighted = (
         (hoveredObject?.type === 'edge' && hoveredObject?.id === edge.id) ||
@@ -1229,12 +1464,23 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
     return { batchGeometry: batchGeo, highlightGeometry: hlGeo, normalEdges, highlightedEdges }
   }, [visibleEdges, nodeMap, hoveredObject, focusedObject, highlightedNodeIds])
 
+  // These two geometries are rebuilt on every hover/selection (deps include
+  // hovered/focused). Without disposal the old GPU buffers leak each time — over a
+  // session of hovering stars that VRAM growth is exactly what drives the
+  // "Context Lost" crash the recovery layer guards against. Dispose on replace/unmount.
+  useEffect(() => () => {
+    batchGeometry?.dispose()
+    highlightGeometry?.dispose()
+  }, [batchGeometry, highlightGeometry])
+
   // ── Bridge-lane midpoint motes (limited to meaningful edges only) ──────────
   const bridgeMotes = useMemo(() => (
     visibleEdges.filter((e) => e.type === 'bridge_lane' || e.type === 'audio_similarity').slice(0, 24).map((edge) => {
       const src = nodeMap[edge.source]
       const tgt = nodeMap[edge.target]
-      if (!src || !tgt) return null
+      if (!src || !tgt) return
+      // Drop edges whose endpoint isn't rendered in this mode (no lines to nowhere).
+      if (!visibleIds.has(edge.source) || !visibleIds.has(edge.target)) return null
       const hovered = hoveredObject?.type === 'edge' && hoveredObject?.id === edge.id
       const focused  = focusedObject?.type  === 'edge' && focusedObject?.id  === edge.id
       return {
@@ -1253,17 +1499,21 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
 
   return (
     <>
-      {/* Normal edges — single draw call */}
+      {/* Normal edges — single draw call. Dark plum (palette 800 #72274F) on NORMAL
+          blending so the bridge lanes read as darker threads against the bright pink
+          nebula backdrop. (The old amber + additive added LIGHT, which washed out
+          over the bright nebula; a dark shade only reads with normal blending.) */}
       {batchGeometry.attributes.position && (
         <lineSegments geometry={batchGeometry}>
-          <lineBasicMaterial color="#c9a36a" transparent opacity={0.14} />
+          <lineBasicMaterial color="#72274F" transparent opacity={0.55} depthWrite={false} />
         </lineSegments>
       )}
 
-      {/* Highlighted edges — uses the memoized geometry built above (no new allocation per render) */}
+      {/* Highlighted edges — a brighter palette pink (500 #D15296) so the active
+          lane still pops against the darker plum base lanes. */}
       {highlightedEdges.length > 0 && highlightGeometry.attributes?.position && (
         <lineSegments geometry={highlightGeometry}>
-          <lineBasicMaterial color="#f2ebe0" transparent opacity={0.42} />
+          <lineBasicMaterial color="#D15296" transparent opacity={0.6} />
         </lineSegments>
       )}
 
@@ -1273,9 +1523,9 @@ function GalaxyEdgesBatch({ model, galaxyMode, viewMode }) {
           <mesh position={[midpoint.x, midpoint.y, midpoint.z]}>
             <sphereGeometry args={[edge.type === 'bridge_lane' ? 0.18 : 0.11, 8, 8]} />
             <meshBasicMaterial
-              color={edge.type === 'bridge_lane' ? '#e0a35c' : '#f0dcc0'}
+              color={edge.type === 'bridge_lane' ? '#9A2D67' : '#72274F'}
               transparent
-              opacity={hovered || focused ? 0.42 : 0.18}
+              opacity={hovered || focused ? 0.7 : 0.4}
             />
           </mesh>
 
@@ -1379,10 +1629,15 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
 
   return (
     <>
-      {/* Warm depth wash behind everything (was a cool data-tinted plane). */}
+      {/* Faint warm depth wash behind everything. This is a single flat plane, so
+          any meaningful opacity reads as uniform fog and lifts the black floor of
+          the WHOLE frame — the classic "flat colored fog" look. Cut to a whisper
+          (0.14 → 0.05): just enough warmth on the backdrop, not a haze that erases
+          the dark void depth is read against. The GalaxyEnvironment nebula already
+          owns the backdrop colour; this only adds a hint of warmth near centre. */}
       <mesh ref={meshRef} position={[0, 0, -42]}>
         <planeGeometry args={[168, 168, 1, 1]} />
-        <meshBasicMaterial color="#2a1d12" transparent opacity={0.14} side={THREE.DoubleSide} depthWrite={false} />
+        <meshBasicMaterial color="#2a1d12" transparent opacity={0.05} side={THREE.DoubleSide} depthWrite={false} />
       </mesh>
       {(showMoodRegions || viewMode === 'mood' || viewMode === 'identity' || galaxyMode === 'genre') && regions
         .filter((region) => (region.coverage || 0) >= minCoverage)
@@ -1392,6 +1647,132 @@ function NebulaBackdrop({ colors, regions, model, galaxyMode, viewMode, showMood
         ))}
     </>
   )
+}
+
+// ── Cinematic intro (one-time on load) ───────────────────────────────────────
+// Camera rests CLOSE on the hot core in near-black, then eases BACK to the
+// normal framing, blooming the galaxy into view. Module-level guard so it plays
+// only once per page load even if the persistent canvas remounts.
+const INTRO_START = new THREE.Vector3(0, 0.2, 12)   // near the core, inside the field
+const INTRO_HOLD = 0.7                               // beat resting ON the hot core first
+const INTRO_DOLLY = 3.2                              // then ease-out pull-back (≈3.9s total)
+const INTRO_END_TRAVERSAL = new THREE.Vector3(0, 16, 88) // matches useTraversalCamera OVERVIEW
+let _introPlayed = false
+
+// ─────────────────────────────────────────────────────────────────────────────
+// HeroCore — the luminous galactic centre. A small shader-lit sphere that is the
+// single hottest, hardest point in the scene: a warm-white/gold heart with a
+// fresnel rim, pushed past 1.0 (toneMapped:false) so Bloom catches it like a
+// star you can't quite look at. A few tight warm additive shells give the soft
+// halo. uTime drives a slow internal pulse. Material built once, disposed on
+// unmount; only scalar uniforms/scale change in useFrame (no per-frame allocs).
+// ─────────────────────────────────────────────────────────────────────────────
+function HeroCore({ reducedMotion = false }) {
+  const coreRef = useRef()
+  const material = useMemo(() => new THREE.ShaderMaterial({
+    uniforms: {
+      uTime:      { value: 0 },
+      uColorHot:  { value: new THREE.Color('#fff7ec') }, // white-hot centre
+      uColorGold: { value: new THREE.Color('#ffce8a') }, // warm gold body
+      uColorRim:  { value: new THREE.Color('#ff8f3c') }, // amber fresnel rim
+    },
+    vertexShader: `
+      varying vec3 vN; varying vec3 vV;
+      void main() {
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vN = normalize(normalMatrix * normal);
+        vV = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform float uTime; uniform vec3 uColorHot; uniform vec3 uColorGold; uniform vec3 uColorRim;
+      varying vec3 vN; varying vec3 vV;
+      void main() {
+        float f = clamp(dot(normalize(vN), normalize(vV)), 0.0, 1.0); // 1 facing cam → 0 at rim
+        float fres = pow(1.0 - f, 2.4);
+        float pulse = 0.92 + 0.08 * sin(uTime * 1.3);
+        vec3 col = mix(uColorGold, uColorHot, pow(f, 1.5));  // gold body → white centre
+        col += uColorHot * pow(f, 7.0) * 0.9;                // searing centre highlight
+        col += uColorRim * fres * 1.5;                       // glowing rim against black
+        col *= pulse;
+        gl_FragColor = vec4(col, 1.0);
+      }`,
+    toneMapped: false,   // HDR overdrive → Bloom blows the centre out (the hot star)
+  }), [])
+
+  useEffect(() => () => material.dispose(), [material])
+
+  useFrame((_, delta) => {
+    const dt = Math.min(delta, 0.05)
+    material.uniforms.uTime.value += reducedMotion ? 0 : dt
+    if (coreRef.current && !reducedMotion) {
+      const s = 1 + Math.sin(material.uniforms.uTime.value * 1.3) * 0.04
+      coreRef.current.scale.setScalar(s)
+    }
+  })
+
+  return (
+    <group position={[0, 0, 0]}>
+      {/* Hard, hot centre — the focal point of the whole scene. */}
+      <mesh ref={coreRef} material={material} raycast={NO_RAYCAST}>
+        <sphereGeometry args={[1.15, 48, 48]} />
+      </mesh>
+      {/* Soft warm additive bloom halo — a few tight shells (kept small so the
+          centre stays a sharp heart, not the haze blob of the old core stack). */}
+      {[
+        { r: 1.9, color: '#ffd89b', opacity: 0.16 },
+        { r: 3.0, color: '#ff9a4a', opacity: 0.07 },
+        { r: 5.2, color: '#ff7a3a', opacity: 0.028 },
+      ].map((l) => (
+        <mesh key={l.r} raycast={NO_RAYCAST}>
+          <sphereGeometry args={[l.r, 28, 28]} />
+          <meshBasicMaterial color={l.color} transparent opacity={l.opacity} blending={THREE.AdditiveBlending} depthWrite={false} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// IntroDolly — isolated, gated intro pass. While `active`, it OWNS the camera:
+// holds a beat on the core (INTRO_HOLD), then eases from INTRO_START out to
+// `endPos` over INTRO_DOLLY, keeping the centre framed. It drives THROUGH the
+// (still-mounted) OrbitControls — syncing their target + update() each frame —
+// so input stays suspended, there's no spherical snap-back, and handoff on
+// onDone() is seamless. It never rewrites the shared loop, just suspends input.
+function IntroDolly({ active, endPos, controlsRef, onDone }) {
+  const { camera } = useThree()
+  const elapsed = useRef(0)
+
+  // Frame the start BEFORE the first painted frame so there's no 105→12 flash.
+  useLayoutEffect(() => {
+    if (!active) return
+    camera.position.set(INTRO_START.x, INTRO_START.y, INTRO_START.z)
+    camera.lookAt(0, 0, 0)
+    if (controlsRef?.current) controlsRef.current.target.set(0, 0, 0)
+    elapsed.current = 0
+  }, [active, camera, controlsRef])
+
+  useFrame((_, delta) => {
+    if (!active) return
+    elapsed.current += Math.min(delta, 0.05)
+    // Phase 1: hold a beat resting ON the hot core. Phase 2: ease-out dolly back.
+    const t = Math.min(1, Math.max(0, (elapsed.current - INTRO_HOLD) / INTRO_DOLLY))
+    const e = easeOutCubic(t)
+    camera.position.set(
+      THREE.MathUtils.lerp(INTRO_START.x, endPos.x, e),
+      THREE.MathUtils.lerp(INTRO_START.y, endPos.y, e),
+      THREE.MathUtils.lerp(INTRO_START.z, endPos.z, e),
+    )
+    // Drive THROUGH OrbitControls: keep its target at centre and let it re-derive
+    // its spherical from the dolly position each frame. This makes its own damping
+    // update() idempotent (no snap-back) AND leaves zero jump when input re-enables.
+    const controls = controlsRef?.current
+    if (controls) { controls.target.set(0, 0, 0); controls.update() }
+    else camera.lookAt(0, 0, 0)
+    if (t >= 1) onDone()
+  })
+
+  return null
 }
 
 function SceneContents({
@@ -1428,6 +1809,21 @@ function SceneContents({
   const setFocusTarget = useGalaxyInteractionStore((state) => state.setFocusTarget)
   const nebulaColors = getNebulaColors(model)
   const controlsRef = useRef()
+  // Coarse pointer = touch device → bigger hit targets + touch-tuned camera below.
+  const { touchDevice } = useAdaptiveExperience()
+
+  // ── One-time cinematic intro gate ──────────────────────────────────────────
+  // While `introActive`, IntroDolly owns the camera and every other camera owner
+  // (OrbitControls/Focus/Traversal) is disabled below — the intro never touches
+  // the shared loop, it just suspends it, then releases on completion. Skipped
+  // for reduced motion and on any remount after it has already played once.
+  const [introActive, setIntroActive] = useState(() => !reducedMotion && !_introPlayed)
+  useEffect(() => { if (introActive) _introPlayed = true }, [introActive])
+  const endIntro = useCallback(() => { _introPlayed = true; setIntroActive(false) }, [])
+  const introEndPos = useMemo(
+    () => (traversalEnabled ? INTRO_END_TRAVERSAL.clone() : RESTING_POS.clone()),
+    [traversalEnabled],
+  )
 
   // Keyboard a11y: Esc deselects the focused node (eases the camera back).
   useEffect(() => {
@@ -1536,11 +1932,18 @@ function SceneContents({
         meshRef.current.scale.setScalar(1 + hoverT * 0.30 + selT * 0.22 + pulse * 0.18)
       }
       if (matRef.current) {
-        // Raise emissive/bloom on hover + selection (base: cluster 0.9, else 0.65).
-        // Uses the lagged glowT so light blooms a hair after the star grows; the
-        // click pulse adds a brief extra flare.
-        const baseEmissive = node.type === 'cluster' ? 0.9 : 0.65
-        matRef.current.emissiveIntensity = baseEmissive + glowT * 0.85 + selT * 1.35 + pulse * 1.2
+        // Planet material: advance its spin/surface clock and drive uGlow for the
+        // hover/selection lift. Per-type base glow keeps the STRUCTURE hierarchy
+        // (clusters/artists read hotter as anchors/stars, tracks stay dim dust);
+        // the lagged glowT blooms light a hair after the grow, selT + pulse flare
+        // on focus/click. uTime is shared across nodes (cheap scalar write).
+        matRef.current.uTime = t
+        const baseGlow = node.type === 'cluster' ? 0.16
+          : node.type === 'artist' ? 0.13
+          : node.type === 'genre'  ? 0.08
+          : node.type === 'track'  ? 0.05
+          : 0.10
+        matRef.current.uGlow = baseGlow + glowT * 0.55 + selT * 0.95 + pulse * 0.9
       }
       if (haloMatRef.current) {
         // Raise the soft halo glow with the lagged activation too.
@@ -1558,8 +1961,8 @@ function SceneContents({
       <PerspectiveCamera makeDefault position={[0, 0, 105]} fov={54} far={2000} />
       {/* Exponential fog (reference: FogExp2 0x02030a, 0.0018) for depth falloff. */}
       <fogExp2 attach="fog" args={['#02030a', 0.0018]} />
-      {/* Warm deep-space gradient sky behind everything. */}
-      <GalaxySky />
+      {/* Pink nebula wraps the whole scene as a panoramic backdrop. */}
+      <GalaxyEnvironment />
       <ambientLight intensity={0.32} />
       <pointLight position={[0, 0, 7]} intensity={1.25} color="#ffb35a" />
       <pointLight position={[10, 8, 10]} intensity={0.7} color="#ffd89b" />
@@ -1571,29 +1974,14 @@ function SceneContents({
       {/* Ambient biome nebula puffs (reference technique), drifting slowly. */}
       <GalaxyNebulae sparseGraphics={sparseMode || lowPower} reducedMotion={reducedMotion} />
 
-      {/* Luminous galactic core — warm additive glow at center (reference
-          #fff0d0 + #ff8aa8) so the eye has a heart to orbit. Bloom lifts it.
-          Opacities are tuned so the additive stack sums well below 1.0: the
-          center must stay a warm luminous heart, not a white blob that erases
-          stars and labels in front of it.
-          (Was 0.55/0.30/0.18/0.09/0.04 → 0.30/0.16/0.10/0.05/0.025 → halved.) */}
-      <group position={[0, 0, 0]}>
-        {[
-          { r: 1.1,  color: '#fff0d0', opacity: 0.15 },
-          { r: 2.2,  color: '#ffd89b', opacity: 0.08 },
-          { r: 4.0,  color: '#ff8aa8', opacity: 0.05 },
-          { r: 7.0,  color: '#ff7a9d', opacity: 0.025 },
-          { r: 11.0, color: '#5fd8ff', opacity: 0.0125 },
-        ].map((layer) => (
-          <mesh key={layer.r}>
-            <sphereGeometry args={[layer.r, 24, 24]} />
-            <meshBasicMaterial color={layer.color} transparent opacity={layer.opacity} blending={THREE.AdditiveBlending} depthWrite={false} />
-          </mesh>
-        ))}
-      </group>
+      {/* Luminous galactic core — the hero focal point. A real shader-lit sphere
+          (hot warm-white/gold centre + fresnel rim, HDR-overdriven so Bloom
+          catches it) with a tight warm additive halo. Replaces the old stack of
+          flat additive shells that read as a haze blob. uTime pulse inside. */}
+      <HeroCore reducedMotion={reducedMotion} />
 
       <TasteCore core={model?.metadata?.core} model={model} galaxyMode={galaxyMode} />
-      <GalaxyEdges model={model} galaxyMode={galaxyMode} viewMode={viewMode} />
+      <GalaxyEdges model={model} galaxyMode={galaxyMode} viewMode={viewMode} showTracks={showTracks} sparseMode={sparseMode} />
       <ConstellationLines model={model} originId={constellationOrigin} />
 
       {(model?.nodes || []).map((node) => (
@@ -1607,6 +1995,7 @@ function SceneContents({
           showLabel={labelLayout.has(node.id)}
           labelOffset={labelLayout.get(node.id)}
           sparseMode={sparseMode}
+          coarsePointer={touchDevice}
           registerRef={registerNodeRef}
         />
       ))}
@@ -1617,22 +2006,45 @@ function SceneContents({
         controlsRef={controlsRef}
         reducedMotion={reducedMotion}
         restAutoRotate={!traversalEnabled || autoRotateSpeed > 0}
-        enabled={!traversalEnabled}
+        enabled={!traversalEnabled && !introActive}
       />
       <SelectionRing model={model} reducedMotion={reducedMotion} />
       <OrbitControls
         ref={controlsRef}
-        enablePan
+        // Touch-first camera: damping gives smooth inertia (premium on desktop,
+        // essential on touch where a hard stop reads as janky). On touch we drop
+        // pan (a two-finger drag otherwise flings the camera off into empty space
+        // and reads broken) and slow the rotate for finer control; one finger
+        // orbits, two fingers pinch-zoom.
+        enableDamping
+        dampingFactor={0.08}
+        enablePan={!touchDevice}
         enableZoom
         enableRotate
-        autoRotate={!traversalEnabled || autoRotateSpeed > 0}
+        rotateSpeed={touchDevice ? 0.6 : 1}
+        touches={{ ONE: THREE.TOUCH.ROTATE, TWO: THREE.TOUCH.DOLLY_PAN }}
+        // Input is suspended during the intro (so a stray drag can't fight the
+        // dolly); IntroDolly drives the camera THROUGH these controls and calls
+        // update() itself, so there's no unmount churn and no spherical snap-back.
+        enabled={!introActive}
+        // NO auto-rotate in traversal mode: it orbits the camera around the focus
+        // target every frame, which fought the click-to-focus glide (refocusing
+        // from one node to another read as broken). Idle auto-spin only on the
+        // non-traversal stage, where FocusController pauses it during the ease.
+        autoRotate={!traversalEnabled && autoRotateSpeed > 0 && !introActive}
         autoRotateSpeed={autoRotateSpeed}
         minDistance={8}
         maxDistance={240}
       />
 
-      {/* Traversal + scan pulse — mounted only in /universe */}
-      {traversalEnabled && (
+      {/* One-time cinematic intro dolly. Placed AFTER the controls so its useFrame
+          runs last and has final say on the camera while active; yields cleanly
+          via endIntro() on completion. */}
+      <IntroDolly active={introActive} endPos={introEndPos} controlsRef={controlsRef} onDone={endIntro} />
+
+      {/* Traversal + scan pulse — mounted only in /universe, and held back until
+          the intro releases so the two never fight over the camera. */}
+      {traversalEnabled && !introActive && (
         <Suspense fallback={null}>
           <TraversalController
             controlsRef={controlsRef}
@@ -1688,6 +2100,89 @@ function GalaxyA11yAnnouncer() {
   return <div className="sr-only" role="status" aria-live="polite">{message}</div>
 }
 
+// A calm, non-blocking notice shown while a dropped WebGL context rebuilds.
+function GalaxyRecoveryOverlay() {
+  return (
+    <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+      <div className="rounded-2xl border border-white/10 bg-[#090d1f]/80 px-4 py-2.5 text-xs text-slate-200 backdrop-blur">
+        Re-rendering the galaxy…
+      </div>
+    </div>
+  )
+}
+
+// Attaches WebGL context-loss listeners from INSIDE the Canvas via useThree, so
+// it runs within R3F's lifecycle with proper cleanup (more reliable than onCreated).
+// preventDefault() on loss lets the browser attempt an in-place restore.
+function ContextLossManager({ onLost, onRestored }) {
+  const gl = useThree((state) => state.gl)
+  useEffect(() => {
+    const el = gl.domElement
+    const handleLost = (event) => { event.preventDefault(); onLost() }
+    const handleRestored = () => onRestored()
+    el.addEventListener('webglcontextlost', handleLost, false)
+    el.addEventListener('webglcontextrestored', handleRestored, false)
+    return () => {
+      el.removeEventListener('webglcontextlost', handleLost, false)
+      el.removeEventListener('webglcontextrestored', handleRestored, false)
+    }
+  }, [gl, onLost, onRestored])
+  return null
+}
+
+// Owns the live <Canvas>. Recovery (remount key + overlay) lives one level up in
+// GalaxyScene, ABOVE GalaxySceneBoundary — because a lost context also makes R3F's
+// render loop throw "Cannot read properties of null (reading 'alpha')", which the
+// boundary catches and would replace this component (and any in-component remount)
+// with its error UI. Keying the boundary from above instead spawns a fresh boundary
+// + fresh Canvas + fresh GL context, clearing the error and recovering for real.
+function GalaxyCanvas({
+  model,
+  sparseMode,
+  lowPower,
+  reducedMotion,
+  extraChildren,
+  traversalEnabled,
+  scanPulseCount,
+  onScanPulse,
+  autoRotateSpeed,
+  showLabels,
+  onContextLost,
+  onContextRestored,
+}) {
+  return (
+    <Canvas
+      gl={{ antialias: !lowPower, alpha: false, toneMapping: THREE.ACESFilmicToneMapping }}
+      dpr={lowPower ? [1, 1.1] : [1, 1.6]}
+      onCreated={({ gl }) => {
+        // Reference renderer setup: ACES tone mapping (set above), warm
+        // exposure, SRGB output. The deep-space clear colour is no longer set —
+        // GalaxyEnvironment paints the pink nebula via scene.background instead.
+        gl.toneMappingExposure = 1.05
+        gl.outputColorSpace = THREE.SRGBColorSpace
+        // gl.setClearColor('#02030a', 1)
+      }}
+      onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
+    >
+      <ContextLossManager onLost={onContextLost} onRestored={onContextRestored} />
+      <Suspense fallback={null}>
+        <SceneContents
+          model={model}
+          sparseMode={sparseMode}
+          lowPower={lowPower}
+          reducedMotion={reducedMotion}
+          extraChildren={extraChildren}
+          traversalEnabled={traversalEnabled}
+          scanPulseCount={scanPulseCount}
+          onScanPulse={onScanPulse}
+          autoRotateSpeed={autoRotateSpeed}
+          showLabels={showLabels}
+        />
+      </Suspense>
+    </Canvas>
+  )
+}
+
 export default function GalaxyScene({
   model,
   sparseMode       = false,
@@ -1701,6 +2196,33 @@ export default function GalaxyScene({
   autoRotateSpeed  = 0.18,
   showLabels       = true,
 }) {
+  // WebGL context-loss recovery, owned ABOVE GalaxySceneBoundary so it survives the
+  // boundary catching R3F's render-loop throw on a dead context. On loss we show a
+  // calm overlay and, if the browser doesn't restore promptly, bump `recoveryKey` —
+  // which remounts the boundary + Canvas fresh, rebuilding the GL context. On a
+  // browser-side restore we remount immediately for a clean rebuild.
+  const [recoveryKey, setRecoveryKey] = useState(0)
+  const [recovering, setRecovering] = useState(false)
+  const recoverTimer = useRef(null)
+
+  useEffect(() => () => { if (recoverTimer.current) clearTimeout(recoverTimer.current) }, [])
+
+  const handleContextLost = useCallback(() => {
+    setRecovering(true)
+    if (recoverTimer.current) clearTimeout(recoverTimer.current)
+    recoverTimer.current = setTimeout(() => {
+      recoverTimer.current = null
+      setRecoveryKey((k) => k + 1)
+      setRecovering(false)
+    }, 600)
+  }, [])
+
+  const handleContextRestored = useCallback(() => {
+    if (recoverTimer.current) { clearTimeout(recoverTimer.current); recoverTimer.current = null }
+    setRecoveryKey((k) => k + 1)
+    setRecovering(false)
+  }, [])
+
   if (!webglEnabled) {
     return (
       <div className="flex h-full w-full items-center justify-center px-6 text-center">
@@ -1719,35 +2241,26 @@ export default function GalaxyScene({
       >
         <GalaxyA11yAnnouncer />
         <GalaxyAudioController reducedMotion={reducedMotion} />
-        <GalaxySceneBoundary resetKey={`${model?.metadata?.galaxyMode || 'universal'}:${model?.nodes?.length || 0}`}>
-          <Canvas
-            gl={{ antialias: !lowPower, alpha: false, toneMapping: THREE.ACESFilmicToneMapping }}
-            dpr={lowPower ? [1, 1.1] : [1, 1.6]}
-            onCreated={({ gl }) => {
-              // Reference renderer setup: ACES tone mapping (set above), warm
-              // exposure, SRGB output, deep-space clear colour.
-              gl.toneMappingExposure = 1.05
-              gl.outputColorSpace = THREE.SRGBColorSpace
-              gl.setClearColor('#02030a', 1)
-            }}
-            onPointerMissed={() => useGalaxyInteractionStore.getState().clearHoveredObject()}
-          >
-            <Suspense fallback={null}>
-              <SceneContents
-                model={model}
-                sparseMode={sparseMode}
-                lowPower={lowPower}
-                reducedMotion={reducedMotion}
-                extraChildren={extraChildren}
-                traversalEnabled={traversalEnabled}
-                scanPulseCount={scanPulseCount}
-                onScanPulse={onScanPulse}
-                autoRotateSpeed={autoRotateSpeed}
-                showLabels={showLabels}
-              />
-            </Suspense>
-          </Canvas>
+        <GalaxySceneBoundary
+          key={recoveryKey}
+          resetKey={`${model?.metadata?.galaxyMode || 'universal'}:${model?.nodes?.length || 0}`}
+        >
+          <GalaxyCanvas
+            model={model}
+            sparseMode={sparseMode}
+            lowPower={lowPower}
+            reducedMotion={reducedMotion}
+            extraChildren={extraChildren}
+            traversalEnabled={traversalEnabled}
+            scanPulseCount={scanPulseCount}
+            onScanPulse={onScanPulse}
+            autoRotateSpeed={autoRotateSpeed}
+            showLabels={showLabels}
+            onContextLost={handleContextLost}
+            onContextRestored={handleContextRestored}
+          />
         </GalaxySceneBoundary>
+        {recovering && <GalaxyRecoveryOverlay />}
       </div>
   )
 }

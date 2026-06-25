@@ -199,41 +199,41 @@ export default function AuralithNodeExplainer({ entity, profile }) {
         animate={{ opacity: 1, y: 0,  scale: 1 }}
         exit={{ opacity: 0, y: -6 }}
         transition={MOTION_TOKENS.panel}
-        className="relative overflow-hidden rounded-[22px] border border-[#9fdcff]/16 bg-[#060c1e]/88 p-4 backdrop-blur-xl"
-        style={{ boxShadow: '0 0 40px rgba(159,220,255,0.06)' }}
+        className="relative overflow-hidden rounded-[22px] border border-[#ac6294]/16 bg-[#060c1e]/88 p-4 backdrop-blur-xl"
+        style={{ boxShadow: '0 0 40px rgba(172,98,148,0.06)' }}
       >
         {/* Scanner line decoration */}
-        <div className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[#9fdcff]/30 to-transparent" />
+        <div className="pointer-events-none absolute left-0 top-0 h-px w-full bg-gradient-to-r from-transparent via-[#ac6294]/30 to-transparent" />
 
         <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-[#9fdcff]/22 bg-[#9fdcff]/10">
+          <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-xl border border-[#ac6294]/22 bg-[#ac6294]/10">
             {loading
-              ? <Loader2 className="h-3.5 w-3.5 animate-spin text-[#9fdcff]" />
-              : <Brain className="h-3.5 w-3.5 text-[#9fdcff]" />}
+              ? <Loader2 className="h-3.5 w-3.5 animate-spin text-[#ac6294]" />
+              : <Brain className="h-3.5 w-3.5 text-[#ac6294]" />}
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="mb-1.5 flex items-center gap-2">
-              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#9fdcff]/60">
+              <p className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#ac6294]/60">
                 Auralith
               </p>
               <span
                 className="rounded-full px-2 py-0.5 text-[9px] uppercase tracking-[0.16em]"
                 style={{
                   background: mode === 'llm'
-                    ? 'rgba(159,220,255,0.10)'
+                    ? 'rgba(172,98,148,0.10)'
                     : mode === 'semantic'
-                      ? 'rgba(181,156,255,0.10)'
+                      ? 'rgba(209,82,150,0.10)'
                       : 'rgba(255,255,255,0.05)',
                   color: mode === 'llm'
-                    ? '#9fdcff'
+                    ? '#ac6294'
                     : mode === 'semantic'
                       ? '#b59cff'
                       : 'rgba(255,255,255,0.35)',
                   border: mode === 'llm'
-                    ? '1px solid rgba(159,220,255,0.24)'
+                    ? '1px solid rgba(172,98,148,0.24)'
                     : mode === 'semantic'
-                      ? '1px solid rgba(181,156,255,0.20)'
+                      ? '1px solid rgba(209,82,150,0.20)'
                       : '1px solid rgba(255,255,255,0.08)',
                 }}
                 title={

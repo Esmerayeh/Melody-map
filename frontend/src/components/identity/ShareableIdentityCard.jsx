@@ -52,14 +52,35 @@ export default forwardRef(function ShareableIdentityCard({ profile }, ref) {
           <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/74">{line}</p>
         </div>
 
-        <div
-          className="mx-auto flex h-44 w-44 items-center justify-center rounded-full border border-white/20"
-          style={{
-            background: `radial-gradient(circle at 45% 42%, #fff8f0 0%, ${c.primary} 16%, ${c.accent} 44%, ${c.shadow} 72%)`,
-            boxShadow: `0 0 48px ${c.glow}55, 0 0 110px ${c.glow}1f`,
-          }}
-        >
-          <div className="h-32 w-32 rounded-full border border-white/16 bg-[radial-gradient(circle_at_40%_38%,rgba(255,255,255,0.78),rgba(255,255,255,0.04)_28%,transparent_58%)]" />
+        <div className="relative mx-auto h-48 w-48">
+          {/* Darker plum glass box behind the orb — same treatment as the live orb
+              and the Soul Orb share card. */}
+          <div
+            className="absolute inset-0 rounded-[28px]"
+            style={{
+              background: 'linear-gradient(160deg, rgba(38,18,29,0.85) 0%, rgba(24,11,18,0.92) 100%)',
+              border: '1px solid rgba(193,19,127,0.22)',
+              boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.05), 0 12px 34px rgba(0,0,0,0.45)',
+            }}
+          />
+          {/* Glass-marble orb with a halftone dot-screen (data-driven colour). */}
+          <div
+            className="absolute inset-[8%] rounded-full border"
+            style={{
+              borderColor: `${c.glow}77`,
+              backgroundImage: [
+                'radial-gradient(circle, rgba(255,250,248,0.55) 0 1.3px, transparent 1.9px)',
+                `radial-gradient(circle at 45% 42%, #fff8f0 0%, ${c.primary} 18%, ${c.accent} 46%, ${c.shadow} 74%)`,
+              ].join(', '),
+              backgroundSize: '8px 8px, 100% 100%',
+              boxShadow: `0 0 48px ${c.glow}55, 0 0 110px ${c.glow}1f, inset 0 0 34px ${c.shadow}99`,
+            }}
+          />
+          {/* Glass glint (upper-left key light). */}
+          <div
+            className="absolute inset-[8%] rounded-full"
+            style={{ background: 'radial-gradient(circle at 32% 26%, rgba(255,255,255,0.85) 0%, transparent 15%)' }}
+          />
         </div>
 
         <div className="grid gap-4 sm:grid-cols-2">

@@ -39,6 +39,7 @@ import useUniversePresence     from '../hooks/useUniversePresence'
 import useGalaxyInteractionStore from '../features/galaxy/useGalaxyInteractionStore'
 import { useGalaxyStageConfig } from '../features/galaxy/useGalaxyStage'
 import GalaxyTraversalHUD from '../features/galaxy/GalaxyTraversalHUD'
+import CinematicTour from '../features/galaxy/CinematicTour'
 import { buildGalaxyModel, buildGalaxyModeModel } from '../features/galaxy/galaxyBuilder'
 import useGalaxyArtifact        from '../features/galaxy/useGalaxyArtifact'
 import { resolveInteractionEntity, slugifyInteraction } from '../features/galaxy/interactionModel'
@@ -67,11 +68,11 @@ const GalaxyLegend      = lazy(() => import('../features/galaxy/GalaxyLegend'))
 // Sector portals — feature entry points shown as HUD overlays
 // ─────────────────────────────────────────────────────────────────────────────
 const SECTORS = [
-  { id: 'identity',  to: '/identity',  label: 'Identity Passport',    icon: Sparkles, color: '#ffb35a', desc: 'Your music archetype and constellation.' },
-  { id: 'discover',  to: '/discover',  label: 'Discovery Comets',     icon: Radio,    color: '#5fd8ff', desc: 'New signals arriving from the outer rim.' },
-  { id: 'soulmate',  to: '/soulmate',  label: 'Twin Galaxy',          icon: Heart,    color: '#ffb89a', desc: 'Where your universe meets another.' },
-  { id: 'aesthetic', to: '/aesthetic', label: 'Aesthetic Nebula',     icon: Zap,      color: '#ff7a9d', desc: 'The visual atmosphere of your taste.' },
-  { id: 'auralith',  to: '/auralith',  label: 'Auralith Observatory', icon: Brain,    color: '#ffd89b', desc: 'Ask the oracle what your galaxy means.' },
+  { id: 'identity',  to: '/identity',  label: 'Identity Passport',    icon: Sparkles, color: '#de83b4', desc: 'Your music archetype and constellation.' },
+  { id: 'discover',  to: '/discover',  label: 'Discovery Comets',     icon: Radio,    color: '#ac6294', desc: 'New signals arriving from the outer rim.' },
+  { id: 'soulmate',  to: '/soulmate',  label: 'Twin Galaxy',          icon: Heart,    color: '#d15296', desc: 'Where your universe meets another.' },
+  { id: 'aesthetic', to: '/aesthetic', label: 'Aesthetic Nebula',     icon: Zap,      color: '#d15296', desc: 'The visual atmosphere of your taste.' },
+  { id: 'auralith',  to: '/auralith',  label: 'Auralith Observatory', icon: Brain,    color: '#e1a7c6', desc: 'Ask the oracle what your galaxy means.' },
 ]
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -101,7 +102,7 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity, premiu
       initial={{ opacity: 0, x: 32 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ ...MOTION_TOKENS.panel, delay: 0.5 }}
-      className={`absolute right-4 z-20 flex flex-col items-end ${premium ? 'top-24 gap-4 sm:top-28' : 'top-16 gap-3 sm:top-20'}`}
+      className={`absolute right-4 z-20 flex flex-col items-end ${premium ? 'top-52 gap-4' : 'top-52 gap-3'}`}
     >
       {/* role=button (not <button>) on purpose: MusicSoulOrb renders its own
           <button> inside, and a button nested in a button is invalid DOM. This
@@ -116,7 +117,7 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity, premiu
           : 'pointer-events-auto rounded-full border border-white/12 bg-[#0a0c1e]/80 p-1 backdrop-blur transition hover:border-white/24'}
         aria-label={expanded ? 'Collapse Soul Orb' : 'Expand Soul Orb'}
         style={{
-          boxShadow: !premium && liveIntensity > 0.3 ? `0 0 ${Math.round(liveIntensity * 24)}px rgba(159,220,255,0.18)` : undefined,
+          boxShadow: !premium && liveIntensity > 0.3 ? `0 0 ${Math.round(liveIntensity * 24)}px rgba(172,98,148,0.18)` : undefined,
         }}
       >
         <DeferredSoulOrb
@@ -141,7 +142,7 @@ function SoulOrbDock({ profile, resonance, sparseGraphics, liveIntensity, premiu
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           className={premium
-            ? 'max-w-[200px] text-right text-[11px] leading-relaxed text-amber-100/35'
+            ? 'max-w-[200px] text-right text-[11px] leading-relaxed text-[#f4e6ee]/35'
             : 'max-w-[180px] text-right text-[10px] leading-relaxed text-gray-500'}
         >
           {resonance?.explanation || 'Your soul orb holds the shape of what returns most often.'}
@@ -169,17 +170,17 @@ function SectorPortal({ sector, onClose, premium = false }) {
           <button
             type="button"
             onClick={onClose}
-            className="absolute right-2 top-0 flex h-9 w-9 items-center justify-center rounded-full text-amber-100/40 transition-colors hover:text-amber-100/90 min-h-[44px] min-w-[44px]"
+            className="absolute right-2 top-0 flex h-9 w-9 items-center justify-center rounded-full text-[#f4e6ee]/40 transition-colors hover:text-[#f4e6ee]/90 min-h-[44px] min-w-[44px]"
           >
             <X className="h-4 w-4" />
           </button>
-          <p className="text-[10px] uppercase tracking-[0.3em] text-amber-100/30">Sector</p>
-          <h3 className="font-display mt-3 text-3xl font-medium leading-tight text-amber-50/95">{sector.label}</h3>
-          <p className="mt-3 max-w-[300px] text-[12px] leading-relaxed text-amber-100/40">{sector.desc}</p>
+          <p className="text-[10px] uppercase tracking-[0.3em] text-[#f4e6ee]/30">Sector</p>
+          <h3 className="font-display mt-3 text-3xl font-medium leading-tight text-[#f4e6ee]/95">{sector.label}</h3>
+          <p className="mt-3 max-w-[300px] text-[12px] leading-relaxed text-[#f4e6ee]/40">{sector.desc}</p>
           <button
             type="button"
             onClick={() => navigate(sector.to)}
-            className="mt-7 inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.18em] text-amber-100/80 transition-colors hover:text-amber-50 min-h-[44px]"
+            className="mt-7 inline-flex items-center gap-2 text-[12px] font-medium uppercase tracking-[0.18em] text-[#f4e6ee]/80 transition-colors hover:text-[#f4e6ee] min-h-[44px]"
           >
             Enter {sector.label} →
           </button>
@@ -240,7 +241,7 @@ function SectorRing({ sectors, onSelect, activeSectorId, isMobile, premium = fal
       className="pointer-events-auto absolute bottom-4 left-1/2 z-20 -translate-x-1/2"
     >
       <div
-        className={`flex items-center rounded-full ${premium ? 'gap-3.5 px-2 py-1' : 'gap-2 border border-white/10 bg-[#070814]/82 px-3 py-2 backdrop-blur-xl'} ${isMobile ? 'overflow-x-auto max-w-[90vw]' : ''}`}
+        className={`flex items-center gap-2 rounded-full border border-[#c1337f]/25 bg-[#301725]/82 px-3 py-2 backdrop-blur-xl ${isMobile ? 'overflow-x-auto max-w-[90vw]' : ''}`}
         style={isMobile ? { WebkitOverflowScrolling: 'touch', scrollSnapType: 'x mandatory' } : undefined}
       >
         {sectors.map((sector) => (
@@ -252,21 +253,23 @@ function SectorRing({ sectors, onSelect, activeSectorId, isMobile, premium = fal
             aria-pressed={activeSectorId === sector.id}
             className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full transition-all hover:scale-110"
             style={{
-              background: activeSectorId === sector.id ? `${sector.color}30` : `${sector.color}18`,
-              border:     `1px solid ${activeSectorId === sector.id ? sector.color + '60' : sector.color + '28'}`,
+              // Dark plum button so the coloured icon reads against the bright
+              // nebula (the old ~9%-opacity coloured fill made them near-invisible).
+              background: activeSectorId === sector.id ? `${sector.color}55` : 'rgba(48,23,37,0.66)',
+              border:     `1px solid ${activeSectorId === sector.id ? sector.color : sector.color + '88'}`,
               scrollSnapAlign: 'center',
             }}
           >
-            <sector.icon className="h-4 w-4" style={{ color: sector.color }} />
+            <sector.icon className="h-[18px] w-[18px]" style={{ color: activeSectorId === sector.id ? '#faf5f8' : sector.color, filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }} />
           </button>
         ))}
-        <div className="mx-1 h-4 w-px shrink-0 bg-white/10" />
+        <div className="mx-1 h-4 w-px shrink-0 bg-white/15" />
         <Link
           to="/"
           title="Dashboard"
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/4 transition-all hover:bg-white/8"
+          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[#c1337f]/30 bg-[#301725]/66 transition-all hover:bg-[#51203a]/70"
         >
-          <Disc3 className="h-4 w-4 text-gray-400" />
+          <Disc3 className="h-[18px] w-[18px] text-[#ebccdc]" style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.6))' }} />
         </Link>
       </div>
     </motion.div>
@@ -283,16 +286,16 @@ function UniverseTopBar({ title, subtitle, cinemaMode, onToggleCinema, onOpenPas
     >
       <div>
         <p className={premium
-          ? 'text-[10px] uppercase tracking-[0.28em] text-amber-100/35'
+          ? 'text-[10px] uppercase tracking-[0.28em] text-[#f4e6ee]/35'
           : 'text-[10px] uppercase tracking-[0.24em] text-gray-600'}>Universe</p>
         {premium ? (
-          <h1 className="font-display mt-1.5 text-3xl font-medium leading-[1.05] text-amber-50/95 sm:text-4xl">{title}</h1>
+          <h1 className="font-display mt-1.5 text-3xl font-medium leading-[1.05] text-[#f4e6ee]/95 sm:text-4xl">{title}</h1>
         ) : (
           <p className="text-sm font-semibold text-white">{title}</p>
         )}
         {subtitle && (
           <p className={premium
-            ? 'mt-2 max-w-md text-[11px] leading-relaxed text-amber-100/35'
+            ? 'mt-2 max-w-md text-[11px] leading-relaxed text-[#f4e6ee]/35'
             : 'mt-0.5 text-[10px] text-gray-500'}>{subtitle}</p>
         )}
       </div>
@@ -301,8 +304,8 @@ function UniverseTopBar({ title, subtitle, cinemaMode, onToggleCinema, onOpenPas
           type="button"
           onClick={onOpenPassport}
           className={premium
-            ? 'flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] tracking-[0.08em] text-amber-100/55 transition hover:text-amber-100/90 min-h-[44px]'
-            : 'flex h-9 items-center gap-1.5 rounded-full border border-[#e0a35c]/24 bg-[#e0a35c]/10 px-3 text-[11px] text-[#e0a35c]/80 backdrop-blur transition hover:bg-[#e0a35c]/18 min-h-[44px]'}
+            ? 'flex h-9 items-center gap-1.5 rounded-full px-3 text-[11px] tracking-[0.08em] text-[#f4e6ee]/55 transition hover:text-[#f4e6ee]/90 min-h-[44px]'
+            : 'flex h-9 items-center gap-1.5 rounded-full border border-[#c1337f]/24 bg-[#c1337f]/10 px-3 text-[11px] text-[#c1337f]/80 backdrop-blur transition hover:bg-[#c1337f]/18 min-h-[44px]'}
           title="Export Universe Passport"
         >
           Passport
@@ -311,7 +314,7 @@ function UniverseTopBar({ title, subtitle, cinemaMode, onToggleCinema, onOpenPas
           type="button"
           onClick={onToggleCinema}
           className={premium
-            ? 'flex h-9 w-9 items-center justify-center rounded-full text-amber-100/45 transition hover:text-amber-100/90 min-h-[44px] min-w-[44px]'
+            ? 'flex h-9 w-9 items-center justify-center rounded-full text-[#f4e6ee]/45 transition hover:text-[#f4e6ee]/90 min-h-[44px] min-w-[44px]'
             : 'flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-[#0a0c1e]/80 text-gray-400 transition hover:text-white backdrop-blur min-h-[44px] min-w-[44px]'}
           title={cinemaMode ? 'Exit cinema' : 'Cinema mode'}
         >
@@ -394,6 +397,14 @@ export default function Universe() {
 
   const cinemaMode    = useStore((s) => s.cinemaMode)
   const setCinemaMode = useStore((s) => s.setCinemaMode)
+
+  // Cinematic walkthrough — auto-pilots the real galaxy with captions. Starts on
+  // a button press, or automatically when the URL carries ?tour=1 (handy for a
+  // one-take screen recording).
+  const [tourActive, setTourActive] = useState(() => {
+    if (typeof window === 'undefined') return false
+    return new URLSearchParams(window.location.search).get('tour') === '1'
+  })
 
   // Galaxy store — all hooks before any conditional
   const galaxyMode        = useGalaxyInteractionStore((s) => s.galaxyMode)
@@ -910,12 +921,32 @@ export default function Universe() {
               premium={premium}
             />
 
+            {/* Cinematic walkthrough — auto-pilots the real galaxy with captions. */}
+            {!tourActive && (
+              <button
+                type="button"
+                onClick={() => setTourActive(true)}
+                className="shell-chrome shell-chrome--fade pointer-events-auto absolute right-4 top-24 z-30 flex items-center gap-2 rounded-full border border-[#c1337f]/35 bg-[#301725]/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-[#ebccdc] backdrop-blur transition hover:text-[#faf5f8] min-h-[44px]"
+                title="Play a cinematic walkthrough of your universe"
+              >
+                ▶ Play tour
+              </button>
+            )}
+            <CinematicTour
+              model={model}
+              active={tourActive}
+              onExit={() => setTourActive(false)}
+              reducedMotion={adaptive.reducedMotion}
+            />
+
             {/* Reversible premium-chrome toggle — flip OLD vs NEW chrome live to
-                judge. Bottom-left, out of the way. */}
+                judge. Sits to the RIGHT of the bottom-left volume button (which is
+                portaled in at left-4); at left-4 the two stacked and the volume
+                pill covered "Prem", so the toggle read as a clipped "ium: OFF". */}
             <button
               type="button"
               onClick={() => setPremium((v) => !v)}
-              className="pointer-events-auto absolute bottom-4 left-4 z-30 rounded-full border border-amber-200/20 bg-[#0c0907]/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-amber-100/55 backdrop-blur transition hover:text-amber-100/90 min-h-[44px]"
+              className="pointer-events-auto absolute bottom-4 left-20 z-30 rounded-full border border-[#f4e6ee]/20 bg-[#0c0907]/70 px-3 py-1.5 text-[10px] uppercase tracking-[0.16em] text-[#f4e6ee]/55 backdrop-blur transition hover:text-[#f4e6ee]/90 min-h-[44px]"
               title="Toggle premium chrome"
             >
               {premium ? 'Premium: ON' : 'Premium: OFF'}

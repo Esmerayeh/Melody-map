@@ -45,9 +45,9 @@ function MatchCard({ match, selected, onSelect }) {
       onClick={() => onSelect(match)}
       className="w-full rounded-[24px] p-4 text-left transition-all"
       style={{
-        background: selected ? 'rgba(224,163,92,0.12)' : 'rgba(255,255,255,0.03)',
-        border: `1px solid ${selected ? 'rgba(224,163,92,0.34)' : 'rgba(255,255,255,0.08)'}`,
-        boxShadow: selected ? '0 0 28px rgba(224,163,92,0.12)' : 'none',
+        background: selected ? 'rgba(193,19,127,0.12)' : 'rgba(255,255,255,0.03)',
+        border: `1px solid ${selected ? 'rgba(193,19,127,0.34)' : 'rgba(255,255,255,0.08)'}`,
+        boxShadow: selected ? '0 0 28px rgba(193,19,127,0.12)' : 'none',
       }}
     >
       <div className="flex items-center justify-between gap-3">
@@ -408,7 +408,7 @@ export default function MusicSoulmate() {
   return (
     <div className="cosmic-page space-y-6">
       <motion.section initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="noire-panel relative overflow-hidden rounded-[34px] p-6 lg:p-8">
-        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_24%_18%,rgba(224,163,92,0.18),transparent_34%),radial-gradient(ellipse_at_78%_72%,rgba(242,141,223,0.12),transparent_30%)]" />
+        <div className="absolute inset-0 pointer-events-none bg-[radial-gradient(ellipse_at_24%_18%,rgba(193,19,127,0.18),transparent_34%),radial-gradient(ellipse_at_78%_72%,rgba(242,141,223,0.12),transparent_30%)]" />
         <div className="relative z-10">
           <p className="page-header-kicker mb-2">The Dual Orbit</p>
           <h1 className="page-header-title">Soulmates</h1>

@@ -16,7 +16,7 @@
  *   - Particle positions updated via ref mutation in useFrame
  *   - No new objects allocated per frame
  */
-import { useMemo, useRef }   from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import { Html }              from '@react-three/drei'
 import { useFrame }          from '@react-three/fiber'
 import * as THREE            from 'three'
@@ -50,6 +50,9 @@ export function ObsessionGravityWell({ node, reducedMotion = false }) {
     geo.setAttribute('position', new THREE.BufferAttribute(positions, 3))
     return geo
   }, [])
+
+  // Dispose the orbit buffer on unmount (route away from /universe).
+  useEffect(() => () => particleGeo?.dispose(), [particleGeo])
 
   useFrame(({ clock }) => {
     if (reducedMotion) return

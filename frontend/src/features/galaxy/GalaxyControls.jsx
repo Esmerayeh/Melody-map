@@ -41,7 +41,7 @@ export default function GalaxyControls({
       transition={MOTION_TOKENS.focus}
       className="flex w-full flex-wrap items-center justify-start gap-2 sm:justify-end"
     >
-      {isDemo && <span className="rounded-full border border-amber-500/30 bg-amber-500/20 px-2.5 py-1 text-xs text-amber-300">Demo</span>}
+      {isDemo && <span className="rounded-full border border-[#c1337f]/35 bg-[#c1337f]/20 px-2.5 py-1 text-xs text-[#f1eaee]">Demo</span>}
 
       <motion.div layout transition={MOTION_TOKENS.focus} className="noire-toolbar flex min-w-0 flex-1 items-center gap-2 px-3 py-2 sm:min-w-[220px] sm:flex-initial">
         <Search className="h-3.5 w-3.5 text-gray-500" />
@@ -69,8 +69,8 @@ export default function GalaxyControls({
               transition={MOTION_TOKENS.hoverIn}
               className={`rounded-xl px-3 py-1.5 text-[11px] font-medium transition-all ${
                 active
-                  ? 'bg-indigo-500/22 text-indigo-50 shadow-[0_0_24px_rgba(129,140,248,0.18)]'
-                  : 'text-gray-400 hover:bg-white/5'
+                  ? 'bg-[#c1337f]/35 text-[#faf5f8] shadow-[0_0_24px_rgba(193,19,127,0.30)]'
+                  : 'text-[#ebccdc] hover:bg-white/10'
               }`}
             >
               {meta.label}
@@ -92,8 +92,8 @@ export default function GalaxyControls({
               transition={MOTION_TOKENS.hoverIn}
               className={`flex items-center gap-1 rounded-xl px-2.5 py-1.5 text-[11px] font-medium transition-all ${
                 active
-                  ? 'bg-purple-500/22 text-purple-100 shadow-[0_0_24px_rgba(168,85,247,0.18)]'
-                  : 'text-gray-400 hover:bg-white/5'
+                  ? 'bg-[#ac6294]/35 text-[#f1eaee] shadow-[0_0_24px_rgba(172,98,148,0.30)]'
+                  : 'text-[#ebccdc] hover:bg-white/10'
               }`}
             >
               <Icon className="h-3.5 w-3.5" />
@@ -110,7 +110,7 @@ export default function GalaxyControls({
           whileTap={{ scale: 0.985 }}
           transition={MOTION_TOKENS.hoverIn}
           className={`rounded-xl px-2.5 py-1.5 text-[11px] font-medium transition-all ${
-            showTracks ? 'bg-indigo-500/20 text-indigo-100' : 'text-gray-400 hover:bg-white/5'
+            showTracks ? 'bg-[#ac6294]/30 text-[#f1eaee]' : 'text-[#ebccdc] hover:bg-white/10'
           }`}
         >
           Satellites
@@ -121,7 +121,7 @@ export default function GalaxyControls({
           whileTap={{ scale: 0.985 }}
           transition={MOTION_TOKENS.hoverIn}
           className={`rounded-xl px-2.5 py-1.5 text-[11px] font-medium transition-all ${
-            showMoodRegions ? 'bg-pink-500/18 text-pink-100' : 'text-gray-400 hover:bg-white/5'
+            showMoodRegions ? 'bg-pink-500/18 text-pink-100' : 'text-[#ebccdc] hover:bg-white/10'
           }`}
         >
           Nebulae
@@ -145,7 +145,7 @@ export default function GalaxyControls({
         whileTap={{ scale: 0.985 }}
         transition={MOTION_TOKENS.hoverIn}
         onClick={onToggleCinema}
-        className="flex items-center gap-1.5 rounded-2xl border border-indigo-500/30 bg-indigo-500/10 px-3 py-2 text-xs font-medium text-indigo-100 transition-all hover:bg-indigo-500/20"
+        className="flex items-center gap-1.5 rounded-2xl border border-[#ac6294]/35 bg-[#ac6294]/15 px-3 py-2 text-xs font-medium text-[#f1eaee] transition-all hover:bg-[#ac6294]/25"
       >
         {cinemaMode ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
         {cinemaMode ? 'Windowed' : 'Cinema'}

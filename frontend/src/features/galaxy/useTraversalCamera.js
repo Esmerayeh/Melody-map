@@ -11,6 +11,7 @@
  *   Scroll         dolly forward / back (OrbitControls zoom)
  *   W / S          fly forward / back along view direction
  *   A / D          strafe left / right
+ *   E / Q          fly up / down
  *   Shift          gentle speed boost
  *   R              recenter to the overview framing
  *   F              focus the current focusTarget
@@ -132,12 +133,15 @@ export function useTraversalCamera({
     const speed = FLY_SPEED * (boost ? BOOST_MULT : 1) * step
 
     const flying = keys.has('KeyW') || keys.has('KeyS') || keys.has('KeyA') || keys.has('KeyD')
+      || keys.has('KeyQ') || keys.has('KeyE')
     if (flying && !reducedMotion) {
       const dir = dirRef.current.set(0, 0, 0)
       if (keys.has('KeyW')) dir.z -= 1
       if (keys.has('KeyS')) dir.z += 1
       if (keys.has('KeyA')) dir.x -= 1
       if (keys.has('KeyD')) dir.x += 1
+      if (keys.has('KeyE')) dir.y += 1   // fly UP
+      if (keys.has('KeyQ')) dir.y -= 1   // fly DOWN
       if (dir.lengthSq() > 0) {
         dir.normalize().applyQuaternion(camera.quaternion).multiplyScalar(speed)
         flyVelRef.current.lerp(dir, FLY_LERP)

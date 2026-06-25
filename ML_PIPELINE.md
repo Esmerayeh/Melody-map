@@ -277,3 +277,30 @@ except Exception as e:
 ```
 
 If scikit-learn fails to import (e.g. memory constraints on free Render tier), all blueprint routes still register and work. Only the three ML-dependent routes return `503`.
+
+---
+
+## Vector store
+
+The **official vector store is MongoDB `embedding_registry`** (profile, track, and
+`auralith_chunk` vectors, keyed by `(entity_type, entity_id, embedding_version)`).
+`ml/serving/retrieval_service.py` queries it by cosine similarity and labels results
+`source: "embedding_registry"`. At the current corpus size (~1k vectors) a Mongo cosine
+scan is single-digit milliseconds, so FAISS adds no measurable win.
+
+FAISS is **optional acceleration only** — used when a real, non-empty index has been
+built (`ml/serving/build_faiss_index.py`) and activated. There is intentionally no
+on-disk FAISS index checked in; an earlier empty scaffold (`item_count: 0`, `ntotal: 0`,
+under `backend/data/indexes/`, which is gitignored) was removed because it was only ever
+mistaken for a real index.
+
+## Training-run integrity (smoke-test tagging)
+
+Training runs are auto-classified by dataset size (`classify_run` in
+`ml/training/pipelines/train_two_tower.py`). A run is tagged **`run_type: "smoke_test"`**
+— in `metrics.json`, `mlflow_run.json`, and as MLflow tags — when items < 50, users < 5,
+or windows < 50. This prevents trivially-saturated metrics from reading as real eval:
+with a sub-50-item catalogue, `recall@50` is ~1.0 by construction. `recall@10` is also
+logged as a more honest signal until the catalogue grows. Current runs (toy `v1` and the
+real-data `v2-mongo`: 111 interactions / 2 users / 47 items) are all `smoke_test` —
+meaningful retrieval evaluation needs ≥5 users and a ≥50-track catalogue.

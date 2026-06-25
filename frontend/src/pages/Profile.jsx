@@ -22,11 +22,11 @@ import { authAPI } from '../services/api'
 
 function StatusChip({ tone = 'violet', children, icon: Icon }) {
   const styles = {
-    violet: { color: '#f0c089', borderColor: 'rgba(224,163,92,0.24)', background: 'rgba(224,163,92,0.12)' },
-    sky: { color: '#a9d4ff', borderColor: 'rgba(125,175,255,0.22)', background: 'rgba(96,165,250,0.12)' },
+    violet: { color: '#e1a7c6', borderColor: 'rgba(193,19,127,0.24)', background: 'rgba(193,19,127,0.12)' },
+    sky: { color: '#a9d4ff', borderColor: 'rgba(125,175,255,0.22)', background: 'rgba(172,98,148,0.12)' },
     green: { color: '#82e8a5', borderColor: 'rgba(74,222,128,0.2)', background: 'rgba(34,197,94,0.1)' },
-    rose: { color: '#f5a6c9', borderColor: 'rgba(244,114,182,0.22)', background: 'rgba(244,114,182,0.1)' },
-    amber: { color: '#f8c67e', borderColor: 'rgba(251,191,36,0.22)', background: 'rgba(251,191,36,0.1)' },
+    rose: { color: '#f5a6c9', borderColor: 'rgba(209,82,150,0.22)', background: 'rgba(209,82,150,0.1)' },
+    amber: { color: '#f8c67e', borderColor: 'rgba(222,131,180,0.22)', background: 'rgba(222,131,180,0.1)' },
   }
 
   const style = styles[tone] || styles.violet
@@ -41,7 +41,7 @@ function StatusChip({ tone = 'violet', children, icon: Icon }) {
 
 function MiniStat({ label, value, tone }) {
   const colors = {
-    violet: '#f0c089',
+    violet: '#e1a7c6',
     rose: '#f5a6c9',
     sky: '#a9d4ff',
   }
@@ -117,7 +117,7 @@ export default function Profile() {
   const personality = mbti ? mbti.name : 'identity still forming'
 
   const quickLinks = [
-    { to: '/universe', icon: Disc3, label: 'Music Galaxy', desc: 'touch the stars that hold your taste', tone: '#e0a35c' },
+    { to: '/universe', icon: Disc3, label: 'Music Galaxy', desc: 'touch the stars that hold your taste', tone: '#c1337f' },
     { to: '/aesthetic', icon: Sparkles, label: 'Aesthetic Board', desc: 'the atmosphere you live in', tone: '#FBBF24' },
     { to: '/soulmates', icon: Heart, label: 'Soulmates', desc: 'see where your worlds meet', tone: '#FF5DA2' },
     { to: '/identity', icon: BarChart3, label: 'Signal Reading', desc: 'a deeper look at movement and light', tone: '#34D399' },
@@ -143,7 +143,7 @@ export default function Profile() {
         transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.04 }}
         className="noire-orb-panel overflow-hidden p-8"
       >
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(168,132,255,0.14),transparent_28%),radial-gradient(circle_at_18%_82%,rgba(244,114,182,0.08),transparent_24%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_82%_18%,rgba(168,132,255,0.14),transparent_28%),radial-gradient(circle_at_18%_82%,rgba(209,82,150,0.08),transparent_24%)]" />
         <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-start">
           <div className="relative shrink-0">
             <div className="absolute inset-[-6px] rounded-[28px] bg-[radial-gradient(circle,rgba(167,139,250,0.24),transparent_64%)] blur-2xl" />
@@ -151,14 +151,14 @@ export default function Profile() {
               <img
                 src={avatar}
                 alt={displayName}
-                className="relative z-10 h-24 w-24 rounded-[24px] object-cover border border-white/10 shadow-[0_0_32px_rgba(224,163,92,0.18)]"
+                className="relative z-10 h-24 w-24 rounded-[24px] object-cover border border-white/10 shadow-[0_0_32px_rgba(193,19,127,0.18)]"
               />
             ) : (
-              <div className="relative z-10 flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(224,163,92,0.24),rgba(255,93,162,0.14))] text-4xl font-semibold text-white shadow-[0_0_32px_rgba(224,163,92,0.16)]">
+              <div className="relative z-10 flex h-24 w-24 items-center justify-center rounded-[24px] border border-white/10 bg-[linear-gradient(135deg,rgba(193,19,127,0.24),rgba(255,93,162,0.14))] text-4xl font-semibold text-white shadow-[0_0_32px_rgba(193,19,127,0.16)]">
                 {displayName[0]?.toUpperCase()}
               </div>
             )}
-            {isConnected && <div className="absolute -bottom-1 -right-1 z-20 h-5 w-5 rounded-full border-2 border-[#090814] bg-emerald-400" />}
+            {isConnected && <div className="absolute -bottom-1 -right-1 z-20 h-5 w-5 rounded-full border-2 border-[#090814] bg-[#ac6294]" />}
           </div>
 
           <div className="min-w-0 flex-1">
@@ -207,7 +207,7 @@ export default function Profile() {
         className="noire-info-card p-6"
       >
         <div className="mb-4 flex items-center gap-2">
-          <Music2 className="h-4 w-4 text-amber-300" />
+          <Music2 className="h-4 w-4 text-[#de83b4]" />
           <h3 className="text-sm font-semibold text-white">Connected sources</h3>
         </div>
         <MusicSourceCard />
@@ -220,12 +220,15 @@ export default function Profile() {
         className="noire-info-card p-6"
       >
         <div className="mb-4 flex items-center gap-2">
-          <Shield className="h-4 w-4 text-amber-300" />
+          <Shield className="h-4 w-4 text-[#de83b4]" />
           <h3 className="text-sm font-semibold text-white">Ways through the system</h3>
         </div>
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {quickLinks.map(({ to, icon: Icon, label, desc, tone }) => (
-            <motion.div key={to} whileHover={{ y: -2, scale: 1.01 }} transition={MOTION_TOKENS.hoverNotice}>
+            // Key on label, not `to` — two quick links intentionally point at
+            // /identity (Signal Reading + Music Identity), so `to` collides and
+            // React drops/duplicates one. Labels are unique.
+            <motion.div key={label} whileHover={{ y: -2, scale: 1.01 }} transition={MOTION_TOKENS.hoverNotice}>
               <Link to={to} className="noire-action-card block p-4">
                 <div
                   className="mb-3 inline-flex h-9 w-9 items-center justify-center rounded-2xl border"
@@ -245,16 +248,16 @@ export default function Profile() {
         initial={{ opacity: 0, y: 18 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ ...MOTION_TOKENS.panel, delay: 0.16 }}
-        className="noire-panel-soft border border-rose-400/10 p-6"
+        className="noire-panel-soft border border-[#d15296]/10 p-6"
       >
-        <h3 className="mb-4 text-sm font-semibold text-rose-300">Session</h3>
+        <h3 className="mb-4 text-sm font-semibold text-[#d15296]">Session</h3>
         <motion.button
           onClick={handleLogout}
           whileHover={{ y: -1, scale: 1.01 }}
           whileTap={{ scale: 0.985 }}
           transition={MOTION_TOKENS.hoverNotice}
-          className="noire-chip text-rose-300"
-          style={{ borderColor: 'rgba(244,114,182,0.18)', background: 'rgba(244,114,182,0.08)' }}
+          className="noire-chip text-[#d15296]"
+          style={{ borderColor: 'rgba(209,82,150,0.18)', background: 'rgba(209,82,150,0.08)' }}
         >
           <LogOut className="h-4 w-4" />
           Sign out

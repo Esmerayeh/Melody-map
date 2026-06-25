@@ -55,24 +55,24 @@ function ScanPhase({ text }) {
         {[0, 1, 2].map((i) => (
           <motion.div
             key={i}
-            className="absolute rounded-full border border-indigo-500/40"
+            className="absolute rounded-full border border-[#ac6294]/40"
             style={{ width: 40 + i * 24, height: 40 + i * 24 }}
             animate={{ scale: [1, 1.15, 1], opacity: [0.6, 0.2, 0.6] }}
             transition={{ duration: 2, delay: i * 0.4, repeat: Infinity, ease: "easeInOut" }}
           />
         ))}
         <motion.div
-          className="w-10 h-10 rounded-full bg-indigo-500/20 border border-indigo-400/60 flex items-center justify-center"
+          className="w-10 h-10 rounded-full bg-[#ac6294]/20 border border-[#ac6294]/60 flex items-center justify-center"
           animate={{ rotate: 360 }}
           transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
         >
-          <Sparkles className="w-4 h-4 text-indigo-400" />
+          <Sparkles className="w-4 h-4 text-[#ac6294]" />
         </motion.div>
       </div>
       <p className="text-gray-300 text-sm font-medium tracking-wide text-center max-w-xs">{text}</p>
       <div className="w-48 h-0.5 rounded-full bg-white/5 overflow-hidden">
         <motion.div
-          className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-purple-500"
+          className="h-full rounded-full bg-gradient-to-r from-[#ac6294] to-purple-500"
           initial={{ x: "-100%" }}
           animate={{ x: "100%" }}
           transition={{ duration: 1.4, repeat: Infinity, ease: "easeInOut" }}

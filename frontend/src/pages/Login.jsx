@@ -82,8 +82,8 @@ export default function Login() {
 
   const inputClass =
     "w-full rounded-[14px] border border-white/10 bg-white/[0.04] py-3 pl-10 pr-4 text-sm text-[#f3eee6] " +
-    "placeholder:text-[rgba(214,205,189,0.4)] outline-none transition-colors focus:border-[#e0a35c]/55 " +
-    "focus:ring-2 focus:ring-[#e0a35c]/25"
+    "placeholder:text-[rgba(214,205,189,0.4)] outline-none transition-colors focus:border-[#c1337f]/55 " +
+    "focus:ring-2 focus:ring-[#c1337f]/25"
 
   return (
     <div className="relative z-10 flex min-h-[100dvh] items-center justify-center px-5 py-[max(1.5rem,env(safe-area-inset-top))] sm:px-6">
@@ -105,7 +105,7 @@ export default function Login() {
           </span>
           <Link
             to="/demo"
-            className="shell-mono inline-flex items-center gap-1.5 text-[9px] text-[rgba(214,205,189,0.5)] outline-none transition-colors hover:text-[#e0a35c] focus-visible:text-[#e0a35c]"
+            className="shell-mono inline-flex items-center gap-1.5 text-[9px] text-[rgba(214,205,189,0.5)] outline-none transition-colors hover:text-[#c1337f] focus-visible:text-[#c1337f]"
           >
             <Eye className="h-3 w-3" /> Demo
           </Link>
@@ -129,8 +129,8 @@ export default function Login() {
             type="button"
             onClick={connectSpotify}
             disabled={waking}
-            className="group flex w-full items-center justify-center gap-3 rounded-[14px] py-3 text-sm font-semibold text-[#1a1206] outline-none transition-all hover:opacity-95 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#e0a35c]/70 disabled:opacity-70"
-            style={{ background: 'linear-gradient(135deg, #e0a35c 0%, #ffb35a 52%, #f3d9b0 100%)' }}
+            className="group flex w-full items-center justify-center gap-3 rounded-[14px] py-3 text-sm font-semibold text-[#1a1206] outline-none transition-all hover:opacity-95 active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#c1337f]/70 disabled:opacity-70"
+            style={{ background: 'linear-gradient(135deg, #c1337f 0%, #de83b4 52%, #f3d9b0 100%)' }}
           >
             {waking && pendingProvider === 'spotify'
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Spotify connection…</>
@@ -141,7 +141,7 @@ export default function Login() {
             type="button"
             onClick={connectLastfm}
             disabled={waking}
-            className="group flex w-full items-center justify-center gap-3 rounded-[14px] border border-[#c97b7b]/30 bg-white/[0.035] py-3 text-sm font-semibold text-[#f3eee6] outline-none transition-all hover:border-[#c97b7b]/55 hover:bg-white/[0.06] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#c97b7b]/60 disabled:opacity-70"
+            className="group flex w-full items-center justify-center gap-3 rounded-[14px] border border-[#d15296]/30 bg-white/[0.035] py-3 text-sm font-semibold text-[#f3eee6] outline-none transition-all hover:border-[#d15296]/55 hover:bg-white/[0.06] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#d15296]/60 disabled:opacity-70"
           >
             {waking && pendingProvider === 'lastfm'
               ? <><Loader2 className="h-4 w-4 animate-spin" /> Preparing Last.fm connection…</>
@@ -151,7 +151,7 @@ export default function Login() {
 
         {/* Quiet auth-route status (reuses the cold-start aware wake state) */}
         <div className="mt-4 flex items-start gap-2.5 rounded-[16px] border border-white/8 bg-white/[0.025] px-3.5 py-3">
-          <span className="mt-0.5 text-[#e0a35c]">
+          <span className="mt-0.5 text-[#c1337f]">
             {phase === "cold-start"
               ? <TimerReset className="h-3.5 w-3.5" />
               : phase === "redirecting"
@@ -201,7 +201,7 @@ export default function Login() {
           </div>
           <button
             type="submit" disabled={loading}
-            className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#e0a35c]/25 bg-white/[0.04] py-3 text-sm font-semibold text-[#f3eee6] outline-none transition-all hover:border-[#e0a35c]/45 hover:bg-white/[0.06] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#e0a35c]/60 disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-[14px] border border-[#c1337f]/25 bg-white/[0.04] py-3 text-sm font-semibold text-[#f3eee6] outline-none transition-all hover:border-[#c1337f]/45 hover:bg-white/[0.06] active:scale-[0.99] focus-visible:ring-2 focus-visible:ring-[#c1337f]/60 disabled:opacity-60"
           >
             {loading && <Loader2 className="h-4 w-4 animate-spin" />}
             {isLogin ? "Sign in with email" : "Create account"}
@@ -213,7 +213,7 @@ export default function Login() {
           <button
             type="button"
             onClick={() => setIsLogin(!isLogin)}
-            className="font-medium text-[#e0a35c] outline-none transition-colors hover:text-[#ffb35a] focus-visible:text-[#ffb35a]"
+            className="font-medium text-[#c1337f] outline-none transition-colors hover:text-[#de83b4] focus-visible:text-[#de83b4]"
           >
             {isLogin ? "Create an account" : "Sign in"}
           </button>

@@ -47,7 +47,7 @@ export const ARM_INNER_RADIUS    = 4     // base radius where arms begin (keeps 
 export const ARM_OUTER_RADIUS    = 27    // base radius where arms end (fills the SPREAD_SCALE space)
 const INTERARM_SCATTER    = 3.0   // radial fuzz so arms are organic, not razor lines
 const ARM_ANGULAR_SCATTER = 0.20  // tangential fuzz (radians) — softens the arm edges
-const ARM_THICKNESS_Y     = 2.2   // vertical disc thickness (kept slight → 3D disc, not flat)
+const ARM_THICKNESS_Y     = 6.5   // vertical disc thickness — raised so the galaxy reads as a 3D VOLUME, not a single flat plane (was 2.2 → a pancake)
 const GENRE_SCATTER_MUL   = 0.45  // genres are anchors → less fuzz than the artists around them
 const ARTIST_TRAIL        = 0.06  // how far lesser artists trail OUTWARD along their arm (t-space)
 const TWO_PI = Math.PI * 2
@@ -179,10 +179,52 @@ export function applyTierLayout(model) {
     const base = armSpiralPosition(armInfo.arm, t, aHash, scatter)
     artistPos.set(a.id, {
       x: round2(base.x),
-      y: round2(base.y + (sig - 0.5) * 1.6), // slight significance-based vertical relief
+      y: round2(base.y + (sig - 0.5) * 6.0), // significance-driven vertical relief — anchors ride high, lesser artists sink, giving the arm real 3D depth
       z: round2(base.z),
     })
   })
+
+  // ── 2.5 SEPARATION — give every body a little breathing room ────────────────
+  // Deterministic relaxation: a few passes that push any two bodies closer than
+  // MIN_SEP apart. Stops genres/artists from piling into overlapping clumps, so
+  // the galaxy reads as evenly-spaced stars (not a scattered blob). Tracks inherit
+  // the relaxed parent positions below, so they ride along.
+  {
+    const MIN_SEP = 1.9 // base units (×SPREAD_SCALE in world); ~ a clear gap between bodies
+    const minSq = MIN_SEP * MIN_SEP
+    const entries = [
+      ...[...genreCenter.entries()].map(([id, p]) => ({ id, p, map: genreCenter })),
+      ...[...artistPos.entries()].map(([id, p]) => ({ id, p, map: artistPos })),
+    ]
+    for (let iter = 0; iter < 7; iter += 1) {
+      for (let i = 0; i < entries.length; i += 1) {
+        for (let j = i + 1; j < entries.length; j += 1) {
+          const a = entries[i].p
+          const b = entries[j].p
+          let dx = a.x - b.x
+          let dy = a.y - b.y
+          let dz = a.z - b.z
+          const d2 = dx * dx + dy * dy + dz * dz
+          if (d2 >= minSq) continue
+          let d = Math.sqrt(d2)
+          if (d < 0.0001) {
+            // Exactly coincident → deterministic tiny separation seeded by id.
+            dx = ((stableHash(entries[i].id) % 7) - 3) * 0.01
+            dy = ((stableHash(entries[j].id) % 5) - 2) * 0.01
+            dz = 0.01
+            d = MIN_SEP * 0.5
+          }
+          const push = (MIN_SEP - d) * 0.5
+          const nx = (dx / d) * push
+          const ny = (dy / d) * push
+          const nz = (dz / d) * push
+          a.x += nx; a.y += ny; a.z += nz
+          b.x -= nx; b.y -= ny; b.z -= nz
+        }
+      }
+    }
+    entries.forEach(({ id, p, map }) => map.set(id, { x: round2(p.x), y: round2(p.y), z: round2(p.z) }))
+  }
 
   // ── 3. TRACKS — satellites near their parent artist (or genre) ──────────────
   // Positions are built at base (1.0×) scale, then every body is multiplied by

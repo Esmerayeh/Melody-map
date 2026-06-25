@@ -104,7 +104,7 @@ export const IdentityPassportCard = forwardRef(function IdentityPassportCard(
           background: `
             radial-gradient(ellipse at 20% 18%, ${d.archetypeColor}22 0%, transparent 36%),
             radial-gradient(ellipse at 82% 14%, ${d.secondaryColor || d.archetypeColor}14 0%, transparent 30%),
-            radial-gradient(ellipse at 50% 85%, rgba(159,220,255,0.08) 0%, transparent 32%)
+            radial-gradient(ellipse at 50% 85%, rgba(172,98,148,0.08) 0%, transparent 32%)
           `,
         }}
       />
@@ -125,7 +125,7 @@ export const IdentityPassportCard = forwardRef(function IdentityPassportCard(
             </h2>
           </div>
           {d.isDemo && (
-            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-amber-200">
+            <span className="rounded-full border border-[#de83b4]/30 bg-[#de83b4]/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-[#f4e6ee]">
               Demo
             </span>
           )}
@@ -160,7 +160,7 @@ export const IdentityPassportCard = forwardRef(function IdentityPassportCard(
             { label: 'Dominant nebula',  value: d.dominantNebula, color: d.nebulaColor    || '#b59cff' },
             { label: 'Obsession field',  value: d.obsession,      color: d.obsessionColor || '#ffd580' },
             { label: 'Ghost orbit',      value: d.ghostOrbit,     color: '#ccd6ff' },
-            { label: 'Outer rim signal', value: d.outerRim,       color: '#9fdcff' },
+            { label: 'Outer rim signal', value: d.outerRim,       color: '#ac6294' },
           ].filter((f) => f.value).map(({ label, value, color }) => (
             <div key={label} className="flex items-start gap-3 rounded-[16px] border border-white/8 bg-white/3 px-3.5 py-2.5">
               <div className="h-1.5 w-1.5 mt-1.5 shrink-0 rounded-full" style={{ background: color }} />
@@ -173,8 +173,8 @@ export const IdentityPassportCard = forwardRef(function IdentityPassportCard(
         </div>
 
         {/* Auralith line */}
-        <div className="rounded-[16px] border border-[#9fdcff]/14 bg-[#9fdcff]/05 px-3.5 py-3">
-          <p className="text-[10px] uppercase tracking-[0.18em] text-[#9fdcff]/48">Auralith</p>
+        <div className="rounded-[16px] border border-[#ac6294]/14 bg-[#ac6294]/05 px-3.5 py-3">
+          <p className="text-[10px] uppercase tracking-[0.18em] text-[#ac6294]/48">Auralith</p>
           <p className="mt-1 text-sm italic leading-relaxed text-white/72">"{d.auralithLine}"</p>
         </div>
 

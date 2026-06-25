@@ -5,38 +5,38 @@ import { Loader2, RefreshCw, RadioTower, ShieldAlert, Sparkles } from 'lucide-re
 const TONES = {
   loading: {
     kicker: 'system activity',
-    glow: '#ffb35a',
-    accent: '#f6f1e8',
+    glow: '#de83b4',
+    accent: '#ebccdc',
     line: 'Signal layers are coming online in sequence.',
   },
   partial: {
     kicker: 'partial reading',
-    glow: '#e0a35c',
-    accent: '#f6f1e8',
+    glow: '#c1337f',
+    accent: '#ebccdc',
     line: 'The first layer is here. Deeper modules are still resolving.',
   },
   sparse: {
     kicker: 'light profile',
     glow: '#c9a36a',
-    accent: '#f6f1e8',
+    accent: '#ebccdc',
     line: 'A leaner read is available while more signal lands.',
   },
   failed: {
     kicker: 'connection issue',
     glow: '#d9a0a0',
-    accent: '#f6f1e8',
+    accent: '#ebccdc',
     line: 'The shell is still stable, but the data route needs another try.',
   },
   error: {
     kicker: 'connection issue',
     glow: '#d9a0a0',
-    accent: '#f6f1e8',
+    accent: '#ebccdc',
     line: 'The shell is still stable, but the data route needs another try.',
   },
   empty: {
     kicker: 'awaiting signal',
     glow: '#c9b79c',
-    accent: '#f6f1e8',
+    accent: '#ebccdc',
     line: 'You can enter the shell now. Live listening data appears after connect.',
   },
 }

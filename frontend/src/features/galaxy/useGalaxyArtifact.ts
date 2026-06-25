@@ -7,7 +7,7 @@ import { queryKeys } from '../../lib/queryKeys'
 // (e.g. the rank-based popularity fallback). It's part of the idempotency seed, so
 // bumping it busts the server-cached artifact once and forces a fresh rebuild —
 // otherwise an unchanged profile keeps serving the stale pre-change build.
-const BUILD_LOGIC_VERSION = 'v2-rank-popularity'
+const BUILD_LOGIC_VERSION = 'v4-genre-rank'
 
 function buildIdempotencyKey(profile: any) {
   const seed = [

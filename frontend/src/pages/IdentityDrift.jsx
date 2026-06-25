@@ -66,7 +66,7 @@ export default function IdentityDrift() {
             onClick={() => setSelectedRange(option.value)}
             className="touch-target shrink-0 rounded-full border px-4 py-2 text-sm transition-all"
             style={selectedRange === option.value
-              ? { borderColor: 'rgba(224,163,92,0.4)', background: 'rgba(224,163,92,0.16)', color: '#e9ddff' }
+              ? { borderColor: 'rgba(193,19,127,0.4)', background: 'rgba(193,19,127,0.16)', color: '#e9ddff' }
               : { borderColor: 'rgba(255,255,255,0.08)', color: 'rgba(203,213,225,0.8)' }}
           >
             {option.label}
@@ -77,7 +77,7 @@ export default function IdentityDrift() {
       {loading ? (
         <div className="noire-panel rounded-[28px] p-6 text-sm text-slate-400">Reading your timeline...</div>
       ) : error ? (
-        <div className="noire-panel rounded-[28px] p-6 text-sm text-rose-300">{error}</div>
+        <div className="noire-panel rounded-[28px] p-6 text-sm text-[#d15296]">{error}</div>
       ) : (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -104,7 +104,7 @@ export default function IdentityDrift() {
                         <p className="text-sm font-semibold text-white">{snapshot.range}</p>
                         <p className="mt-1 text-xs text-slate-500">{snapshot.archetype || snapshot.aesthetic_label || 'Listening self'}</p>
                       </div>
-                      <p className="text-xs text-sky-300">{snapshot.mbti?.type || snapshot.mbti || 'Soft-signal'}</p>
+                      <p className="text-xs text-[#ac6294]">{snapshot.mbti?.type || snapshot.mbti || 'Soft-signal'}</p>
                     </div>
                     <p className="mt-3 text-sm text-slate-300">
                       Top artists: {(snapshot.top_artists || snapshot.topArtists || []).slice(0, 3).join(', ') || 'No strong anchors yet'}

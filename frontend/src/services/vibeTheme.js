@@ -32,7 +32,7 @@ const VIBES = [
       '--accent-amber':   '#FBBF24',
       '--accent-magenta': '#F97316',
       '--accent-cyan':    '#FCD34D',
-      '--glass-border':   'linear-gradient(135deg, rgba(251,191,36,0.25), rgba(249,115,22,0.15) 50%, rgba(252,211,77,0.08))',
+      '--glass-border':   'linear-gradient(135deg, rgba(222,131,180,0.25), rgba(249,115,22,0.15) 50%, rgba(252,211,77,0.08))',
     },
   },
   {
@@ -107,7 +107,7 @@ const DEFAULT_VARS = {
   '--accent-amber':   '#E0A35C',
   '--accent-magenta': '#C97B7B',
   '--accent-cyan':    '#9FB0C4',
-  '--glass-border':   'linear-gradient(135deg, rgba(242,235,224,0.14), rgba(224,163,92,0.18) 40%, rgba(255,255,255,0.04))',
+  '--glass-border':   'linear-gradient(135deg, rgba(242,235,224,0.14), rgba(193,19,127,0.18) 40%, rgba(255,255,255,0.04))',
 }
 
 /**
@@ -198,7 +198,7 @@ export async function extractPastelPalette(imageUrls = [], count = 5) {
   }
 
   // Fill remaining slots with default pastel colors if needed
-  const defaults = ['#c4b5fd', '#fbcfe8', '#bae6fd', '#bbf7d0', '#fde68a']
+  const defaults = ['#e1a7c6', '#fbcfe8', '#bae6fd', '#bbf7d0', '#fde68a']
   while (colors.length < count) colors.push(defaults[colors.length % defaults.length])
   return colors
 }

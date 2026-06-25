@@ -40,7 +40,7 @@ function DemoBanner() {
       initial={{ opacity: 0, y: -8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={MOTION_TOKENS.panel}
-      className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-amber-200 backdrop-blur"
+      className="pointer-events-none absolute left-1/2 top-4 z-20 -translate-x-1/2 whitespace-nowrap rounded-full border border-[#de83b4]/30 bg-[#de83b4]/10 px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.22em] text-[#f4e6ee] backdrop-blur"
     >
       Demo universe · not your real data
     </motion.div>
@@ -56,7 +56,7 @@ function ConnectCTA() {
       transition={{ ...MOTION_TOKENS.focusSettle, delay: 0.6 }}
       className="relative overflow-hidden rounded-[28px] border border-white/10 bg-[#0a0c1e]/80 p-6 backdrop-blur"
     >
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(224,163,92,0.14),transparent_50%)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_60%_0%,rgba(193,19,127,0.14),transparent_50%)]" />
       <p className="relative z-10 text-xs uppercase tracking-[0.2em] text-gray-500">Ready for your own universe?</p>
       <h3 className="relative z-10 mt-2 text-xl font-black text-white">Connect your Spotify.</h3>
       <p className="relative z-10 mt-2 text-sm leading-relaxed text-gray-400">
@@ -65,7 +65,7 @@ function ConnectCTA() {
       <div className="relative z-10 mt-5 flex flex-wrap gap-3">
         <Link
           to="/login"
-          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#e0a35c] to-[#f0c089] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(224,163,92,0.3)] transition-all hover:opacity-90"
+          className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#c1337f] to-[#e1a7c6] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_24px_rgba(193,19,127,0.3)] transition-all hover:opacity-90"
         >
           <Lock className="h-3.5 w-3.5" />
           Connect Spotify
@@ -177,18 +177,18 @@ export default function Demo() {
       {/* ── Topbar ──────────────────────────────────────────────────────── */}
       <header className="relative z-30 flex items-center justify-between px-6 py-4">
         <Link to="/" className="flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#e0a35c] to-[#c97b7b]">
+          <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-br from-[#c1337f] to-[#d15296]">
             <Disc3 className="h-4 w-4 text-white" />
           </div>
           <span className="text-sm font-bold text-white">Melody Map</span>
         </Link>
         <div className="flex items-center gap-3">
-          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-amber-200">
+          <span className="rounded-full border border-[#de83b4]/30 bg-[#de83b4]/10 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.2em] text-[#f4e6ee]">
             Demo
           </span>
           <Link
             to="/login"
-            className="inline-flex items-center gap-1.5 rounded-full bg-[#e0a35c] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_0_18px_rgba(224,163,92,0.3)] transition-all hover:opacity-90"
+            className="inline-flex items-center gap-1.5 rounded-full bg-[#c1337f] px-4 py-1.5 text-xs font-semibold text-white shadow-[0_0_18px_rgba(193,19,127,0.3)] transition-all hover:opacity-90"
           >
             <Lock className="h-3 w-3" />
             Connect Spotify
@@ -202,7 +202,7 @@ export default function Demo() {
           <AtmosphereBackground variant="galaxy" intensity="rich" anchored />
           <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
             <div className="max-w-2xl">
-              <p className="premium-kicker mb-3 text-amber-300">Demo universe</p>
+              <p className="premium-kicker mb-3 text-[#de83b4]">Demo universe</p>
               <h1 className="premium-hero-title">
                 Your music becomes a living galaxy.
                 <span className="text-gradient-aurora mt-2 block">This is what it looks like.</span>
@@ -216,7 +216,7 @@ export default function Demo() {
               <div className="flex flex-wrap gap-3">
                 <Link
                   to="/login"
-                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#e0a35c] to-[#f0c089] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_28px_rgba(224,163,92,0.28)] transition hover:opacity-90"
+                  className="inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-[#c1337f] to-[#e1a7c6] px-5 py-2.5 text-sm font-semibold text-white shadow-[0_0_28px_rgba(193,19,127,0.28)] transition hover:opacity-90"
                 >
                   <Sparkles className="h-4 w-4" />
                   Connect Spotify — it is free
@@ -315,9 +315,9 @@ export default function Demo() {
           className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4"
         >
           {[
-            { label: 'Music Galaxy',      desc: 'Living 3D taste map',         color: '#e0a35c' },
+            { label: 'Music Galaxy',      desc: 'Living 3D taste map',         color: '#c1337f' },
             { label: 'Soul Orb',          desc: 'Your emotional identity',      color: '#f28ddf' },
-            { label: 'Discover Engine',   desc: 'Comets from the outer rim',    color: '#9fdcff' },
+            { label: 'Discover Engine',   desc: 'Comets from the outer rim',    color: '#ac6294' },
             { label: 'Auralith Oracle',   desc: 'Ask what your music means',    color: '#f1c68a' },
           ].map(({ label, desc, color }) => (
             <Link
@@ -344,7 +344,7 @@ export default function Demo() {
           <button
             type="button"
             onClick={() => setShowPassport(true)}
-            className="flex items-center gap-2 rounded-full border border-[#e0a35c]/28 bg-[#e0a35c]/10 px-5 py-2.5 text-sm text-[#e0a35c]/80 backdrop-blur transition hover:bg-[#e0a35c]/18"
+            className="flex items-center gap-2 rounded-full border border-[#c1337f]/28 bg-[#c1337f]/10 px-5 py-2.5 text-sm text-[#c1337f]/80 backdrop-blur transition hover:bg-[#c1337f]/18"
           >
             View demo universe passport
           </button>

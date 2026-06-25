@@ -17,8 +17,8 @@ import toast from 'react-hot-toast'
 
 function confidenceTone(label) {
   if (label === 'high') return { text: '#86efac', bg: 'rgba(34,197,94,0.12)', border: 'rgba(34,197,94,0.22)' }
-  if (label === 'medium') return { text: '#fcd34d', bg: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.22)' }
-  if (label === 'low') return { text: '#f9a8d4', bg: 'rgba(244,114,182,0.12)', border: 'rgba(244,114,182,0.22)' }
+  if (label === 'medium') return { text: '#e1a7c6', bg: 'rgba(250,204,21,0.12)', border: 'rgba(250,204,21,0.22)' }
+  if (label === 'low') return { text: '#f9a8d4', bg: 'rgba(209,82,150,0.12)', border: 'rgba(209,82,150,0.22)' }
   return { text: '#94a3b8', bg: 'rgba(148,163,184,0.12)', border: 'rgba(148,163,184,0.22)' }
 }
 
@@ -147,7 +147,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
           />
           {/* Soft glow overlay */}
           {isCenter && (
-            <div className="absolute inset-0 bg-gradient-to-t from-amber-900/30 via-transparent to-transparent" />
+            <div className="absolute inset-0 bg-gradient-to-t from-[#9a2d67]/30 via-transparent to-transparent" />
           )}
           {/* Hover overlay */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
@@ -176,7 +176,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
           animate={{ opacity: loaded ? 0.7 : 0 }}
           className="absolute -bottom-5 left-0 right-0 text-center"
         >
-          <span className="text-xs text-gray-500 truncate block px-1">{img.tag}</span>
+          <span className="text-xs text-[#ebccdc]/85 truncate block px-1">{img.tag}</span>
         </motion.div>
       </motion.div>
 
@@ -203,7 +203,7 @@ function FloatingImageCard({ img, index, total, isCenter, springX, springY }) {
                 <div className="flex items-center justify-between mt-1">
                   <p className="text-xs text-white/60">📷 {img.photographer}</p>
                   <a href={img.unsplash_url} target="_blank" rel="noopener noreferrer"
-                    className="text-xs text-amber-300 hover:text-amber-200 flex items-center gap-1">
+                    className="text-xs text-[#de83b4] hover:text-[#f4e6ee] flex items-center gap-1">
                     View on Unsplash <ExternalLink className="w-3 h-3" />
                   </a>
                 </div>
@@ -230,8 +230,8 @@ function ReverieConstellation({ images, palette }) {
     <div className="space-y-6">
       {/* Center cluster */}
       <div>
-        <p className="text-xs text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+        <p className="text-xs text-[#ebccdc]/85 uppercase tracking-widest mb-4 flex items-center gap-2">
+          <span className="w-1.5 h-1.5 rounded-full bg-[#de83b4] inline-block" />
           inner atmosphere
         </p>
         <div className="grid grid-cols-3 gap-4">
@@ -252,8 +252,8 @@ function ReverieConstellation({ images, palette }) {
       {/* Outer orbit */}
       {orbit.length > 0 && (
         <div>
-          <p className="text-xs text-gray-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 inline-block" />
+          <p className="text-xs text-[#ebccdc]/85 uppercase tracking-widest mb-4 flex items-center gap-2">
+            <span className="w-1.5 h-1.5 rounded-full bg-[#de83b4] inline-block" />
             outer drift
           </p>
           <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">
@@ -279,7 +279,7 @@ function ReverieConstellation({ images, palette }) {
             onClick={() => setShowAll(true)}
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
-            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/25 text-amber-300 text-sm font-medium transition-all"
+            className="flex items-center gap-2 px-6 py-3 rounded-xl bg-[#de83b4]/15 hover:bg-[#de83b4]/25 border border-[#de83b4]/25 text-[#de83b4] text-sm font-medium transition-all"
           >
             <ChevronDown className="w-4 h-4" />
             Bring in all {images.length} frames
@@ -328,7 +328,7 @@ function ColorPalette({ palette }) {
               className="w-14 h-14 rounded-2xl ring-2 ring-white/10 group-hover:ring-white/40 transition-all"
               style={{ backgroundColor: color, boxShadow: `0 0 24px ${color}66, 0 0 8px ${color}44` }}
             />
-            <span className="text-xs text-gray-500 font-mono group-hover:text-white transition-colors">
+            <span className="text-xs text-[#ebccdc]/85 font-mono group-hover:text-white transition-colors">
               {copied === color ? 'held close' : color}
             </span>
           </motion.button>
@@ -336,7 +336,7 @@ function ColorPalette({ palette }) {
       </div>
       <button
         onClick={downloadPalette}
-        className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-300 transition-colors mt-1"
+        className="flex items-center gap-1.5 text-xs text-[#ebccdc]/85 hover:text-gray-300 transition-colors mt-1"
       >
         <Download className="w-3.5 h-3.5" /> Keep this palette
       </button>
@@ -357,7 +357,7 @@ function TagPills({ tags }) {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ delay: i * 0.04 }}
           whileHover={{ scale: 1.06 }}
-          className="px-3 py-1.5 rounded-full text-xs font-medium bg-amber-500/12 text-amber-300 border border-amber-500/20 hover:bg-amber-500/25 hover:border-amber-400/40 transition-all flex items-center gap-1"
+          className="px-3 py-1.5 rounded-full text-xs font-medium bg-[#de83b4]/12 text-[#de83b4] border border-[#de83b4]/20 hover:bg-[#de83b4]/25 hover:border-[#de83b4]/40 transition-all flex items-center gap-1"
         >
           {tag}
           <ExternalLink className="w-2.5 h-2.5 opacity-40" />
@@ -375,19 +375,19 @@ function PersonalityCard({ personality }) {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: 0.25 }}
-      className="p-6 rounded-2xl bg-gradient-to-br from-amber-500/10 to-rose-500/10 border border-amber-500/20 backdrop-blur-sm"
+      className="p-6 rounded-2xl bg-[#22121b] border border-[#de83b4]/25 backdrop-blur-sm"
     >
       <div className="flex items-center gap-2 mb-3">
-        <User className="w-4 h-4 text-amber-400" />
+        <User className="w-4 h-4 text-[#de83b4]" />
         <span className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Sonic identity</span>
       </div>
-      <p className="text-xs text-amber-400 font-medium uppercase tracking-widest mb-1">what gathers here</p>
+      <p className="text-xs text-[#de83b4] font-medium uppercase tracking-widest mb-1">what gathers here</p>
       <h3 className="text-2xl font-bold text-white mb-2">{personality.name}</h3>
       <p className="text-gray-300 text-sm leading-relaxed">{personality.description}</p>
       {personality.traits?.length > 0 && (
         <div className="flex gap-2 mt-3 flex-wrap">
           {personality.traits.map((t) => (
-            <span key={t} className="text-xs px-2.5 py-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/20">
+            <span key={t} className="text-xs px-2.5 py-1 rounded-full bg-[#de83b4]/15 text-[#de83b4] border border-[#de83b4]/20">
               {t}
             </span>
           ))}
@@ -404,12 +404,12 @@ function EmptyState({ onGenerate, loading }) {
       <motion.div
         animate={{ rotate: [0, 8, -8, 0], scale: [1, 1.04, 1] }}
         transition={{ duration: 4, repeat: Infinity, ease: 'easeInOut' }}
-        className="w-24 h-24 rounded-3xl bg-gradient-to-br from-amber-500/25 to-amber-600/25 border border-amber-500/20 flex items-center justify-center mb-6"
+        className="w-24 h-24 rounded-3xl bg-gradient-to-br from-[#de83b4]/25 to-[#9a2d67]/25 border border-[#de83b4]/20 flex items-center justify-center mb-6"
       >
-        <Wand2 className="w-10 h-10 text-amber-400" />
+        <Wand2 className="w-10 h-10 text-[#de83b4]" />
       </motion.div>
       <h2 className="text-2xl font-bold text-white mb-2">Find the atmosphere you live in</h2>
-      <p className="text-gray-400 max-w-md mb-8 text-sm leading-relaxed">
+      <p className="text-[#ebccdc] max-w-md mb-8 text-sm leading-relaxed">
         Connect Spotify or Last.fm, then let the visual weather of your listening come into focus.
       </p>
       <motion.button
@@ -417,7 +417,7 @@ function EmptyState({ onGenerate, loading }) {
         disabled={loading}
         whileHover={{ scale: 1.05 }}
         whileTap={{ scale: 0.95 }}
-        className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 text-white font-semibold text-lg shadow-lg shadow-amber-500/30 disabled:opacity-50 disabled:cursor-not-allowed"
+        className="flex items-center gap-2 px-8 py-4 rounded-2xl bg-gradient-to-r from-[#de83b4] to-[#9a2d67] text-white font-semibold text-lg shadow-lg shadow-[#de83b4]/30 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         {loading
           ? <><RefreshCw className="w-5 h-5 animate-spin" /> shaping the atmosphere...</>
@@ -703,13 +703,13 @@ export default function Reverie() {
         </div>
 
         {aesthetic && aestheticStatus !== 'ready' && (
-          <div className="mb-6 text-xs text-amber-300/80">
+          <div className="mb-6 text-xs text-[#de83b4]/80">
             This is a partial Reverie reading. The visual archive will deepen as more listening signal arrives.
           </div>
         )}
 
         {aestheticWarnings?.length > 0 && (
-          <div className="mb-6 text-[11px] uppercase tracking-[0.22em] text-gray-500">
+          <div className="mb-6 text-[11px] uppercase tracking-[0.22em] text-[#ebccdc]/85">
             {aestheticWarnings[0]}
           </div>
         )}
@@ -733,8 +733,10 @@ export default function Reverie() {
                 animate={{ opacity: 1, y: 0 }}
                 className="text-center py-10 px-6 rounded-3xl relative overflow-hidden"
                 style={{
-                  background: `linear-gradient(135deg, ${aesthetic.palette[0]}22, ${aesthetic.palette[2]}22)`,
-                  border: `1px solid ${aesthetic.palette[1]}33`,
+                  // Dark plum base (was a ~13% transparent palette wash that let the
+                  // bright nebula bleed through and wash out the text).
+                  background: `linear-gradient(135deg, ${aesthetic.palette[0]}33 0%, rgba(42,17,24,0.92) 60%)`,
+                  border: `1px solid ${aesthetic.palette[1]}44`,
                 }}
               >
                 {/* Glow orb */}
@@ -742,7 +744,7 @@ export default function Reverie() {
                   className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 rounded-full opacity-10 blur-3xl pointer-events-none"
                   style={{ backgroundColor: aesthetic.palette[2] || '#7209b7' }}
                 />
-                <p className="text-amber-400 text-xs font-semibold uppercase tracking-[0.3em] mb-3 relative z-10">
+                <p className="text-[#de83b4] text-xs font-semibold uppercase tracking-[0.3em] mb-3 relative z-10">
                   your listening atmosphere
                 </p>
                 <motion.h2
@@ -751,10 +753,13 @@ export default function Reverie() {
                   transition={{ delay: 0.1, type: 'spring', stiffness: 100 }}
                   className="text-5xl md:text-6xl font-black tracking-tight mb-5 relative z-10"
                   style={{
-                    background: `linear-gradient(135deg, ${aesthetic.palette[3] || '#f72585'}, ${aesthetic.palette[1] || '#7209b7'}, ${aesthetic.palette[4] || '#4361ee'})`,
+                    // Lift the gradient stops toward light so the title reads on the
+                    // dark panel even when the data palette skews dark; soft glow for pop.
+                    background: `linear-gradient(135deg, #faf5f8, ${aesthetic.palette[3] || '#e1a7c6'}, ${aesthetic.palette[4] || '#d15296'})`,
                     WebkitBackgroundClip: 'text',
                     WebkitTextFillColor: 'transparent',
                     backgroundClip: 'text',
+                    filter: 'drop-shadow(0 2px 10px rgba(0,0,0,0.55))',
                   }}
                 >
                   {aesthetic.aesthetic_name}
@@ -762,7 +767,7 @@ export default function Reverie() {
                 <p className="text-gray-300 text-base max-w-2xl mx-auto italic leading-relaxed relative z-10">
                   "{reverie.caption}"
                 </p>
-                <p className="mt-4 text-xs text-gray-500 relative z-10">
+                <p className="mt-4 text-xs text-[#ebccdc]/85 relative z-10">
                   {reverie.visualWorld} - {reverie.lighting}
                 </p>
               </motion.div>
@@ -775,10 +780,10 @@ export default function Reverie() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
+                  className="p-6 rounded-2xl bg-[#22121b] border border-white/8 backdrop-blur-sm"
                 >
                   <div className="flex items-center gap-2 mb-4">
-                    <Palette className="w-4 h-4 text-amber-400" />
+                    <Palette className="w-4 h-4 text-[#de83b4]" />
                     <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Color weather</h3>
                   </div>
                   <ColorPalette palette={aesthetic.palette} />
@@ -787,17 +792,17 @@ export default function Reverie() {
 
               {/* ── Aesthetic tags ── */}
               <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-white/8 bg-white/3 p-5">
+                <div className="rounded-2xl border border-white/8 bg-[#22121b] p-5">
                   <p className="section-label mb-2">Lighting</p>
-                  <p className="text-sm text-slate-300">{reverie.lighting}</p>
+                  <p className="text-sm text-[#ebccdc]">{reverie.lighting}</p>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/3 p-5">
+                <div className="rounded-2xl border border-white/8 bg-[#22121b] p-5">
                   <p className="section-label mb-2">Textures</p>
-                  <p className="text-sm text-slate-300">{reverie.textures.join(', ')}</p>
+                  <p className="text-sm text-[#ebccdc]">{reverie.textures.join(', ')}</p>
                 </div>
-                <div className="rounded-2xl border border-white/8 bg-white/3 p-5">
+                <div className="rounded-2xl border border-white/8 bg-[#22121b] p-5">
                   <p className="section-label mb-2">Soundtrack anchors</p>
-                  <p className="text-sm text-slate-300">{reverie.soundtrackPairings.join(', ') || 'Spotify anchors still forming'}</p>
+                  <p className="text-sm text-[#ebccdc]">{reverie.soundtrackPairings.join(', ') || 'Spotify anchors still forming'}</p>
                 </div>
               </div>
 
@@ -805,14 +810,14 @@ export default function Reverie() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
+                className="p-6 rounded-2xl bg-[#22121b] border border-white/8 backdrop-blur-sm"
               >
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-amber-400" />
+                    <Sparkles className="w-4 h-4 text-[#de83b4]" />
                     <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Atmosphere markers</h3>
                   </div>
-                  <span className="text-xs text-gray-600">Touch a marker to drift outward</span>
+                  <span className="text-xs text-[#e4d3de]/70">Touch a marker to drift outward</span>
                 </div>
                 <TagPills tags={aesthetic.tags} />
               </motion.div>
@@ -820,27 +825,27 @@ export default function Reverie() {
               <div className="grid gap-4 md:grid-cols-3">
                 <Link
                   to={`/discover${aesthetic.tags?.[0] ? `?q=${encodeURIComponent(aesthetic.tags[0])}` : ''}`}
-                  className="rounded-2xl border border-white/8 bg-white/3 p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
+                  className="rounded-2xl border border-white/8 bg-[#22121b] p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
                 >
                   <p className="section-label mb-2">Drift from here</p>
                   <p className="text-sm font-semibold text-white">Let this atmosphere pull in new signals</p>
-                  <p className="mt-2 text-xs text-slate-500">Carry its strongest marker into Discover and see what wanders back.</p>
+                  <p className="mt-2 text-xs text-[#e4d3de]/78">Carry its strongest marker into Discover and see what wanders back.</p>
                 </Link>
                 <Link
                   to={`/universe?mode=genre${aesthetic.tags?.[0] ? `&q=${encodeURIComponent(aesthetic.tags[0])}` : ''}`}
-                  className="rounded-2xl border border-white/8 bg-white/3 p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
+                  className="rounded-2xl border border-white/8 bg-[#22121b] p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
                 >
                   <p className="section-label mb-2">See where it lives</p>
                   <p className="text-sm font-semibold text-white">Open this mood inside the galaxy</p>
-                  <p className="mt-2 text-xs text-slate-500">Move from palette and texture into the regions and voices holding them.</p>
+                  <p className="mt-2 text-xs text-[#e4d3de]/78">Move from palette and texture into the regions and voices holding them.</p>
                 </Link>
                 <Link
                   to={`/auralith?mode=concept&prompt=${encodeURIComponent(aesthetic?.vibe_description || aesthetic?.aesthetic_name || 'soft-focus memory')}`}
-                  className="rounded-2xl border border-white/8 bg-white/3 p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
+                  className="rounded-2xl border border-white/8 bg-[#22121b] p-5 transition-all hover:border-brand-purple/25 hover:bg-white/[0.05]"
                 >
                   <p className="section-label mb-2">Send it to Auralith</p>
                   <p className="text-sm font-semibold text-white">Turn this atmosphere into language or sequence</p>
-                  <p className="mt-2 text-xs text-slate-500">Let the mood become a prompt while it still feels close.</p>
+                  <p className="mt-2 text-xs text-[#e4d3de]/78">Let the mood become a prompt while it still feels close.</p>
                 </Link>
               </div>
 
@@ -855,11 +860,11 @@ export default function Reverie() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.22 }}
-                    className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
+                    className="p-6 rounded-2xl bg-[#22121b] border border-white/8 backdrop-blur-sm"
                   >
                     <div className="flex items-center justify-between gap-3 mb-4">
                       <div className="flex items-center gap-2">
-                        <Sparkles className="w-4 h-4 text-amber-400" />
+                        <Sparkles className="w-4 h-4 text-[#de83b4]" />
                         <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">Why this exists</h3>
                       </div>
                       <span
@@ -876,10 +881,10 @@ export default function Reverie() {
                       {reverie.why[0] || aesthetic?.explanation || 'The atmosphere is still forming, but the outline of its gravity is visible.'}
                     </p>
                     {reverie.why.slice(1, 4).map((line) => (
-                      <p key={line} className="mt-2 text-xs text-gray-500 leading-relaxed">{line}</p>
+                      <p key={line} className="mt-2 text-xs text-[#ebccdc]/85 leading-relaxed">{line}</p>
                     ))}
                     {aesthetic.blendExplanation && (
-                      <p className="text-xs text-gray-500 leading-relaxed">{aesthetic.blendExplanation}</p>
+                      <p className="text-xs text-[#ebccdc]/85 leading-relaxed">{aesthetic.blendExplanation}</p>
                     )}
                   </motion.div>
 
@@ -887,30 +892,30 @@ export default function Reverie() {
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: 0.24 }}
-                    className="p-6 rounded-2xl bg-white/3 border border-white/8 backdrop-blur-sm"
+                    className="p-6 rounded-2xl bg-[#22121b] border border-white/8 backdrop-blur-sm"
                   >
                     <div className="flex items-center gap-2 mb-4">
-                      <Sparkles className="w-4 h-4 text-amber-400" />
+                      <Sparkles className="w-4 h-4 text-[#de83b4]" />
                       <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-wider">What shaped it</h3>
                     </div>
                     <div className="space-y-3 text-sm text-gray-300">
                       {aesthetic.supportingSignals?.genreEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Visual atmospheres:</span> {aesthetic.supportingSignals.genreEvidence.join(', ')}</p>
+                        <p><span className="text-[#ebccdc]/85">Visual atmospheres:</span> {aesthetic.supportingSignals.genreEvidence.join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.artistEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Voices:</span> {aesthetic.supportingSignals.artistEvidence.join(', ')}</p>
+                        <p><span className="text-[#ebccdc]/85">Voices:</span> {aesthetic.supportingSignals.artistEvidence.join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.audioEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Signal:</span> {aesthetic.supportingSignals.audioEvidence.join(' - ')}</p>
+                        <p><span className="text-[#ebccdc]/85">Signal:</span> {aesthetic.supportingSignals.audioEvidence.join(' - ')}</p>
                       )}
                       {aesthetic.eraInfluence?.dominant?.length > 0 && (
-                        <p><span className="text-gray-500">Era pull:</span> {aesthetic.eraInfluence.dominant.map((item) => item.era).join(', ')}</p>
+                        <p><span className="text-[#ebccdc]/85">Era pull:</span> {aesthetic.eraInfluence.dominant.map((item) => item.era).join(', ')}</p>
                       )}
                       {aesthetic.supportingSignals?.discoveryEvidence?.length > 0 && (
-                        <p><span className="text-gray-500">Discovery drift:</span> {aesthetic.supportingSignals.discoveryEvidence.join(', ')}</p>
+                        <p><span className="text-[#ebccdc]/85">Discovery drift:</span> {aesthetic.supportingSignals.discoveryEvidence.join(', ')}</p>
                       )}
                       {!hasSupportingSignals && (
-                        <p className="text-gray-500">The atmosphere is still forming. Give the signal another pass and we will surface the strongest influences.</p>
+                        <p className="text-[#ebccdc]/85">The atmosphere is still forming. Give the signal another pass and we will surface the strongest influences.</p>
                       )}
                     </div>
                   </motion.div>
@@ -933,7 +938,7 @@ export default function Reverie() {
 
                 {activeTab === 'board' && (
                   <>
-                    <p className="text-xs text-gray-600 mb-4">move gently — the board leans with you</p>
+                    <p className="text-xs text-[#e4d3de]/70 mb-4">move gently — the board leans with you</p>
                     <ReverieConstellation images={aesthetic.images || []} palette={aesthetic.palette} />
                   </>
                 )}
@@ -946,7 +951,7 @@ export default function Reverie() {
                       </div>
                     )}
                     {!pinterestLoading && pinterestPins?.length === 0 && (
-                      <p className="text-gray-500 text-sm text-center py-12">nothing surfaced there yet -- try shaping Reverie again.</p>
+                      <p className="text-[#ebccdc]/85 text-sm text-center py-12">nothing surfaced there yet -- try shaping Reverie again.</p>
                     )}
                     {!pinterestLoading && pinterestPins?.length > 0 && (
                       <div className="columns-2 md:columns-3 lg:columns-4 gap-3 space-y-3">

@@ -143,7 +143,7 @@ export default function GenesisSequence({
             exit={{ opacity: 0, transition: { duration: 1.2, ease: [0.22, 1, 0.36, 1] } }}
             className="pointer-events-none fixed inset-0 z-[200] flex flex-col items-center justify-center overflow-hidden"
             style={{
-              background: 'radial-gradient(ellipse at 50% 44%, rgba(9,8,22,0.92) 0%, rgba(3,4,11,0.98) 70%)',
+              background: 'radial-gradient(ellipse at 50% 44%, rgba(48,23,37,0.92) 0%, rgba(18,10,16,0.98) 70%)',
             }}
           >
             {/* Phase: spark — Soul Orb tiny seed */}
@@ -159,8 +159,8 @@ export default function GenesisSequence({
                   <div
                     className="h-5 w-5 rounded-full"
                     style={{
-                      background: 'radial-gradient(circle, #f9f4ff 0%, #b59cff 40%, #8f75ff 70%, transparent 100%)',
-                      boxShadow: '0 0 28px 12px rgba(181,156,255,0.55), 0 0 80px 36px rgba(143,117,255,0.22)',
+                      background: 'radial-gradient(circle, #fff3fb 0%, #d15296 40%, #c1337f 70%, transparent 100%)',
+                      boxShadow: '0 0 28px 12px rgba(209,82,150,0.55), 0 0 80px 36px rgba(172,98,148,0.24)',
                     }}
                   />
                 </motion.div>
@@ -178,10 +178,10 @@ export default function GenesisSequence({
                   transition={{ duration: 0.9, ease: [0.22, 1, 0.36, 1] }}
                   className="absolute bottom-[28%] left-1/2 -translate-x-1/2 text-center"
                 >
-                  <p className="text-[10px] uppercase tracking-[0.32em] text-[#b59cff]/60">
+                  <p className="text-[10px] uppercase tracking-[0.32em] text-[#e1a7c6]/70">
                     {isDemo ? 'demo universe' : 'your universe'}
                   </p>
-                  <p className="mt-2 text-xl font-black text-white/88">
+                  <p className="mt-2 text-xl font-black text-[#faf5f8]/90">
                     {phaseIndex <= 3 ? 'gathering signal…' :
                      phaseIndex <= 4 ? 'nebulae forming…' :
                      phaseIndex <= 5 ? 'artist stars igniting…' :
@@ -201,10 +201,10 @@ export default function GenesisSequence({
                   transition={{ duration: 1.0, ease: [0.22, 1, 0.36, 1] }}
                   className="absolute bottom-[18%] left-1/2 max-w-md -translate-x-1/2 px-6 text-center"
                 >
-                  <p className="text-sm italic leading-relaxed text-[#9fdcff]/80">
+                  <p className="text-sm italic leading-relaxed text-[#ebccdc]/85">
                     "{auralithLine}"
                   </p>
-                  <p className="mt-2 text-[10px] uppercase tracking-[0.24em] text-[#b59cff]/50">
+                  <p className="mt-2 text-[10px] uppercase tracking-[0.24em] text-[#c28fb2]/60">
                     Auralith
                   </p>
                 </motion.div>
@@ -219,7 +219,7 @@ export default function GenesisSequence({
               whileHover={{ opacity: 0.9 }}
               transition={{ duration: 0.4 }}
               onClick={skip}
-              className="absolute bottom-6 right-6 pointer-events-auto rounded-full border border-white/14 bg-white/5 px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-white/60 backdrop-blur"
+              className="absolute bottom-6 right-6 pointer-events-auto rounded-full border border-[#c1337f]/30 bg-[#301725]/55 px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-[#ebccdc]/80 backdrop-blur"
             >
               Skip
             </motion.button>

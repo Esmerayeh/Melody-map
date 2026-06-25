@@ -6,15 +6,15 @@ import MusicSourceCard from '../components/MusicSourceCard'
 import useStore from '../store/useStore'
 
 const MOODS = [
-  { id: 'happy',       label: '☀️ Radiant Joy',       desc: 'Upbeat & luminous',       color: 'from-yellow-500/20 to-orange-500/20 border-yellow-500/30' },
-  { id: 'sad',         label: '🌧 Velvet Ache',        desc: 'Melancholic & slow',      color: 'from-blue-500/20 to-indigo-500/20 border-blue-500/30' },
-  { id: 'energetic',   label: '⚡ Neon Kinetic',       desc: 'High voltage & fast',     color: 'from-red-500/20 to-pink-500/20 border-red-500/30' },
-  { id: 'calm',        label: '🌊 Coastal Drift',      desc: 'Peaceful & acoustic',     color: 'from-teal-500/20 to-cyan-500/20 border-teal-500/30' },
-  { id: 'dreamy',      label: '✨ Liminal Reverie',    desc: 'Ethereal & atmospheric',  color: 'from-purple-500/20 to-indigo-500/20 border-purple-500/30' },
-  { id: 'melancholic', label: '🌑 Midnight Obsidian',  desc: 'Bittersweet & shadowed',  color: 'from-slate-500/20 to-blue-500/20 border-slate-500/30' },
-  { id: 'nostalgic',   label: '🎞 Golden Nostalgia',   desc: 'Warm & reminiscent',      color: 'from-amber-500/20 to-yellow-500/20 border-amber-500/30' },
-  { id: 'focus',       label: '🎯 Deep Signal',        desc: 'Flow state & precision',  color: 'from-green-500/20 to-emerald-500/20 border-green-500/30' },
-  { id: 'party',       label: '🎉 High-Octane Euphoria', desc: 'Dance & electric',      color: 'from-pink-500/20 to-rose-500/20 border-pink-500/30' },
+  { id: 'happy',       label: '☀️ Radiant Joy',       desc: 'Upbeat & luminous',       color: 'from-[#de83b4]/20 to-[#de83b4]/20 border-[#de83b4]/30' },
+  { id: 'sad',         label: '🌧 Velvet Ache',        desc: 'Melancholic & slow',      color: 'from-[#ac6294]/20 to-[#ac6294]/20 border-[#ac6294]/30' },
+  { id: 'energetic',   label: '⚡ Neon Kinetic',       desc: 'High voltage & fast',     color: 'from-red-500/20 to-[#d15296]/20 border-red-500/30' },
+  { id: 'calm',        label: '🌊 Coastal Drift',      desc: 'Peaceful & acoustic',     color: 'from-[#ac6294]/20 to-[#ac6294]/20 border-[#ac6294]/30' },
+  { id: 'dreamy',      label: '✨ Liminal Reverie',    desc: 'Ethereal & atmospheric',  color: 'from-purple-500/20 to-[#ac6294]/20 border-purple-500/30' },
+  { id: 'melancholic', label: '🌑 Midnight Obsidian',  desc: 'Bittersweet & shadowed',  color: 'from-slate-500/20 to-[#ac6294]/20 border-slate-500/30' },
+  { id: 'nostalgic',   label: '🎞 Golden Nostalgia',   desc: 'Warm & reminiscent',      color: 'from-[#de83b4]/20 to-[#de83b4]/20 border-[#de83b4]/30' },
+  { id: 'focus',       label: '🎯 Deep Signal',        desc: 'Flow state & precision',  color: 'from-[#ac6294]/20 to-[#ac6294]/20 border-[#ac6294]/30' },
+  { id: 'party',       label: '🎉 High-Octane Euphoria', desc: 'Dance & electric',      color: 'from-[#d15296]/20 to-[#d15296]/20 border-[#d15296]/30' },
 ]
 
 // Demo fallback songs per mood
@@ -24,7 +24,7 @@ const DEMO = {
   energetic: [{ _id:'e1', title:'Alive', artist:'Pearl Jam', audio_features:{energy:0.80,valence:0.50} }],
 }
 
-const FeatureBar = ({ label, value, color = 'bg-indigo-500' }) => (
+const FeatureBar = ({ label, value, color = 'bg-[#ac6294]' }) => (
   <div className="flex items-center gap-2 text-xs">
     <span className="text-gray-500 w-12 shrink-0">{label}</span>
     <div className="flex-1 h-1.5 bg-white/5 rounded-full overflow-hidden">
@@ -49,12 +49,12 @@ function SongCard({ song, index, liked, onLike }) {
         <p className="text-xs text-gray-400 truncate">{song.artist}</p>
       </div>
       <div className="hidden sm:flex flex-col gap-1 w-28 shrink-0">
-        <FeatureBar label="Energy" value={song.audio_features?.energy}  color="bg-pink-500" />
-        <FeatureBar label="Mood"   value={song.audio_features?.valence} color="bg-indigo-500" />
+        <FeatureBar label="Energy" value={song.audio_features?.energy}  color="bg-[#d15296]" />
+        <FeatureBar label="Mood"   value={song.audio_features?.valence} color="bg-[#ac6294]" />
       </div>
       <button onClick={() => onLike(song._id)}
         className="p-1.5 rounded-lg hover:bg-white/10 transition-all shrink-0">
-        <Heart className={`w-4 h-4 transition-colors ${liked ? 'text-pink-400 fill-pink-400' : 'text-gray-600 group-hover:text-pink-400'}`} />
+        <Heart className={`w-4 h-4 transition-colors ${liked ? 'text-[#d15296] fill-[#d15296]' : 'text-gray-600 group-hover:text-[#d15296]'}`} />
       </button>
     </div>
   )
@@ -135,7 +135,7 @@ export default function Playlists() {
         {MOODS.map((m) => (
           <button key={m.id} onClick={() => setMood(m.id)}
             className={`p-3 rounded-xl border text-left transition-all bg-gradient-to-br ${m.color} ${
-              mood === m.id ? 'ring-2 ring-indigo-500 scale-[1.02]' : 'hover:scale-[1.01]'
+              mood === m.id ? 'ring-2 ring-[#ac6294] scale-[1.02]' : 'hover:scale-[1.01]'
             }`}>
             <div className="font-medium text-sm">{m.label}</div>
             <div className="text-gray-400 text-xs mt-0.5 hidden sm:block">{m.desc}</div>
@@ -145,7 +145,7 @@ export default function Playlists() {
 
       {/* Generate */}
       <button onClick={handleGenerate} disabled={!mood || isPending}
-        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl font-semibold hover:from-indigo-500 hover:to-purple-500 transition-all shadow-lg shadow-indigo-500/25 disabled:opacity-50 mb-8">
+        className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-[#613854] to-purple-600 rounded-xl font-semibold hover:from-[#ac6294] hover:to-purple-500 transition-all shadow-lg shadow-[#ac6294]/25 disabled:opacity-50 mb-8">
         {isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
         {isPending ? 'Generating...' : 'Generate Playlist'}
       </button>
@@ -164,7 +164,7 @@ export default function Playlists() {
                 <Download className="w-3.5 h-3.5" /> Export
               </button>
               <button onClick={handleSave} disabled={saved}
-                className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600/20 hover:bg-indigo-600/30 border border-indigo-500/30 rounded-lg text-sm text-indigo-300 transition-all disabled:opacity-60">
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-[#613854]/20 hover:bg-[#613854]/30 border border-[#ac6294]/30 rounded-lg text-sm text-[#ac6294] transition-all disabled:opacity-60">
                 {saved ? <CheckCircle className="w-3.5 h-3.5" /> : <Save className="w-3.5 h-3.5" />}
                 {saved ? 'Saved' : 'Save'}
               </button>
